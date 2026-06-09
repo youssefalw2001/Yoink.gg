@@ -3,11 +3,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { WalletButton } from "@/components/ui/WalletButton";
 import { ProgressStrip } from "@/components/ui/XPBar";
 import { YoinkIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
-import {
-  BagIcon,
-  ThroneSeatIcon,
-  RakeIcon,
-} from "@/components/ui/BrandIcons";
+import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
 import type { PlayerProgress } from "@/lib/progression";
@@ -21,13 +17,20 @@ interface HeaderProps {
   progress: PlayerProgress;
 }
 
-// Nav items use brand icons instead of generic lucide icons
-const NAV: { id: Page; label: string; Icon: React.ComponentType<{ size?: number; color?: string; className?: string }> }[] = [
-  { id: "game",        label: "The Bag",      Icon: BagIcon },
-  { id: "leaderboard", label: "Hall of Kings", Icon: ThroneSeatIcon },
-  { id: "shop",        label: "Armory",        Icon: RakeIcon },
+// Nav uses animated brand icons — draw on mount, re-draw on active change
+const NAV = [
+  { id: "game"        as const, label: "The Bag",      icon: "bag"         as const },
+  { id: "leaderboard" as const, label: "Hall of Kings", icon: "throne"      as const },
+  { id: "shop"        as const, label: "Armory",        icon: "rake"        as const },
 ];
 
+interface HeaderProps {
+  page: Page;
+  onNavigate: (page: Page) => void;
+  progress: PlayerProgress;
+}
+
+// Nav items use brand icons instead of generic lucide icons
 export function Header({ page, onNavigate, progress }: HeaderProps) {
   const [muted, setMuted] = useState(() => getVolume() === 0);
 
@@ -64,9 +67,9 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
             <YoinkWordmark size="md" />
           </button>
 
-          {/* desktop nav — brand icons, visible md+ */}
+          {/* desktop nav */}
           <nav className="ml-4 hidden items-center gap-1 md:flex">
-            {NAV.map(({ id, label, Icon }) => {
+            {NAV.map(({ id, label, icon }) => {
               const active = page === id;
               return (
                 <button
@@ -85,7 +88,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
                       transition={{ type: "spring", stiffness: 420, damping: 34 }}
                     />
                   )}
-                  <Icon size={16} color={active ? "#FFD700" : "currentColor"} />
+                  <AnimatedNavIcon name={icon} size={16} active={active} />
                   {label}
                 </button>
               );
@@ -122,7 +125,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
         {/* ── bottom nav strip — ALWAYS visible, all screen sizes ── */}
         <div className="border-t border-white/[0.05] bg-[rgba(8,8,15,0.6)]">
           <div className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 py-1.5 no-scrollbar sm:px-6">
-            {NAV.map(({ id, label, Icon }) => {
+            {NAV.map(({ id, label, icon }) => {
               const active = page === id;
               return (
                 <button
@@ -141,7 +144,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
                       transition={{ type: "spring", stiffness: 420, damping: 34 }}
                     />
                   )}
-                  <Icon size={16} color={active ? "#FFD700" : "currentColor"} />
+                  <AnimatedNavIcon name={icon} size={16} active={active} />
                   <span>{label}</span>
                 </button>
               );
