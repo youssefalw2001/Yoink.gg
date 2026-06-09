@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Users } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { YoinkLogoStack } from "@/components/ui/YoinkLogo";
+import { AnimatedLogo } from "@/components/ui/AnimatedLogo";
 import { RoundLiveBanner } from "@/components/ui/Banners";
 import { GAME_CONFIG } from "@/lib/types";
 
@@ -27,14 +27,8 @@ export function LobbyScreen({ playerCount, bagAmount, roundNumber }: LobbyScreen
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center gap-2 text-center"
       >
-        {/* Brand logo stack — replaces the spinning loader */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 300, damping: 24 }}
-        >
-          <YoinkLogoStack size={160} showTagline />
-        </motion.div>
+        {/* Animated Crown-Dagger logo draws itself on mount via Anime.js v4 */}
+        <AnimatedLogo size={160} />
 
         <h2 className="font-display text-2xl font-black tracking-tight">
           <span className="gold-text-gradient">Round #{roundNumber}</span>
@@ -43,7 +37,7 @@ export function LobbyScreen({ playerCount, bagAmount, roundNumber }: LobbyScreen
           Waiting for players to join…
         </p>
 
-        {/* Live announcement banner */}
+        {/* Live bag announcement strip */}
         <div className="w-full">
           <RoundLiveBanner bagAmount={bagAmount} />
         </div>

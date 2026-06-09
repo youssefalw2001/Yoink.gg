@@ -89,6 +89,7 @@ export function XPBar({ progress, compact = false, className }: XPBarProps) {
 // ─── Level-Up Toast ───────────────────────────────────────────────────────────
 
 import type { LevelUpEvent } from "@/hooks/usePlayerProgress";
+import { RankMorph } from "./RankMorph";
 
 interface LevelUpToastProps {
   events: LevelUpEvent[];
@@ -124,12 +125,15 @@ export function LevelUpToast({ events }: LevelUpToastProps) {
                 aria-hidden
               />
               <div
-                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden"
                 style={{ background: `${rank.color}22`, border: `1px solid ${rank.color}44` }}
               >
-                <span className="font-display text-lg font-black" style={{ color: rank.color }}>
-                  {ev.newLevel}
-                </span>
+                {/* Anime.js morphTo animates the rank shape on level-up */}
+                <RankMorph
+                  fromLevel={ev.oldLevel}
+                  toLevel={ev.newLevel}
+                  size={36}
+                />
               </div>
               <div className="flex flex-col">
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate">
