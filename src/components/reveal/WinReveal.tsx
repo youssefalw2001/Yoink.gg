@@ -4,6 +4,7 @@ import gsap from "gsap";
 import { Twitter, RotateCcw, X } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { WinCrownArt, WinTrophy, WinBagArt } from "@/components/ui/WinArt";
+import { WinShareBanner } from "@/components/ui/Banners";
 import { formatSol, truncateAddress } from "@/lib/utils";
 
 interface WinRevealProps {
@@ -219,6 +220,16 @@ export function WinReveal({
                 <Twitter className="h-4 w-4 text-[#1d9bf0]" aria-hidden />
                 Share on X
               </a>
+
+              {/* Share card preview — exactly what gets shared */}
+              <div className="w-full overflow-hidden rounded-xl border border-white/[0.06]">
+                <WinShareBanner
+                  wallet={isYou ? "You" : (winner ?? "")}
+                  solWon={count}
+                  round={round}
+                  isYou={isYou}
+                />
+              </div>
               <motion.button
                 type="button"
                 onClick={onPlayAgain}
