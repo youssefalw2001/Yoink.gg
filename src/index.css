@@ -414,18 +414,24 @@ body::after {
   display: inline-flex;
   white-space: nowrap;
   will-change: transform;
-  animation: ticker 38s linear infinite;
+  /* Longer duration = smoother feel. translateX(-50%) because content is doubled exactly. */
+  animation: ticker 48s linear infinite;
 }
 @keyframes ticker {
-  from {
+  0% {
     transform: translateX(0);
   }
-  to {
+  100% {
     transform: translateX(-50%);
   }
 }
+/* Pause on hover so users can read a wallet address */
 .ticker-mask:hover .ticker-track {
   animation-play-state: paused;
+}
+/* Never restart the animation when new items are appended */
+.ticker-track {
+  animation-fill-mode: none;
 }
 
 /* ============================================================
