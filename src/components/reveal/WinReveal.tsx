@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import gsap from "gsap";
 import { Twitter, RotateCcw, X } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { AIBanner } from "@/components/ui/AIImage";
 import { WinCrownArt, WinTrophy, WinBagArt } from "@/components/ui/WinArt";
 import { WinShareBanner } from "@/components/ui/Banners";
+import { generateWinRevealArt } from "@/lib/puterAI";
 import { formatSol, truncateAddress } from "@/lib/utils";
 
 interface WinRevealProps {
@@ -122,6 +124,12 @@ export function WinReveal({
 
   const title = isYou ? "YOU WON" : "KING CROWNED";
 
+  // Stable generate fn — only recreated when isYou/amount changes
+  const genWinArt = useCallback(
+    () => generateWinRevealArt(amount, isYou),
+    [amount, isYou],
+  );
+
   return (
     <AnimatePresence>
       {open && (
@@ -140,6 +148,16 @@ export function WinReveal({
           aria-modal="true"
           aria-label="Round result"
         >
+          {/* AI-generated background art — Puter.js, zero cost to developer */}
+          <AIBanner
+            generate={genWinArt}
+            alt="Win reveal background"
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            fallback={<div className="h-full w-full" />}
+          />
+          {/* Dark overlay so text stays readable over the AI image */}
+          <div className="pointer-events-none absolute inset-0 bg-[rgba(8,8,15,0.75)]" aria-hidden />
+
           {/* coin rain layer */}
           <div
             ref={coinLayer}
