@@ -152,7 +152,12 @@ export default function App() {
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
               className="px-4 py-10 sm:px-6"
             >
-              <Leaderboard entries={leaderboard} />
+              <Leaderboard
+                entries={leaderboard}
+                bagAmount={state.bagAmount}
+                playerCount={state.playerCount}
+                roundNumber={state.roundNumber}
+              />
             </motion.div>
           ) : (
             <motion.div

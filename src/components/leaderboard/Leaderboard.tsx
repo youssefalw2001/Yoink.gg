@@ -1,10 +1,16 @@
 import { motion } from "framer-motion";
-import { Trophy, Crown } from "lucide-react";
+import { Trophy, Crown, Share2 } from "lucide-react";
+import { useSpring, animated } from "@react-spring/web";
 import type { LeaderboardEntry } from "@/lib/types";
 import { formatSol, truncateAddress, cn } from "@/lib/utils";
+import { HeroBanner, RankShareBanner } from "@/components/ui/Banners";
+import { useState } from "react";
 
 interface LeaderboardProps {
   entries: LeaderboardEntry[];
+  bagAmount?: number;
+  playerCount?: number;
+  roundNumber?: number;
 }
 
 function rankColor(rank: number): string | undefined {
@@ -16,16 +22,52 @@ function rankColor(rank: number): string | undefined {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
+    month: "short", day: "2-digit", year: "numeric",
   });
 }
 
-export function Leaderboard({ entries }: LeaderboardProps) {
+/** Animated number that counts up when it first appears */
+function AnimatedSol({ value }: { value: number }) {
+  const { val } = useSpring({
+    from: { val: 0 },
+    to:   { val: value },
+    config: { tension: 120, friction: 20, precision: 0.001 },
+    delay: 200,
+  });
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      <div className="mb-6 flex flex-col items-center gap-2 text-center">
+    <animated.span>
+      {val.to((v) => formatSol(v))}
+    </animated.span>
+  );
+}
+
+export function Leaderboard({
+  entries,
+  bagAmount = 12.5,
+  playerCount = 247,
+  roundNumber = 1847,
+}: LeaderboardProps) {
+  const [shareTarget, setShareTarget] = useState<LeaderboardEntry | null>(null);
+
+  return (
+    <div className="mx-auto w-full max-w-4xl space-y-8">
+
+      {/* Hero OG banner — makes it feel like a real product page */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden rounded-2xl border border-white/[0.06]"
+      >
+        <HeroBanner
+          bagAmount={bagAmount}
+          playerCount={playerCount}
+          roundNumber={roundNumber}
+        />
+      </motion.div>
+
+      {/* Header */}
+      <div className="flex flex-col items-center gap-2 text-center">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gold/30 bg-gold/10">
           <Trophy className="h-6 w-6 text-gold" aria-hidden />
         </span>
@@ -37,18 +79,45 @@ export function Leaderboard({ entries }: LeaderboardProps) {
         </p>
       </div>
 
+      {/* Rank share card — shown when user clicks share */}
+      {shareTarget && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+          className="overflow-hidden rounded-2xl border border-white/[0.06]"
+        >
+          <RankShareBanner
+            level={shareTarget.rank <= 3 ? shareTarget.rank : 4}
+            wallet={shareTarget.isYou ? "You" : shareTarget.wallet}
+            totalYoinks={shareTarget.rank * 7}
+            totalSolWon={shareTarget.solWon}
+          />
+          <div className="flex justify-end gap-2 border-t border-white/[0.06] bg-white/[0.02] px-4 py-2">
+            <button
+              type="button"
+              onClick={() => setShareTarget(null)}
+              className="font-mono text-xs text-dim hover:text-white transition-colors"
+            >
+              close
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Table */}
       <div className="premium-card overflow-hidden">
         {/* header row */}
-        <div className="grid grid-cols-[44px_1fr_auto] gap-3 border-b border-white/[0.06] px-4 py-3 sm:grid-cols-[56px_1fr_120px_120px_100px] sm:px-6">
-          {["#", "King", "Won", "Date", "Round"].map((h, i) => (
+        <div className="grid grid-cols-[44px_1fr_auto] gap-3 border-b border-white/[0.06] px-4 py-3 sm:grid-cols-[56px_1fr_120px_120px_100px_40px] sm:px-6">
+          {["#", "King", "Won", "Date", "Round", ""].map((h, i) => (
             <span
-              key={h}
+              key={h + i}
               className={cn(
                 "font-mono text-[10px] uppercase tracking-[0.2em] text-slate",
                 i === 2 && "text-right sm:text-left",
                 (i === 3 || i === 4) && "hidden sm:block",
-                i === 3 && "text-left",
-                i === 4 && "text-right",
+                i === 5 && "hidden sm:block",
               )}
             >
               {h}
@@ -71,7 +140,7 @@ export function Leaderboard({ entries }: LeaderboardProps) {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cn(
-                  "grid grid-cols-[44px_1fr_auto] items-center gap-3 border-b border-white/[0.04] px-4 py-3.5 transition-colors duration-200 hover:bg-white/[0.03] sm:grid-cols-[56px_1fr_120px_120px_100px] sm:px-6",
+                  "grid grid-cols-[44px_1fr_auto] items-center gap-3 border-b border-white/[0.04] px-4 py-3.5 transition-colors duration-200 hover:bg-white/[0.03] sm:grid-cols-[56px_1fr_120px_120px_100px_40px] sm:px-6",
                   e.isYou && "bg-gold/[0.06]",
                 )}
               >
@@ -80,10 +149,7 @@ export function Leaderboard({ entries }: LeaderboardProps) {
                   {e.rank <= 3 ? (
                     <span
                       className="flex h-7 w-7 items-center justify-center rounded-lg border"
-                      style={{
-                        borderColor: `${color}55`,
-                        background: `${color}1a`,
-                      }}
+                      style={{ borderColor: `${color}55`, background: `${color}1a` }}
                     >
                       <Crown className="h-3.5 w-3.5" style={{ color }} aria-hidden />
                     </span>
@@ -107,12 +173,10 @@ export function Leaderboard({ entries }: LeaderboardProps) {
                   )}
                 </span>
 
-                {/* won */}
+                {/* won — animated count-up */}
                 <span className="text-right font-mono text-sm font-bold tabular-nums text-gold sm:text-left">
-                  {formatSol(e.solWon)}
-                  <span className="ml-1 hidden text-[10px] text-gold/50 sm:inline">
-                    SOL
-                  </span>
+                  <AnimatedSol value={e.solWon} />
+                  <span className="ml-1 hidden text-[10px] text-gold/50 sm:inline">SOL</span>
                 </span>
 
                 {/* date */}
@@ -123,6 +187,18 @@ export function Leaderboard({ entries }: LeaderboardProps) {
                 {/* round */}
                 <span className="hidden text-right font-mono text-xs text-slate sm:block">
                   #{e.round}
+                </span>
+
+                {/* share button */}
+                <span className="hidden sm:flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShareTarget(e)}
+                    className="text-dim hover:text-gold transition-colors duration-200 p-1 rounded"
+                    aria-label={`Share ${e.isYou ? "your" : "this"} result`}
+                  >
+                    <Share2 className="h-3.5 w-3.5" aria-hidden />
+                  </button>
                 </span>
               </motion.div>
             );
