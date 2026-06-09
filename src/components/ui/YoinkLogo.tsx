@@ -16,7 +16,7 @@
  *   YoinkLogo        — icon + wordmark side by side
  *   YoinkLogoStack   — stacked hero version
  *
- * Old export VoidEyeIcon kept as alias → SnatchIcon for backwards compat.
+ * VoidEyeIcon kept as alias → SnatchIcon for backwards compat.
  */
 
 interface IconProps {
@@ -38,15 +38,14 @@ const COLORS = {
 // ─── SnatchIcon ───────────────────────────────────────────────────────────────
 // The mark: a downward-reaching three-finger snatch.
 // Built from 4 smooth cubic-bezier paths — one per finger + palm arc.
-// Total path count is intentionally low so createDrawable() feels instant.
+// Total path count intentionally low so createDrawable() feels instant.
 //
 // Coordinate system: 100×100 viewBox, scaled by consumer.
-// Key points (all in 100×100 space):
-//   Palm centre:   (50, 18)
-//   Index tip:     (27, 82)
-//   Middle tip:    (50, 90)
-//   Ring tip:      (73, 82)
-//   Thumb stub:    (18, 38)
+// Key points (100×100 space):
+//   Palm centre: (50, 18)
+//   Index tip:   (27, 82)
+//   Middle tip:  (50, 90)
+//   Ring tip:    (73, 82)
 //
 // The Y negative space lives between the three finger roots at ~(50, 52).
 
@@ -56,10 +55,9 @@ export function SnatchIcon({
   variant = "gold",
   pulse = false,
 }: IconProps) {
-  const c = COLORS[variant];
-  const gradId   = `sg-${variant}-${size}`;
-  const glowId   = `sgg-${variant}-${size}`;
-  const shadowId = `sgs-${size}`;
+  const c       = COLORS[variant];
+  const gradId  = `sg-${variant}-${size}`;
+  const glowId  = `sgg-${variant}-${size}`;
 
   return (
     <svg
@@ -69,110 +67,57 @@ export function SnatchIcon({
       fill="none"
       className={className}
       aria-label="YOINK.GG"
-      style={pulse ? { willChange: "transform", animation: "border-breathe 2.4s ease-in-out infinite" } : undefined}
+      style={
+        pulse
+          ? { willChange: "transform", animation: "border-breathe 2.4s ease-in-out infinite" }
+          : undefined
+      }
     >
       <defs>
-        {/* Gold → blood vertical gradient — top of palm warm, fingertips hot */}
+        {/* Gold → blood vertical gradient */}
         <linearGradient id={gradId} x1="50" y1="10" x2="50" y2="92" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor={c.top} />
           <stop offset="55%"  stopColor={c.mid} />
           <stop offset="100%" stopColor={c.tip} />
         </linearGradient>
-
-        {/* Outer glow — radial, centred on palm */}
+        {/* Radial glow halo behind mark */}
         <radialGradient id={glowId} cx="50%" cy="25%" r="55%">
           <stop offset="0%"   stopColor={c.mid} stopOpacity="0.35" />
           <stop offset="100%" stopColor={c.mid} stopOpacity="0"    />
         </radialGradient>
-
-        {/* Drop shadow filter for hero sizes */}
-        <filter id={shadowId} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2.5" result="b" />
-          <feComposite in="SourceGraphic" in2="b" operator="over" />
-        </filter>
       </defs>
 
-      {/* Glow halo — always behind the mark */}
+      {/* Glow halo */}
       <ellipse cx="50" cy="30" rx="38" ry="32" fill={`url(#${glowId})`} />
 
-      {/*
-        THE SNATCH MARK — 4 paths:
-        ① Index finger — sweeps left, curves down, sharp tip
-        ② Middle finger — tallest, straight drop, dominant
-        ③ Ring finger — mirrors index, sweeps right
-        ④ Palm arc — connects all three bases, the "Y" lives here
-      */}
-
-      {/* ① Index finger */}
+      {/* ① Index finger — sweeps left, sharp tip */}
       <path
-        d="
-          M 38 22
-          C 33 22, 27 28, 25 38
-          C 23 48, 24 62, 27 82
-          C 27.5 85, 30 87, 32 86
-          C 34 85, 35 83, 35 80
-          C 34 65, 34 52, 36 44
-          C 38 36, 41 30, 41 26
-          C 41 23, 40 22, 38 22
-          Z
-        "
+        d="M 38 22 C 33 22,27 28,25 38 C 23 48,24 62,27 82 C 27.5 85,30 87,32 86 C 34 85,35 83,35 80 C 34 65,34 52,36 44 C 38 36,41 30,41 26 C 41 23,40 22,38 22 Z"
         fill={`url(#${gradId})`}
       />
 
-      {/* ② Middle finger — longest */}
+      {/* ② Middle finger — tallest, dominant */}
       <path
-        d="
-          M 50 14
-          C 46 14, 43 18, 43 24
-          C 43 34, 44 52, 46 72
-          C 47 80, 48 88, 50 90
-          C 52 88, 53 80, 54 72
-          C 56 52, 57 34, 57 24
-          C 57 18, 54 14, 50 14
-          Z
-        "
+        d="M 50 14 C 46 14,43 18,43 24 C 43 34,44 52,46 72 C 47 80,48 88,50 90 C 52 88,53 80,54 72 C 56 52,57 34,57 24 C 57 18,54 14,50 14 Z"
         fill={`url(#${gradId})`}
       />
 
-      {/* ③ Ring finger */}
+      {/* ③ Ring finger — mirrors index */}
       <path
-        d="
-          M 62 22
-          C 60 22, 59 23, 59 26
-          C 59 30, 62 36, 64 44
-          C 66 52, 66 65, 65 80
-          C 65 83, 66 85, 68 86
-          C 70 87, 72.5 85, 73 82
-          C 76 62, 77 48, 75 38
-          C 73 28, 67 22, 62 22
-          Z
-        "
+        d="M 62 22 C 60 22,59 23,59 26 C 59 30,62 36,64 44 C 66 52,66 65,65 80 C 65 83,66 85,68 86 C 70 87,72.5 85,73 82 C 76 62,77 48,75 38 C 73 28,67 22,62 22 Z"
         fill={`url(#${gradId})`}
       />
 
-      {/* ④ Palm arc — bridges the three fingers at their bases.
-              The concave dip in the centre IS the Y negative space.
-              strokeLinejoin round keeps it smooth at any size.        */}
+      {/* ④ Palm arc — bridges three finger bases. Concave dip = Y negative space */}
       <path
-        d="
-          M 26 34
-          C 26 28, 31 20, 38 18
-          C 42 16, 45 15, 50 14
-          C 55 15, 58 16, 62 18
-          C 69 20, 74 28, 74 34
-          C 70 32, 66 28, 62 27
-          C 58 26, 55 26, 50 26
-          C 45 26, 42 26, 38 27
-          C 34 28, 30 32, 26 34
-          Z
-        "
+        d="M 26 34 C 26 28,31 20,38 18 C 42 16,45 15,50 14 C 55 15,58 16,62 18 C 69 20,74 28,74 34 C 70 32,66 28,62 27 C 58 26,55 26,50 26 C 45 26,42 26,38 27 C 34 28,30 32,26 34 Z"
         fill={`url(#${gradId})`}
         opacity="0.72"
       />
 
-      {/* Highlight streak on middle finger — white glint, GPU cheap */}
+      {/* Highlight glint on middle finger */}
       <path
-        d="M 49 18 C 49 24, 49 36, 49 52"
+        d="M 49 18 C 49 24,49 36,49 52"
         stroke="rgba(255,255,255,0.28)"
         strokeWidth="1.5"
         strokeLinecap="round"
@@ -184,7 +129,7 @@ export function SnatchIcon({
 // Backwards-compat alias — Header and other files import VoidEyeIcon
 export const VoidEyeIcon = SnatchIcon;
 
-// ─── YoinkWordmark — HTML-based (no SVG text, no gradient ID conflicts) ───────
+// ─── YoinkWordmark ────────────────────────────────────────────────────────────
 interface WordmarkProps {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
@@ -233,7 +178,9 @@ interface LogoProps {
 }
 
 const LOGO_ICON_PX: Record<string, number> = { sm: 26, md: 34, lg: 46, xl: 62 };
-const LOGO_WM_SIZE: Record<string, WordmarkProps["size"]> = { sm: "sm", md: "md", lg: "lg", xl: "xl" };
+const LOGO_WM_SIZE: Record<string, WordmarkProps["size"]> = {
+  sm: "sm", md: "md", lg: "lg", xl: "xl",
+};
 
 export function YoinkLogo({
   size = "md",

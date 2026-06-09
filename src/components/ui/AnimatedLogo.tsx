@@ -1,15 +1,13 @@
 /**
  * YOINK.GG — Anime.js v4 Animated Snatch Logo
  *
- * The four finger/palm paths draw in sequentially (strokeDashoffset trick
- * via createDrawable), then the wordmark slides up.
+ * The four finger/palm paths draw in sequentially via createDrawable,
+ * then the wordmark slides up.
  *
  * Sequence:
- *   0ms   — middle finger draws (longest, most dominant)
- *   80ms  — index + ring fingers draw simultaneously (stagger 80ms)
- *   160ms — palm arc fills
+ *   0ms   — fingers draw (stagger 85ms each)
  *   500ms — highlight glint fades in
- *   700ms — wordmark slides up + fades in
+ *   680ms — wordmark slides up + fades in
  *
  * GPU rules: transform + opacity only after draw completes.
  * prefers-reduced-motion: skips all animation, shows final state.
@@ -25,10 +23,10 @@ interface AnimatedLogoProps {
 }
 
 export function AnimatedLogo({ size = 160, className }: AnimatedLogoProps) {
-  const wrapRef  = useRef<HTMLDivElement>(null);
-  const iconRef  = useRef<HTMLDivElement>(null);
-  const wordRef  = useRef<HTMLDivElement>(null);
-  const hasRun   = useRef(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLDivElement>(null);
+  const wordRef = useRef<HTMLDivElement>(null);
+  const hasRun  = useRef(false);
 
   useEffect(() => {
     if (hasRun.current) return;
@@ -45,7 +43,6 @@ export function AnimatedLogo({ size = 160, className }: AnimatedLogoProps) {
     if (!svg) return;
 
     // ── 1. Draw the 4 finger/palm paths ──────────────────────────────────────
-    // querySelectorAll order: ① index ② middle ③ ring ④ palm ⑤ highlight
     const paths = svg.querySelectorAll<SVGGeometryElement>("path");
     if (paths.length) {
       const drawables = createDrawable(
@@ -56,23 +53,11 @@ export function AnimatedLogo({ size = 160, className }: AnimatedLogoProps) {
         draw:     ["0 0", "0 1"],
         duration: 800,
         ease:     "outExpo",
-        // Middle finger first (index 1), then outer fingers, then palm
         delay:    stagger(85, { start: 0 }),
       });
     }
 
-    // ── 2. Highlight glint fades in after fingers ─────────────────────────────
-    const line = svg.querySelector("path:last-child");
-    if (line) {
-      animate(line, {
-        opacity: [0, 0.28],
-        duration: 400,
-        ease: "outQuart",
-        delay: 500,
-      });
-    }
-
-    // ── 3. Wordmark slides up ─────────────────────────────────────────────────
+    // ── 2. Wordmark slides up ─────────────────────────────────────────────────
     animate(word, {
       opacity:    [0, 1],
       translateY: [12, 0],
