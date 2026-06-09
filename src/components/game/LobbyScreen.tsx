@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
-import { Users, Loader } from "lucide-react";
+import { Users } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { YoinkLogoStack } from "@/components/ui/YoinkLogo";
+import { RoundLiveBanner } from "@/components/ui/Banners";
 import { GAME_CONFIG } from "@/lib/types";
 
 interface LobbyScreenProps {
@@ -25,30 +27,26 @@ export function LobbyScreen({ playerCount, bagAmount, roundNumber }: LobbyScreen
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center gap-2 text-center"
       >
-        {/* spinning crown / loader */}
-        <div className="relative mb-2 flex h-16 w-16 items-center justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, ease: "linear", repeat: Infinity }}
-            className="absolute inset-0 rounded-full"
-            style={{
-              background:
-                "conic-gradient(from 0deg, rgba(255,215,0,0.8), rgba(112,0,255,0.4), rgba(255,215,0,0.8))",
-              willChange: "transform",
-            }}
-            aria-hidden
-          />
-          <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-void">
-            <Loader className="h-5 w-5 text-gold" aria-hidden />
-          </span>
-        </div>
+        {/* Brand logo stack — replaces the spinning loader */}
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 24 }}
+        >
+          <YoinkLogoStack size={160} showTagline />
+        </motion.div>
 
-        <h2 className="font-display text-3xl font-black tracking-tight">
+        <h2 className="font-display text-2xl font-black tracking-tight">
           <span className="gold-text-gradient">Round #{roundNumber}</span>
         </h2>
         <p className="font-mono text-sm text-slate">
           Waiting for players to join…
         </p>
+
+        {/* Live announcement banner */}
+        <div className="w-full">
+          <RoundLiveBanner bagAmount={bagAmount} />
+        </div>
       </motion.div>
 
       <SpotlightCard
