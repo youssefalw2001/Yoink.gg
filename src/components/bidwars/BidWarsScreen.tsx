@@ -13,12 +13,13 @@
  */
 
 import { motion } from "framer-motion";
-import { Swords, Lock, RotateCcw, Twitter } from "lucide-react";
+import { Swords, RotateCcw, Twitter } from "lucide-react";
 import { CountdownRing } from "@/components/game/CountdownRing";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { BidKingCard } from "./BidKingCard";
 import { BidInput } from "./BidInput";
 import { BidLeaderboard } from "./BidLeaderboard";
+import { BidWarsSpectate } from "./BidWarsSpectate";
 import { useBidWarsState, BID_CONFIG } from "@/lib/bidWarsState";
 import { formatSol } from "@/lib/utils";
 import type { PlayerProgress } from "@/lib/progression";
@@ -37,56 +38,13 @@ export function BidWarsScreen({ progress }: BidWarsScreenProps) {
   const iAmLeader = state.leader?.isYou ?? false;
   const critical  = state.countdown <= 5 && !state.isRoundOver;
 
-  // ── Locked state ────────────────────────────────────────────────────────────
+  // ── Locked → spectate mode ──────────────────────────────────────────────────
   if (isLocked) {
     return (
-      <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-6 px-4 py-20 text-center">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 300, damping: 24 }}
-          className="flex h-20 w-20 items-center justify-center rounded-2xl border border-blood/30 bg-blood/10"
-        >
-          <Lock className="h-9 w-9 text-blood" aria-hidden />
-        </motion.div>
-
-        <div className="flex flex-col gap-2">
-          <h2 className="font-display text-3xl font-black tracking-tight">
-            <span className="text-white">WOLVES </span>
-            <span style={{ color: "#FF2200" }}>ONLY</span>
-          </h2>
-          <p className="font-mono text-sm text-slate">
-            Bid Wars is locked until you reach <span className="text-gold font-bold">Warlord (Rank 6)</span>.
-          </p>
-          <p className="font-mono text-xs text-dim mt-1">
-            You are currently Rank {progress.level} — {progress.rankName}
-          </p>
-        </div>
-
-        <SpotlightCard
-          spotlightColor="rgba(255,34,0,0.15)"
-          radius={260}
-          className="premium-card w-full max-w-sm rounded-[24px]"
-        >
-          <div className="flex flex-col gap-3 px-5 py-5">
-            <p className="font-mono text-xs text-slate text-center">
-              Earn XP by playing the main game to unlock Bid Wars.
-            </p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.min((progress.level / BID_CONFIG.REQUIRED_RANK) * 100, 100)}%`,
-                  background: "linear-gradient(90deg, #FF2200, #FF5533)",
-                }}
-              />
-            </div>
-            <span className="font-mono text-[10px] text-dim text-center">
-              {progress.level} / {BID_CONFIG.REQUIRED_RANK} ranks
-            </span>
-          </div>
-        </SpotlightCard>
-      </div>
+      <BidWarsSpectate
+        progress={progress}
+        requiredRank={BID_CONFIG.REQUIRED_RANK}
+      />
     );
   }
 
