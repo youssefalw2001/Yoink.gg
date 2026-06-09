@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { KingAvatar } from "@/components/ui/KingAvatar";
+import { KingCardShader } from "@/components/ui/KingCardShader";
+import { AnimatedKingAvatar } from "@/components/ui/AnimatedKingAvatar";
 import { truncateAddress } from "@/lib/utils";
 
 interface KingCardProps {
@@ -46,24 +47,24 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
           initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: [0.85, 1.04, 1] }}
           exit={{ opacity: 0, scale: 0.9 }}
-          transition={{
-            duration: 0.4,
-            ease: [0.34, 1.56, 0.64, 1],
-            opacity: { duration: 0.3 },
-          }}
+          transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1], opacity: { duration: 0.3 } }}
           className="w-full"
         >
           <SpotlightCard
             spotlightColor={spotColor}
             radius={280}
-            className="glow-border premium-card w-full overflow-hidden rounded-[24px]"
+            className="glow-border premium-card relative w-full overflow-hidden rounded-[24px]"
           >
-            <div
-              className="relative px-6 py-6"
-              style={critical ? { borderColor: "rgba(255,34,0,0.25)" } : undefined}
-            >
+            {/* OGL WebGL vortex shader — rendered on GPU behind content */}
+            <KingCardShader
+              isYou={isYou}
+              critical={critical}
+              kingKey={key}
+            />
+
+            <div className="relative px-6 py-6">
               <div className="relative z-10 flex flex-col items-center gap-3">
-                {/* King badge pill */}
+                {/* King badge */}
                 <span className="flex items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-3 py-1">
                   <Crown className="h-3.5 w-3.5 text-gold" aria-hidden />
                   <span className="font-display text-[11px] font-bold uppercase tracking-[0.2em] text-gold">
@@ -71,7 +72,7 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
                   </span>
                 </span>
 
-                {/* ── Avatar — unique deterministic face per wallet ── */}
+                {/* Animated avatar — face parts reveal sequentially via anime.js timeline */}
                 <motion.div
                   key={`avatar-${key}`}
                   initial={{ scale: 0.7, opacity: 0 }}
@@ -79,12 +80,27 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
                   transition={{ type: "spring", stiffness: 380, damping: 24 }}
                   className="relative"
                 >
-                  <KingAvatar
-                    wallet={isYou ? "You" : king}
-                    size={88}
-                    isKing
-                    critical={critical}
-                  />
+                  <div
+                    className="rounded-2xl overflow-hidden border-2 shadow-lg"
+                    style={{
+                      width: 88, height: 88,
+                      borderColor: critical
+                        ? "rgba(255,34,0,0.4)"
+                        : isYou ? "rgba(255,215,0,0.4)"
+                        : "rgba(112,0,255,0.4)",
+                      boxShadow: critical
+                        ? "0 0 20px rgba(255,34,0,0.3)"
+                        : isYou ? "0 0 20px rgba(255,215,0,0.3)"
+                        : "0 0 20px rgba(112,0,255,0.3)",
+                    }}
+                  >
+                    <AnimatedKingAvatar
+                      wallet={isYou ? "You" : king}
+                      size={88}
+                      isKing
+                      critical={critical}
+                    />
+                  </div>
                 </motion.div>
 
                 {/* Wallet + hold time */}
@@ -105,10 +121,7 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
               </div>
 
               {/* flame particles */}
-              <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-12"
-                aria-hidden
-              >
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12" aria-hidden>
                 {FLAMES.map((f, i) => (
                   <span
                     key={i}
@@ -117,9 +130,7 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
                       left: f.left,
                       animationDelay: f.delay,
                       animationDuration: f.dur,
-                      background: critical
-                        ? "linear-gradient(to top, #b81700, #ff2200)"
-                        : undefined,
+                      background: critical ? "linear-gradient(to top, #b81700, #ff2200)" : undefined,
                     }}
                   />
                 ))}
