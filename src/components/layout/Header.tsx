@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Volume2, VolumeX } from "lucide-react";
 import { WalletButton } from "@/components/ui/WalletButton";
 import { ProgressStrip } from "@/components/ui/XPBar";
+import { PuterStatus } from "@/components/ui/PuterStatus";
 import { YoinkIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
 import {
   BagIcon,
@@ -95,11 +96,12 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
           {/* spacer pushes right cluster to the right */}
           <div className="flex-1" />
 
-          {/* right cluster */}
+          {/* right cluster: XP + AI status + mute + wallet */}
           <div className="flex shrink-0 items-center gap-2">
             <div className="hidden sm:block">
               <ProgressStrip progress={progress} />
             </div>
+            <PuterStatus />
 
             <motion.button
               type="button"
