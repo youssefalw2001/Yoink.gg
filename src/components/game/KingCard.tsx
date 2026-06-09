@@ -1,0 +1,120 @@
+import { AnimatePresence, motion } from "framer-motion";
+import { Crown } from "lucide-react";
+import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { truncateAddress } from "@/lib/utils";
+
+interface KingCardProps {
+  king: string;
+  isYou: boolean;
+  heldFor: number;
+  critical: boolean;
+}
+
+const FLAMES = [
+  { left: "18%", delay: "0s", dur: "2.2s" },
+  { left: "36%", delay: "0.5s", dur: "2.6s" },
+  { left: "50%", delay: "0.2s", dur: "2.0s" },
+  { left: "64%", delay: "0.7s", dur: "2.4s" },
+  { left: "82%", delay: "0.35s", dur: "2.8s" },
+];
+
+export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
+  const key = `${king}-${isYou}`;
+
+  // Spotlight colour shifts to blood when critical
+  const spotColor = critical
+    ? "rgba(255, 34, 0, 0.20)"
+    : isYou
+      ? "rgba(255, 215, 0, 0.16)"
+      : "rgba(112, 0, 255, 0.20)";
+
+  return (
+    <div className="relative mx-auto flex w-full max-w-sm items-center justify-center">
+      <AnimatePresence mode="popLayout">
+        {/* shockwave ring — remounts on each new king */}
+        <motion.span
+          key={`shock-${key}`}
+          initial={{ scale: 0, opacity: 0.8 }}
+          animate={{ scale: 3, opacity: 0 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none absolute h-28 w-28 rounded-full border border-gold/60"
+          aria-hidden
+        />
+
+        <motion.div
+          key={key}
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: [0.85, 1.04, 1] }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          transition={{
+            duration: 0.4,
+            ease: [0.34, 1.56, 0.64, 1],
+            opacity: { duration: 0.3 },
+          }}
+          className="w-full"
+        >
+          {/*
+           * SpotlightCard wraps the premium-card.
+           * The Aceternity mouse-radial-mask sits INSIDE the rounded boundary,
+           * so it correctly illuminates only this card's surface.
+           */}
+          <SpotlightCard
+            spotlightColor={spotColor}
+            radius={280}
+            className="glow-border premium-card w-full overflow-hidden rounded-[24px]"
+          >
+            <div
+              className="relative px-6 py-6"
+              style={critical ? { borderColor: "rgba(255,34,0,0.25)" } : undefined}
+            >
+              <div className="relative z-10 flex flex-col items-center gap-3">
+                <span className="flex items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-3 py-1">
+                  <Crown className="h-3.5 w-3.5 text-gold" aria-hidden />
+                  <span className="font-display text-[11px] font-bold uppercase tracking-[0.2em] text-gold">
+                    The King
+                  </span>
+                </span>
+
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-mono text-lg font-bold text-white sm:text-xl">
+                    {isYou ? "You" : truncateAddress(king, 4, 4)}
+                  </span>
+                  <span className="font-mono text-xs text-slate">
+                    holds the bag · {heldFor}s
+                  </span>
+                </div>
+
+                {isYou && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald">
+                    defend the throne
+                  </span>
+                )}
+              </div>
+
+              {/* flame particles */}
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-12"
+                aria-hidden
+              >
+                {FLAMES.map((f, i) => (
+                  <span
+                    key={i}
+                    className="flame"
+                    style={{
+                      left: f.left,
+                      animationDelay: f.delay,
+                      animationDuration: f.dur,
+                      background: critical
+                        ? "linear-gradient(to top, #b81700, #ff2200)"
+                        : undefined,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </SpotlightCard>
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
