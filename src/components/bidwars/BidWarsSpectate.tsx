@@ -29,7 +29,7 @@ import {
 import { CountdownRing } from "@/components/game/CountdownRing";
 import { AnimatedKingAvatar } from "@/components/ui/AnimatedKingAvatar";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { useBidWarsState, BID_CONFIG, type BidEvent, type Bidder } from "@/lib/bidWarsState";
+import { useBidWarsState, type BidEvent, type Bidder } from "@/lib/bidWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import type { PlayerProgress } from "@/lib/progression";
 
