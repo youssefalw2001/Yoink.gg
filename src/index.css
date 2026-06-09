@@ -1,0 +1,552 @@
+@import "tailwindcss";
+
+/* ============================================================
+   YOINK.GG — THE KING'S BAG · DESIGN SYSTEM
+   ============================================================ */
+
+@theme {
+  /* ---- Palette ---- */
+  --color-void: #08080f;
+  --color-void-soft: #0d0d18;
+  --color-gold: #ffd700;
+  --color-gold-soft: #ffe566;
+  --color-gold-deep: #ff9900;
+  --color-blood: #ff2200;
+  --color-phantom: #7000ff;
+  --color-indigo: #4400cc;
+  --color-emerald: #00e676;
+  --color-slate: #8892a4;
+  --color-dim: #3a3f4f;
+
+  /* ---- Fonts ---- */
+  --font-display: "Orbitron", sans-serif;
+  --font-sans: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* ---- Radii ---- */
+  --radius-card: 24px;
+  --radius-chip: 999px;
+
+  /* ---- Easing ---- */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ============================================================
+   GLOBAL RESET + BASE
+   ============================================================ */
+
+* {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-void);
+  color: #eef1f6;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ---- Breathing Aurora Pools (pure CSS, perpetual) ---- */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      40% 50% at 18% 16%,
+      rgba(112, 0, 255, 0.28),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 55% at 84% 88%,
+      rgba(255, 215, 0, 0.16),
+      transparent 70%
+    );
+  will-change: transform, opacity;
+  animation: aurora-breathe 22s var(--ease-smooth) infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      38% 48% at 70% 22%,
+      rgba(68, 0, 204, 0.22),
+      transparent 70%
+    ),
+    radial-gradient(
+      42% 52% at 26% 80%,
+      rgba(255, 153, 0, 0.12),
+      transparent 70%
+    );
+  will-change: transform, opacity;
+  animation: aurora-drift 28s ease-in-out infinite;
+}
+
+@keyframes aurora-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(2%, 3%, 0) scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+    opacity: 0.95;
+  }
+}
+
+/* ---- Vignette ---- */
+.scene-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 100% at 50% 50%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* ---- Scanlines ---- */
+.scene-scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.03) 0px,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  opacity: 1;
+}
+
+/* Critical red edge vignette for endgame */
+.scene-danger {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    120% 100% at 50% 50%,
+    transparent 50%,
+    rgba(255, 34, 0, 0.06) 100%
+  );
+  transition: opacity 400ms var(--ease-smooth);
+}
+.scene-danger[data-active="true"] {
+  opacity: 1;
+  animation: danger-pulse 1s ease-in-out infinite;
+}
+
+@keyframes danger-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   TYPOGRAPHY HELPERS
+   ============================================================ */
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.gold-text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-gold-soft) 0%,
+    var(--color-gold) 45%,
+    var(--color-gold-deep) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Shimmer text — animates background-position only (cheap) */
+.shimmer-text {
+  background: linear-gradient(
+    100deg,
+    var(--color-gold-deep) 0%,
+    var(--color-gold) 30%,
+    var(--color-gold-soft) 50%,
+    var(--color-gold) 70%,
+    var(--color-gold-deep) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  will-change: background-position;
+  animation: shimmer 2.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* ============================================================
+   COMPONENT CLASSES
+   ============================================================ */
+
+.premium-card {
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.02)
+    ),
+    rgba(8, 10, 17, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Gold button — static box-shadow, pulse via ::after opacity */
+.gold-button {
+  position: relative;
+  isolation: isolate;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #1a1206;
+  background: linear-gradient(
+    180deg,
+    var(--color-gold-soft),
+    var(--color-gold) 55%,
+    var(--color-gold-deep)
+  );
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow:
+    0 10px 30px rgba(255, 153, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition:
+    transform 150ms var(--ease-spring),
+    filter 200ms ease;
+}
+.gold-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: -1;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.5);
+  opacity: 0;
+  will-change: opacity;
+  animation: pulse-ring 1.8s ease-in-out infinite;
+}
+@keyframes pulse-ring {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Blood / critical variant */
+.gold-button[data-critical="true"] {
+  color: #fff;
+  background: linear-gradient(180deg, #ff5533, var(--color-blood) 55%, #b81700);
+  box-shadow:
+    0 10px 30px rgba(255, 34, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.gold-button[data-critical="true"]::after {
+  box-shadow: 0 0 0 2px rgba(255, 34, 0, 0.7);
+  animation-duration: 0.6s;
+}
+
+/* Trust chip */
+.trust-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-slate);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-chip);
+}
+
+/* Glowing border wrapper (Aceternity-style) — opacity animated only */
+.glow-border {
+  position: relative;
+}
+.glow-border::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    130deg,
+    rgba(255, 215, 0, 0.6),
+    rgba(112, 0, 255, 0.5),
+    transparent 60%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.6;
+  will-change: opacity;
+  animation: border-breathe 4s ease-in-out infinite;
+}
+@keyframes border-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* ---- Utility: hide scrollbar ---- */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Live blink dot ---- */
+.blink-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-emerald);
+}
+.blink-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px 2px rgba(0, 230, 118, 0.7);
+  opacity: 0.5;
+  will-change: opacity, transform;
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.15);
+  }
+}
+
+/* ============================================================
+   TICKER
+   ============================================================ */
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: ticker 38s linear infinite;
+}
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-mask:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+/* ============================================================
+   FLAME PARTICLES (king card)
+   ============================================================ */
+.flame {
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50% 50% 40% 40%;
+  background: linear-gradient(to top, var(--color-gold-deep), var(--color-gold));
+  filter: none;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: flame-rise 2.2s ease-in-out infinite;
+}
+@keyframes flame-rise {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-46px) scale(0.2);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   COUNTDOWN GLITCH (last 5s)
+   ============================================================ */
+.glitch {
+  position: relative;
+  will-change: transform;
+  animation: glitch-shift 0.45s steps(2, end) infinite;
+}
+@keyframes glitch-shift {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-1px, 1px);
+  }
+  50% {
+    transform: translate(1px, -1px);
+  }
+  75% {
+    transform: translate(-1px, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* ============================================================
+   METEOR FALL (Aceternity meteors port)
+   GPU-only: transform + opacity
+   ============================================================ */
+@keyframes meteor-fall {
+  0% {
+    transform: translateX(0) translateY(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateX(-600px) translateY(600px);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   FOCUS / INTERACTION
+   ============================================================ */
+button,
+a,
+[role="button"],
+input,
+select {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   RESPONSIVE: hide scanlines + grain on mobile
+   ============================================================ */
+@media (max-width: 640px) {
+  .scene-scanlines {
+    display: none;
+  }
+}
+
+/* ============================================================
+   REDUCED MOTION — disable EVERYTHING
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  body::before,
+  body::after,
+  .shimmer-text,
+  .flame,
+  .glow-border::after,
+  .blink-dot::after,
+  .ticker-track,
+  .gold-button::after {
+    animation: none !important;
+  }
+}
