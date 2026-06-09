@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Volume2, VolumeX } from "lucide-react";
 import { WalletButton } from "@/components/ui/WalletButton";
 import { ProgressStrip } from "@/components/ui/XPBar";
-import { YoinkIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
+import { VoidEyeIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
             className="flex shrink-0 items-center gap-2.5"
             aria-label="YOINK.GG home"
           >
-            <YoinkIcon size={32} variant="gold" glow />
+            <VoidEyeIcon size={32} variant="gold" pulse />
             <YoinkWordmark size="md" />
           </button>
 

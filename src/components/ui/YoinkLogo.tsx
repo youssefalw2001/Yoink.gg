@@ -1,302 +1,264 @@
 /**
- * YOINK.GG — Complete Brand Identity SVG System
+ * YOINK.GG — Void Eye Brand Identity
  *
- * YoinkIcon      — Crown-Dagger standalone mark (favicon / avatar / small)
- * YoinkWordmark  — Full YOINK.GG text treatment
- * YoinkLogo      — Icon + Wordmark combined (horizontal)
- * YoinkLogoStack — Icon + Wordmark stacked (vertical, hero use)
+ * Concept: A single hexagonal eye with a gold coin for a pupil.
+ * The eye = watching the timer, waiting to strike.
+ * The hexagon = blockchain-native, web3.
+ * The coin pupil = money, greed, crypto.
+ * The slit = danger, focus, predatory instinct.
  *
- * Design brief:
- *   Icon: Crown where the lower spires become downward daggers.
- *         The shape reads as both a crown (king) and a claw (yoink/steal).
- *   Wordmark: Orbitron 900, YOINK in white, .GG in gold gradient.
- *             The dot • in .GG is a small gold coin ◎.
- *   Tagline: "The Most Dangerous 30 Seconds in Crypto."
- *
- * All sizes via the `size` prop. All inline SVG — zero deps.
+ * Variants:
+ *   VoidEyeIcon   — standalone mark (favicon / header / avatar)
+ *   YoinkWordmark — YOINK in white + .GG in gold (HTML, not SVG text)
+ *   YoinkLogo     — icon + wordmark side by side
+ *   YoinkLogoStack— stacked hero version
  */
 
 interface IconProps {
   size?: number;
   className?: string;
-  /** "gold" (default) | "white" | "blood" | "phantom" */
-  variant?: "gold" | "white" | "blood" | "phantom";
-  /** Show animated glow ring */
-  glow?: boolean;
+  /** "gold" | "phantom" | "blood" | "white" */
+  variant?: "gold" | "phantom" | "blood" | "white";
+  /** Animate the pupil with a slow pulse */
+  pulse?: boolean;
 }
 
-// ─── Colour maps ──────────────────────────────────────────────────────────────
-const VARIANT_COLORS = {
-  gold:    { fill: "#FFD700", accent: "#FFE566", deep: "#FF9900", shadow: "rgba(255,215,0,0.5)" },
-  white:   { fill: "#FFFFFF", accent: "#E0E0E0", deep: "#BDBDBD", shadow: "rgba(255,255,255,0.4)" },
-  blood:   { fill: "#FF2200", accent: "#FF5533", deep: "#B81700", shadow: "rgba(255,34,0,0.5)" },
-  phantom: { fill: "#7000FF", accent: "#9B40FF", deep: "#4400CC", shadow: "rgba(112,0,255,0.5)" },
+const COLORS = {
+  gold:    { hex: "#FFD700", soft: "#FFE566", deep: "#FF9900", pupil: "#FF9900" },
+  phantom: { hex: "#7000FF", soft: "#9B40FF", deep: "#4400CC", pupil: "#7000FF" },
+  blood:   { hex: "#FF2200", soft: "#FF5533", deep: "#B81700", pupil: "#FF2200" },
+  white:   { hex: "#FFFFFF", soft: "#E0E0E0", deep: "#BDBDBD", pupil: "#FFD700" },
 } as const;
 
-// ─── YoinkIcon — Crown-Dagger mark ───────────────────────────────────────────
-export function YoinkIcon({ size = 40, className, variant = "gold", glow = false }: IconProps) {
-  const c = VARIANT_COLORS[variant];
+// ─── VoidEyeIcon ─────────────────────────────────────────────────────────────
+export function VoidEyeIcon({
+  size = 40,
+  className,
+  variant = "gold",
+  pulse = false,
+}: IconProps) {
+  const c = COLORS[variant];
   const s = size;
-  // Normalised to 40×40 viewBox, scaled by `size`
+  const cx = s / 2;
+  const cy = s / 2;
+
+  // Hexagon points centered at cx,cy with radius r
+  const hexPoints = (r: number) =>
+    Array.from({ length: 6 }, (_, i) => {
+      const a = (Math.PI / 180) * (60 * i - 30);
+      return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
+    }).join(" ");
+
+  const outerR = s * 0.46;
+  const innerR = s * 0.38;
+
+  // Eye lid curves — top arc + bottom arc meeting at left/right points
+  const eyeW = s * 0.28;
+  const eyeH = s * 0.18;
+  const eyeTop    = `M ${cx - eyeW} ${cy} Q ${cx} ${cy - eyeH} ${cx + eyeW} ${cy}`;
+  const eyeBottom = `Q ${cx} ${cy + eyeH} ${cx - eyeW} ${cy}`;
+  const eyePath   = `${eyeTop} ${eyeBottom} Z`;
+
+  // Pupil — coin shape (circle + ◎ mark)
+  const pupilR  = s * 0.09;
+  const innerPR = s * 0.055;
+
   return (
     <svg
-      viewBox="0 0 40 40"
+      viewBox={`0 0 ${s} ${s}`}
       width={s}
       height={s}
       fill="none"
       className={className}
-      aria-label="YOINK.GG logo mark"
+      aria-label="YOINK.GG — Void Eye"
     >
       <defs>
-        <linearGradient id={`yig-${variant}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={c.accent} />
-          <stop offset="50%"  stopColor={c.fill} />
+        <radialGradient id={`veg-${variant}-${s}`} cx="50%" cy="40%" r="60%">
+          <stop offset="0%"   stopColor={c.soft} />
+          <stop offset="50%"  stopColor={c.hex}  />
           <stop offset="100%" stopColor={c.deep} />
+        </radialGradient>
+        <radialGradient id={`veglow-${variant}-${s}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor={c.hex}  stopOpacity="0.35" />
+          <stop offset="100%" stopColor={c.hex}  stopOpacity="0"    />
+        </radialGradient>
+        <filter id={`vegf-${s}`}>
+          <feGaussianBlur stdDeviation={s * 0.05} result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        {/* Slit pupil gradient — dark center, glowing edge */}
+        <linearGradient id={`vslit-${s}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={c.deep}  />
+          <stop offset="40%"  stopColor={c.hex}   />
+          <stop offset="100%" stopColor={c.deep}  />
         </linearGradient>
-        {glow && (
-          <filter id="yiglow">
-            <feGaussianBlur stdDeviation="2.5" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        )}
       </defs>
 
-      {/* glow halo */}
-      {glow && (
-        <circle cx="20" cy="20" r="18"
-          fill={c.shadow.replace("0.5", "0.18")}
-          style={{ willChange: "opacity", animation: "border-breathe 3s ease-in-out infinite" }}
-        />
-      )}
+      {/* Outer glow halo */}
+      <polygon
+        points={hexPoints(outerR * 1.12)}
+        fill={`url(#veglow-${variant}-${s})`}
+      />
 
-      {/*
-        Crown-Dagger path:
-        Five crown points at top → the shape widens → the lower three
-        interior spires point downward like daggers.
-        The outer two legs curve like crown base supports.
-      */}
-      <path
-        d={[
-          // Outer shape — crown silhouette
-          "M 4 28",          // bottom-left foot
-          "L 4 18",          // left base
-          "L 10 22",         // left inner shoulder
-          "L 14 8",          // left spire tip (up)
-          "L 20 14",         // center-left valley
-          "L 20 6",          // center tip (tallest)
-          "L 20 14",         // back through center
-          "L 26 8",          // right spire tip (up)
-          "L 30 22",         // right inner shoulder
-          "L 36 18",         // right base
-          "L 36 28",         // bottom-right foot
-          // Dagger cuts — three downward points inside the crown base
-          "L 30 28",
-          "L 28 34",         // right inner dagger tip (down)
-          "L 26 28",
-          "L 20 28",
-          "L 20 36",         // center dagger tip (longest, down)
-          "L 20 28",
-          "L 14 28",
-          "L 12 34",         // left inner dagger tip (down)
-          "L 10 28",
-          "Z",
-        ].join(" ")}
-        fill={`url(#yig-${variant})`}
-        stroke={c.accent}
-        strokeWidth="0.6"
+      {/* Hexagon frame */}
+      <polygon
+        points={hexPoints(outerR)}
+        fill={`rgba(8,8,15,0.95)`}
+        stroke={`url(#veg-${variant}-${s})`}
+        strokeWidth={s * 0.035}
         strokeLinejoin="round"
-        filter={glow ? "url(#yiglow)" : undefined}
       />
 
-      {/* Jewel in crown center */}
-      <circle cx="20" cy="18" r="3"
-        fill={variant === "gold" ? "#FF1744" : variant === "blood" ? "#FFD700" : c.accent}
-        stroke={c.accent}
-        strokeWidth="0.5"
+      {/* Inner hex ring — subtle */}
+      <polygon
+        points={hexPoints(innerR)}
+        fill="none"
+        stroke={c.hex}
+        strokeWidth={s * 0.012}
+        strokeOpacity="0.25"
+        strokeLinejoin="round"
       />
-      <circle cx="19" cy="17" r="1" fill="white" opacity="0.45" />
 
-      {/* Two side jewels */}
-      <circle cx="11" cy="20" r="1.8"
-        fill={variant === "gold" ? "#7000FF" : c.accent}
-        stroke={c.accent} strokeWidth="0.4" opacity="0.9"
+      {/* Eye white */}
+      <path
+        d={eyePath}
+        fill={`rgba(8,8,15,0.9)`}
+        stroke={c.hex}
+        strokeWidth={s * 0.022}
+        strokeLinejoin="round"
       />
-      <circle cx="29" cy="20" r="1.8"
-        fill={variant === "gold" ? "#00C853" : c.accent}
-        stroke={c.accent} strokeWidth="0.4" opacity="0.9"
+
+      {/* Pupil — coin circle */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={pupilR}
+        fill={`url(#veg-${variant}-${s})`}
+        filter={`url(#vegf-${s})`}
+        style={pulse ? { willChange: "opacity", animation: "border-breathe 2.4s ease-in-out infinite" } : undefined}
       />
+      {/* Inner ring of coin */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={innerPR}
+        fill="rgba(8,8,15,0.7)"
+        stroke={c.soft}
+        strokeWidth={s * 0.016}
+      />
+      {/* Coin center dot */}
+      <circle cx={cx} cy={cy} r={s * 0.018} fill={c.soft} />
+
+      {/* Vertical slit — the predatory iris */}
+      <ellipse
+        cx={cx}
+        cy={cy}
+        rx={pupilR * 0.28}
+        ry={pupilR * 0.78}
+        fill={`url(#vslit-${s})`}
+        opacity="0.85"
+      />
+
+      {/* Highlight sparkle top-left of pupil */}
+      <circle
+        cx={cx - pupilR * 0.35}
+        cy={cy - pupilR * 0.38}
+        r={s * 0.014}
+        fill="white"
+        opacity="0.6"
+      />
+
+      {/* Corner hex tick marks — circuit board aesthetic */}
+      {[0, 2, 4].map((i) => {
+        const a1 = (Math.PI / 180) * (60 * i - 30);
+        const a2 = (Math.PI / 180) * (60 * (i + 1) - 30);
+        const p1x = cx + outerR * 0.72 * Math.cos(a1 + 0.3);
+        const p1y = cy + outerR * 0.72 * Math.sin(a1 + 0.3);
+        const p2x = cx + outerR * 0.72 * Math.cos(a2 - 0.3);
+        const p2y = cy + outerR * 0.72 * Math.sin(a2 - 0.3);
+        return (
+          <line
+            key={i}
+            x1={p1x} y1={p1y} x2={p2x} y2={p2y}
+            stroke={c.hex}
+            strokeWidth={s * 0.014}
+            strokeOpacity="0.18"
+            strokeLinecap="round"
+          />
+        );
+      })}
     </svg>
   );
 }
 
-// ─── YoinkWordmark — Text treatment only ─────────────────────────────────────
+// ─── YoinkWordmark — HTML-based (no SVG text, no gradient ID conflicts) ───────
 interface WordmarkProps {
-  size?: "sm" | "md" | "lg" | "xl" | "hero";
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
   showTagline?: boolean;
-  /** "default" | "mono" (all white) | "inverted" (dark bg becomes light) */
-  style?: "default" | "mono";
 }
 
-const WORDMARK_SIZES = {
-  sm:   { fontSize: 16, tagSize: 7,  letterSpacing: 1,   tagSpacing: 2  },
-  md:   { fontSize: 22, tagSize: 8,  letterSpacing: 1.5, tagSpacing: 2  },
-  lg:   { fontSize: 32, tagSize: 10, letterSpacing: 2,   tagSpacing: 2.5 },
-  xl:   { fontSize: 48, tagSize: 13, letterSpacing: 3,   tagSpacing: 3  },
-  hero: { fontSize: 72, tagSize: 18, letterSpacing: 4,   tagSpacing: 3.5 },
+const WM_SIZES = {
+  xs: { fontSize: "0.7rem",  gap: "0.05em" },
+  sm: { fontSize: "1rem",    gap: "0.05em" },
+  md: { fontSize: "1.35rem", gap: "0.06em" },
+  lg: { fontSize: "2rem",    gap: "0.06em" },
+  xl: { fontSize: "3rem",    gap: "0.08em" },
 } as const;
 
-export function YoinkWordmark({ size = "md", className, showTagline = false, style = "default" }: WordmarkProps) {
-  const s = WORDMARK_SIZES[size];
-  const yoinkColor = style === "mono" ? "white" : "white";
-  const ggColor    = style === "mono" ? "white" : "url(#wg)";
-
-  // viewBox scales with font size
-  const vw = s.fontSize * 7.2;
-  const vh = showTagline ? s.fontSize * 2.4 : s.fontSize * 1.35;
-
+export function YoinkWordmark({ size = "md", className, showTagline = false }: WordmarkProps) {
+  const s = WM_SIZES[size];
   return (
-    <svg
-      viewBox={`0 0 ${vw} ${vh}`}
-      width={vw}
-      height={vh}
-      className={className}
-      aria-label="YOINK.GG wordmark"
-    >
-      <defs>
-        <linearGradient id="wg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="50%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-      </defs>
-
-      {/* YOINK */}
-      <text
-        x="0" y={s.fontSize * 0.92}
-        fontFamily="'Orbitron', sans-serif"
-        fontWeight="900"
-        fontSize={s.fontSize}
-        fill={yoinkColor}
-        letterSpacing={s.letterSpacing}
+    <div className={`inline-flex flex-col ${className ?? ""}`}>
+      <span
+        className="font-display font-black leading-none tracking-tight"
+        style={{ fontSize: s.fontSize, letterSpacing: s.gap }}
+        aria-label="YOINK.GG"
       >
-        YOINK
-      </text>
-
-      {/* .GG in gold */}
-      <text
-        x={s.fontSize * 4.05} y={s.fontSize * 0.92}
-        fontFamily="'Orbitron', sans-serif"
-        fontWeight="900"
-        fontSize={s.fontSize}
-        fill={ggColor}
-        letterSpacing={s.letterSpacing}
-      >
-        .GG
-      </text>
-
-      {/* Tagline */}
+        <span className="text-white">YOINK</span>
+        {/* .GG — gold-text-gradient CSS class, never dark, never conflicts */}
+        <span className="gold-text-gradient">.GG</span>
+      </span>
       {showTagline && (
-        <text
-          x="0" y={s.fontSize * 1.5}
-          fontFamily="'Space Grotesk', sans-serif"
-          fontWeight="500"
-          fontSize={s.tagSize}
-          fill="#8892a4"
-          letterSpacing={s.tagSpacing}
+        <span
+          className="font-mono text-slate"
+          style={{ fontSize: `calc(${s.fontSize} * 0.38)`, letterSpacing: "0.18em", marginTop: "0.3em" }}
         >
           THE MOST DANGEROUS 30 SECONDS IN CRYPTO
-        </text>
+        </span>
       )}
-    </svg>
+    </div>
   );
 }
 
-// ─── YoinkLogo — Icon + Wordmark horizontal ───────────────────────────────────
+// ─── YoinkLogo — icon + wordmark horizontal ───────────────────────────────────
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl";
   className?: string;
   showTagline?: boolean;
   iconVariant?: IconProps["variant"];
+  pulse?: boolean;
 }
 
-const LOGO_ICON_SIZES = { sm: 24, md: 36, lg: 52, xl: 72 } as const;
-const LOGO_TEXT_SIZES: Record<string, WordmarkProps["size"]> = {
-  sm: "sm", md: "md", lg: "lg", xl: "xl",
-};
+const LOGO_ICON_PX: Record<string, number> = { sm: 28, md: 36, lg: 48, xl: 64 };
+const LOGO_WM_SIZE: Record<string, WordmarkProps["size"]> = { sm: "sm", md: "md", lg: "lg", xl: "xl" };
 
-export function YoinkLogo({ size = "md", className, showTagline = false, iconVariant = "gold" }: LogoProps) {
-  const iconSize = LOGO_ICON_SIZES[size];
-  const textSize = LOGO_TEXT_SIZES[size];
-  const ws       = WORDMARK_SIZES[textSize ?? "md"];
-  const gap      = iconSize * 0.35;
-  const totalW   = iconSize + gap + ws.fontSize * 7.2;
-  const totalH   = showTagline ? ws.fontSize * 2.6 : Math.max(iconSize, ws.fontSize * 1.35);
-  const textY    = (totalH - ws.fontSize * 1.35) / 2;
-
+export function YoinkLogo({
+  size = "md",
+  className,
+  showTagline = false,
+  iconVariant = "gold",
+  pulse = false,
+}: LogoProps) {
   return (
-    <svg
-      viewBox={`0 0 ${totalW} ${totalH}`}
-      width={totalW}
-      height={totalH}
-      className={className}
-      aria-label="YOINK.GG"
-    >
-      <defs>
-        <linearGradient id={`lg-${iconVariant}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={VARIANT_COLORS[iconVariant].accent} />
-          <stop offset="100%" stopColor={VARIANT_COLORS[iconVariant].deep} />
-        </linearGradient>
-        <linearGradient id="lwg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="50%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-      </defs>
-
-      {/* Icon — scaled into iconSize×iconSize box */}
-      <g transform={`scale(${iconSize / 40})`}>
-        <YoinkIconInline
-          variant={iconVariant}
-          gradId={`lg-${iconVariant}`}
-        />
-      </g>
-
-      {/* YOINK */}
-      <text
-        x={iconSize + gap} y={textY + ws.fontSize * 0.9}
-        fontFamily="'Orbitron', sans-serif"
-        fontWeight="900"
-        fontSize={ws.fontSize}
-        fill="white"
-        letterSpacing={ws.letterSpacing}
-      >YOINK</text>
-
-      {/* .GG */}
-      <text
-        x={iconSize + gap + ws.fontSize * 4.05} y={textY + ws.fontSize * 0.9}
-        fontFamily="'Orbitron', sans-serif"
-        fontWeight="900"
-        fontSize={ws.fontSize}
-        fill="url(#lwg)"
-        letterSpacing={ws.letterSpacing}
-      >.GG</text>
-
-      {showTagline && (
-        <text
-          x={iconSize + gap} y={textY + ws.fontSize * 1.5}
-          fontFamily="'Space Grotesk', sans-serif"
-          fontWeight="500"
-          fontSize={ws.tagSize}
-          fill="#8892a4"
-          letterSpacing={ws.tagSpacing}
-        >THE MOST DANGEROUS 30 SECONDS IN CRYPTO</text>
-      )}
-    </svg>
+    <div className={`inline-flex items-center gap-2.5 ${className ?? ""}`}>
+      <VoidEyeIcon size={LOGO_ICON_PX[size]} variant={iconVariant} pulse={pulse} />
+      <YoinkWordmark size={LOGO_WM_SIZE[size]} showTagline={showTagline} />
+    </div>
   );
 }
 
-// ─── YoinkLogoStack — Stacked (icon above wordmark) — for hero/OG use ─────────
+// ─── YoinkLogoStack — stacked hero (lobby / OG) ───────────────────────────────
 export function YoinkLogoStack({
   size = 120,
   className,
@@ -308,108 +270,36 @@ export function YoinkLogoStack({
   showTagline?: boolean;
   iconVariant?: IconProps["variant"];
 }) {
-  const c = VARIANT_COLORS[iconVariant];
   return (
-    <svg
-      viewBox="0 0 240 200"
-      width={size}
-      height={(size / 240) * 200}
-      className={className}
-      aria-label="YOINK.GG stacked logo"
-    >
-      <defs>
-        <linearGradient id="stig" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={c.accent} />
-          <stop offset="50%"  stopColor={c.fill} />
-          <stop offset="100%" stopColor={c.deep} />
-        </linearGradient>
-        <linearGradient id="stwg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="50%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-        <filter id="stglow">
-          <feGaussianBlur stdDeviation="4" result="b" />
-          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-
-      {/* Large crown-dagger icon centered */}
-      <g transform="translate(100, 4) scale(1)">
-        <YoinkIconInline variant={iconVariant} gradId="stig" size={40} glowFilterId="stglow" />
-      </g>
-
-      {/* YOINK.GG wordmark */}
-      <text x="120" y="108"
-        textAnchor="middle"
-        fontFamily="'Orbitron', sans-serif"
-        fontWeight="900"
-        fontSize="38"
-        fill="white"
-        letterSpacing="3"
-      >YOINK<tspan fill="url(#stwg)">.GG</tspan></text>
-
-      {/* Gold underline accent */}
-      <line x1="40" y1="118" x2="200" y2="118"
-        stroke="url(#stwg)" strokeWidth="1.5" opacity="0.6"
-      />
-
-      {showTagline && (
-        <text x="120" y="140"
-          textAnchor="middle"
-          fontFamily="'Space Grotesk', sans-serif"
-          fontWeight="500"
-          fontSize="10"
-          fill="#8892a4"
-          letterSpacing="2"
-        >THE MOST DANGEROUS 30 SECONDS IN CRYPTO</text>
-      )}
-    </svg>
-  );
-}
-
-// ─── Internal: icon path (reusable inside SVG context) ───────────────────────
-function YoinkIconInline({
-  variant = "gold",
-  gradId,
-  glowFilterId,
-}: {
-  variant?: IconProps["variant"];
-  gradId: string;
-  size?: number;
-  glowFilterId?: string;
-}) {
-  const c = VARIANT_COLORS[variant];
-  return (
-    <>
-      <path
-        d={[
-          "M 4 28","L 4 18","L 10 22","L 14 8",
-          "L 20 14","L 20 6","L 20 14","L 26 8",
-          "L 30 22","L 36 18","L 36 28",
-          "L 30 28","L 28 34","L 26 28",
-          "L 20 28","L 20 36","L 20 28",
-          "L 14 28","L 12 34","L 10 28","Z",
-        ].join(" ")}
-        fill={`url(#${gradId})`}
-        stroke={c.accent}
-        strokeWidth="0.6"
-        strokeLinejoin="round"
-        filter={glowFilterId ? `url(#${glowFilterId})` : undefined}
-      />
-      <circle cx="20" cy="18" r="3"
-        fill={variant === "gold" ? "#FF1744" : variant === "blood" ? "#FFD700" : c.accent}
-        stroke={c.accent} strokeWidth="0.5"
-      />
-      <circle cx="19" cy="17" r="1" fill="white" opacity="0.45" />
-      <circle cx="11" cy="20" r="1.8"
-        fill={variant === "gold" ? "#7000FF" : c.accent}
-        stroke={c.accent} strokeWidth="0.4" opacity="0.9"
-      />
-      <circle cx="29" cy="20" r="1.8"
-        fill={variant === "gold" ? "#00C853" : c.accent}
-        stroke={c.accent} strokeWidth="0.4" opacity="0.9"
-      />
-    </>
+    <div className={`inline-flex flex-col items-center gap-3 ${className ?? ""}`}>
+      <VoidEyeIcon size={size} variant={iconVariant} pulse />
+      <div className="flex flex-col items-center gap-1">
+        <span
+          className="font-display font-black leading-none tracking-tight"
+          style={{ fontSize: size * 0.25 }}
+          aria-label="YOINK.GG"
+        >
+          <span className="text-white">YOINK</span>
+          <span className="gold-text-gradient">.GG</span>
+        </span>
+        {/* gold underline */}
+        <div
+          className="h-px w-full"
+          style={{
+            background: "linear-gradient(90deg, transparent, #FFD700, transparent)",
+            width: size * 0.85,
+            opacity: 0.6,
+          }}
+        />
+        {showTagline && (
+          <span
+            className="font-mono text-slate text-center"
+            style={{ fontSize: size * 0.07, letterSpacing: "0.18em" }}
+          >
+            THE MOST DANGEROUS 30 SECONDS IN CRYPTO
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
