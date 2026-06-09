@@ -96,17 +96,20 @@ export function HeroBanner({
       <rect x="0" y="0" width="1200" height="2"
         fill="url(#hwg)" opacity="0.8" />
 
-      {/* Crown-Dagger icon — large, left side */}
-      <g transform="translate(80, 160) scale(5.5)" filter="url(#hglow)">
-        {/* crown-dagger path (same as YoinkIcon, scaled) */}
-        <path
-          d="M4 28 L4 18 L10 22 L14 8 L20 14 L20 6 L20 14 L26 8 L30 22 L36 18 L36 28 L30 28 L28 34 L26 28 L20 28 L20 36 L20 28 L14 28 L12 34 L10 28 Z"
-          fill="url(#hcg)" stroke="#FFE566" strokeWidth="0.6" strokeLinejoin="round"
-        />
-        <circle cx="20" cy="18" r="3" fill="#FF1744" stroke="#FFE566" strokeWidth="0.5" />
-        <circle cx="19" cy="17" r="1" fill="white" opacity="0.45" />
-        <circle cx="11" cy="20" r="1.8" fill="#7000FF" stroke="#FFE566" strokeWidth="0.4" />
-        <circle cx="29" cy="20" r="1.8" fill="#00C853" stroke="#FFE566" strokeWidth="0.4" />
+      {/* Snatch mark — large, left side */}
+      <g transform="translate(72, 140) scale(3.0)" filter="url(#hglow)">
+        <defs>
+          <linearGradient id="hsnatch" x1="50" y1="10" x2="50" y2="92" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stopColor="#FFE566" />
+            <stop offset="55%"  stopColor="#FFD700" />
+            <stop offset="100%" stopColor="#FF4400" />
+          </linearGradient>
+        </defs>
+        <path d="M 38 22 C 33 22,27 28,25 38 C 23 48,24 62,27 82 C 27.5 85,30 87,32 86 C 34 85,35 83,35 80 C 34 65,34 52,36 44 C 38 36,41 30,41 26 C 41 23,40 22,38 22 Z" fill="url(#hsnatch)" />
+        <path d="M 50 14 C 46 14,43 18,43 24 C 43 34,44 52,46 72 C 47 80,48 88,50 90 C 52 88,53 80,54 72 C 56 52,57 34,57 24 C 57 18,54 14,50 14 Z" fill="url(#hsnatch)" />
+        <path d="M 62 22 C 60 22,59 23,59 26 C 59 30,62 36,64 44 C 66 52,66 65,65 80 C 65 83,66 85,68 86 C 70 87,72.5 85,73 82 C 76 62,77 48,75 38 C 73 28,67 22,62 22 Z" fill="url(#hsnatch)" />
+        <path d="M 26 34 C 26 28,31 20,38 18 C 42 16,45 15,50 14 C 55 15,58 16,62 18 C 69 20,74 28,74 34 C 70 32,66 28,62 27 C 58 26,55 26,50 26 C 45 26,42 26,38 27 C 34 28,30 32,26 34 Z" fill="url(#hsnatch)" opacity="0.72" />
+        <path d="M 49 18 C 49 24,49 36,49 52" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeLinecap="round" />
       </g>
 
       {/* YOINK.GG wordmark */}
@@ -233,10 +236,12 @@ export function WinShareBanner({
       <rect x="0" y="0" width="800" height="6"
         fill={isYou ? "url(#wswg)" : "#7000FF"} />
 
-      {/* Crown-dagger watermark */}
-      <g transform="translate(580, 60) scale(4)" opacity="0.08">
-        <path d="M4 28 L4 18 L10 22 L14 8 L20 14 L20 6 L20 14 L26 8 L30 22 L36 18 L36 28 L30 28 L28 34 L26 28 L20 28 L20 36 L20 28 L14 28 L12 34 L10 28 Z"
-          fill="url(#wscg)" />
+      {/* Snatch watermark — background */}
+      <g transform="translate(560, 50) scale(2.6)" opacity="0.07">
+        <path d="M 38 22 C 33 22,27 28,25 38 C 23 48,24 62,27 82 C 27.5 85,30 87,32 86 C 34 85,35 83,35 80 C 34 65,34 52,36 44 C 38 36,41 30,41 26 C 41 23,40 22,38 22 Z" fill="url(#wscg)" />
+        <path d="M 50 14 C 46 14,43 18,43 24 C 43 34,44 52,46 72 C 47 80,48 88,50 90 C 52 88,53 80,54 72 C 56 52,57 34,57 24 C 57 18,54 14,50 14 Z" fill="url(#wscg)" />
+        <path d="M 62 22 C 60 22,59 23,59 26 C 59 30,62 36,64 44 C 66 52,66 65,65 80 C 65 83,66 85,68 86 C 70 87,72.5 85,73 82 C 76 62,77 48,75 38 C 73 28,67 22,62 22 Z" fill="url(#wscg)" />
+        <path d="M 26 34 C 26 28,31 20,38 18 C 42 16,45 15,50 14 C 55 15,58 16,62 18 C 69 20,74 28,74 34 C 70 32,66 28,62 27 C 58 26,55 26,50 26 C 45 26,42 26,38 27 C 34 28,30 32,26 34 Z" fill="url(#wscg)" opacity="0.72" />
       </g>
 
       {/* WIN label */}
@@ -316,11 +321,12 @@ export function RoundLiveBanner({ bagAmount, className }: RoundLiveBannerProps) 
       {/* Left gold accent */}
       <rect x="0" y="0" width="4" height="120" rx="2" fill="url(#rlwg)" />
 
-      {/* Mini crown icon */}
-      <g transform="translate(28, 38) scale(1.1)">
-        <path d="M4 28 L4 18 L10 22 L14 8 L20 14 L20 6 L20 14 L26 8 L30 22 L36 18 L36 28 L30 28 L28 34 L26 28 L20 28 L20 36 L20 28 L14 28 L12 34 L10 28 Z"
-          fill="url(#rlwg)" />
-        <circle cx="20" cy="18" r="3" fill="#FF1744" />
+      {/* Snatch icon — small, left */}
+      <g transform="translate(22, 30) scale(0.92)">
+        <path d="M 38 22 C 33 22,27 28,25 38 C 23 48,24 62,27 82 C 27.5 85,30 87,32 86 C 34 85,35 83,35 80 C 34 65,34 52,36 44 C 38 36,41 30,41 26 C 41 23,40 22,38 22 Z" fill="url(#rlwg)" />
+        <path d="M 50 14 C 46 14,43 18,43 24 C 43 34,44 52,46 72 C 47 80,48 88,50 90 C 52 88,53 80,54 72 C 56 52,57 34,57 24 C 57 18,54 14,50 14 Z" fill="url(#rlwg)" />
+        <path d="M 62 22 C 60 22,59 23,59 26 C 59 30,62 36,64 44 C 66 52,66 65,65 80 C 65 83,66 85,68 86 C 70 87,72.5 85,73 82 C 76 62,77 48,75 38 C 73 28,67 22,62 22 Z" fill="url(#rlwg)" />
+        <path d="M 26 34 C 26 28,31 20,38 18 C 42 16,45 15,50 14 C 55 15,58 16,62 18 C 69 20,74 28,74 34 C 70 32,66 28,62 27 C 58 26,55 26,50 26 C 45 26,42 26,38 27 C 34 28,30 32,26 34 Z" fill="url(#rlwg)" opacity="0.72" />
       </g>
 
       {/* LIVE dot */}
