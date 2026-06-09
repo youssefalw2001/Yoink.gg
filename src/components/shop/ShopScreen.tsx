@@ -9,6 +9,7 @@ import {
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { RankBadge } from "@/components/ui/RankBadge";
 import { XPBar } from "@/components/ui/XPBar";
+import { SHOP_CATEGORY_ART, FoundingKingArt } from "@/components/ui/ShopArt";
 import { playPurchase } from "@/lib/sounds";
 import { SHOP_ITEMS, CATEGORY_META, type ShopCategory, type ShopItem } from "@/lib/shopItems";
 import type { PlayerProgress } from "@/lib/progression";
@@ -64,12 +65,16 @@ function ShopCard({ item, owned, playerLevel, onBuy }: ShopCardProps) {
           </span>
         )}
 
-        {/* Icon */}
+        {/* Icon — use RankArt mini if it's a rank-gated item, else lucide */}
         <div
-          className="flex h-10 w-10 items-center justify-center rounded-xl"
+          className="flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden"
           style={{ background: `${item.color}18`, border: `1px solid ${item.color}33` }}
         >
-          <ItemIcon name={item.icon} className="h-5 w-5" />
+          {item.id === "founding_king_nft" ? (
+            <FoundingKingArt size={48} />
+          ) : (
+            <ItemIcon name={item.icon} className="h-5 w-5" />
+          )}
         </div>
 
         {/* Name + description */}
@@ -173,9 +178,18 @@ export function ShopScreen({ progress, ownedItems, onBuy }: ShopScreenProps) {
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
       {/* Header */}
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gold/30 bg-gold/10">
-          <ShoppingBag className="h-6 w-6 text-gold" aria-hidden />
-        </div>
+        {/* Hero art — rotates through category art as tab changes */}
+        <motion.div
+          key={activeTab}
+          initial={{ scale: 0.8, opacity: 0, rotate: -6 }}
+          animate={{ scale: 1, opacity: 1, rotate: 0 }}
+          transition={{ type: "spring", stiffness: 340, damping: 26 }}
+        >
+          {(() => {
+            const Art = SHOP_CATEGORY_ART[activeTab];
+            return <Art size={120} />;
+          })()}
+        </motion.div>
         <h1 className="font-display text-3xl font-black tracking-tight sm:text-4xl">
           <span className="gold-text-gradient">THE KING'S ARMORY</span>
         </h1>
@@ -188,7 +202,7 @@ export function ShopScreen({ progress, ownedItems, onBuy }: ShopScreenProps) {
           <SpotlightCard spotlightColor="rgba(255,215,0,0.10)" radius={240} className="premium-card rounded-2xl">
             <div className="flex flex-col gap-3 px-5 py-4">
               <div className="flex items-center justify-between">
-                <RankBadge level={progress.level} size="sm" />
+                <RankBadge level={progress.level} size="md" showArt={false} />
                 <span className="font-mono text-[11px] text-slate">
                   {progress.xp.toLocaleString()} XP total
                 </span>
@@ -289,9 +303,8 @@ export function ShopScreen({ progress, ownedItems, onBuy }: ShopScreenProps) {
         >
           <SpotlightCard spotlightColor="rgba(255,215,0,0.18)" radius={400} className="premium-card rounded-[24px]">
             <div className="flex flex-col items-center gap-4 px-8 py-8 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-gold/30 bg-gold/10">
-                <Crown className="h-7 w-7 text-gold" aria-hidden />
-              </div>
+              {/* Founding King NFT art */}
+              <FoundingKingArt size={140} />
               <div>
                 <h3 className="font-display text-2xl font-black">
                   <span className="gold-text-gradient">Founding King NFT</span>
