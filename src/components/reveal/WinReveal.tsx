@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import gsap from "gsap";
 import { Twitter, RotateCcw, X } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { WinCrownArt, WinTrophy, WinBagArt } from "@/components/ui/WinArt";
+import { AnimatedWinArt, AnimatedWinCrown } from "@/components/ui/AnimatedWinArt";
 import { WinShareBanner } from "@/components/ui/Banners";
 import { formatSol, truncateAddress } from "@/lib/utils";
 
@@ -170,17 +170,13 @@ export function WinReveal({
             className="premium-card relative z-10 flex w-full flex-col items-center gap-5 px-8 py-10 text-center"
           >
             <span className="reveal-winner flex flex-col items-center gap-2">
-              {/* Conditional art: trophy for others, bag burst for you */}
+              {/* Anime.js animated win art — draws itself when reveal opens */}
               <motion.div
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: "spring", stiffness: 320, damping: 22, delay: 0.3 }}
               >
-                {isYou ? (
-                  <WinBagArt size={120} />
-                ) : (
-                  <WinTrophy size={120} />
-                )}
+                <AnimatedWinArt isYou={isYou} size={120} animate={open} />
               </motion.div>
               <span className="font-mono text-sm text-slate">
                 {isYou ? "You" : winner ? truncateAddress(winner) : "—"}
@@ -188,10 +184,10 @@ export function WinReveal({
               </span>
             </span>
 
-            {/* Big crown art behind the YOU WON title */}
+            {/* Anime.js animated crown — draws behind the YOU WON title */}
             <div className="relative flex flex-col items-center">
               <div className="absolute -top-4 opacity-20" aria-hidden>
-                <WinCrownArt size={160} />
+                <AnimatedWinCrown size={160} shouldAnimate={open} />
               </div>
               <h2
                 className="reveal-title shimmer-text relative z-10 font-display font-black leading-none"
