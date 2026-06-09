@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GAME_CONFIG,
   bagAddFor,
+  drainFor,
   yoinkCostAt,
   type GameState,
   type King,
@@ -53,7 +54,9 @@ const INITIAL: GameState = {
   totalDistributed: 9421.62,
   playerCount: 0,
   playerCooldownUntil: 0,
-  isWaiting: true,           // start in lobby until players arrive
+  isWaiting: true,
+  totalDrained: 0,
+  roundDrained: 0,
 };
 
 export function useGameState() {
@@ -64,49 +67,58 @@ export function useGameState() {
   stateRef.current = state;
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heldTickRef = useRef(0);
-  // tracks when each bot wallet last yoinked — basic bot cooldown
   const botCooldowns = useRef<Map<string, number>>(new Map());
 
-  /** Core yoink application — shared by player + bot paths. */
   const applyYoink = useCallback((byPlayer: boolean) => {
     const now = Date.now();
     setState((prev) => {
       if (prev.isRoundOver || prev.isWaiting) return prev;
 
-      const cost = prev.currentCost;
+      const cost      = prev.currentCost;
       const nextCount = prev.yoinkCount + 1;
-      const nextCost = yoinkCostAt(nextCount);
-      const bagAdd = bagAddFor(cost);
+      const nextCost  = yoinkCostAt(nextCount);
+
+      // ── What flows IN from the payment (83%) ────────────────────────────
+      const bagAdd    = bagAddFor(cost);
+
+      // ── What drains OUT of the bag on this yoink (escalating %) ─────────
+      // Drain is calculated on the bag BEFORE this yoink's add, so players
+      // see the bag grow net — drain just slows accumulation on big bags.
+      const drain     = drainFor(prev.bagAmount);
+      const netBag    = +(prev.bagAmount + bagAdd - drain).toFixed(6);
 
       const fallen: King = {
-        wallet: prev.currentKing,
-        heldFor: prev.kingHeldFor,
-        isYou: prev.kingIsYou,
-        id: nextId(),
+        wallet:   prev.currentKing,
+        heldFor:  prev.kingHeldFor,
+        isYou:    prev.kingIsYou,
+        id:       nextId(),
       };
 
       const newKing = byPlayer ? "You" : randomPoolWallet(prev.currentKing);
 
       const event: YoinkEvent = {
-        id: nextId(),
-        wallet: newKing,
-        isYou: byPlayer,
+        id:           nextId(),
+        wallet:       newKing,
+        isYou:        byPlayer,
         cost,
-        bagAfter: +(prev.bagAmount + bagAdd).toFixed(6),
-        ts: now,
+        bagAfter:     netBag,
+        drainAmount:  drain,
+        ts:           now,
       };
 
       return {
         ...prev,
-        bagAmount: +(prev.bagAmount + bagAdd).toFixed(6),
-        countdown: GAME_CONFIG.ROUND_SECONDS,
-        currentKing: newKing,
-        kingIsYou: byPlayer,
-        kingHeldFor: 0,
-        recentKings: [fallen, ...prev.recentKings].slice(0, 10),
-        yoinkHistory: [event, ...prev.yoinkHistory].slice(0, 50),
-        yoinkCount: nextCount,
-        currentCost: nextCost,
+        bagAmount:          netBag,
+        countdown:          GAME_CONFIG.ROUND_SECONDS,
+        currentKing:        newKing,
+        kingIsYou:          byPlayer,
+        kingHeldFor:        0,
+        recentKings:        [fallen, ...prev.recentKings].slice(0, 10),
+        yoinkHistory:       [event, ...prev.yoinkHistory].slice(0, 50),
+        yoinkCount:         nextCount,
+        currentCost:        nextCost,
+        totalDrained:       +(prev.totalDrained + drain).toFixed(6),
+        roundDrained:       +(prev.roundDrained + drain).toFixed(6),
         playerCooldownUntil: byPlayer
           ? now + GAME_CONFIG.PLAYER_COOLDOWN_MS
           : prev.playerCooldownUntil,
@@ -115,59 +127,55 @@ export function useGameState() {
     heldTickRef.current = 0;
   }, []);
 
-  /** Player-initiated yoink — checks cooldown first. */
   const yoink = useCallback(() => {
     const s = stateRef.current;
     if (s.isRoundOver || s.isWaiting || s.kingIsYou) return;
-    if (Date.now() < s.playerCooldownUntil) return; // still cooling down
+    if (Date.now() < s.playerCooldownUntil) return;
     applyYoink(true);
   }, [applyYoink]);
 
-  /** Start a fresh round. */
   const playAgain = useCallback(() => {
     setState((prev) => ({
       ...INITIAL,
-      roundNumber: prev.roundNumber + 1,
-      recentKings: prev.recentKings,
-      biggestBag: prev.biggestBag,
+      roundNumber:      prev.roundNumber + 1,
+      recentKings:      prev.recentKings,
+      biggestBag:       prev.biggestBag,
       totalDistributed: prev.totalDistributed,
-      playerCount: prev.playerCount,
-      currentKing: randomPoolWallet(),
-      bagAmount: +(GAME_CONFIG.STARTING_BAG + Math.random() * 1.5).toFixed(3),
-      isWaiting: false, // players are already here
+      totalDrained:     prev.totalDrained,   // accumulates across rounds
+      roundDrained:     0,                   // resets per round
+      playerCount:      prev.playerCount,
+      currentKing:      randomPoolWallet(),
+      bagAmount:        +(GAME_CONFIG.STARTING_BAG + Math.random() * 1.5).toFixed(3),
+      isWaiting:        false,
     }));
     heldTickRef.current = 0;
     botCooldowns.current.clear();
   }, []);
 
-  // ── Core tick loop ──────────────────────────────────────────────────────────
+  // ── Core tick ──────────────────────────────────────────────────────────────
   useEffect(() => {
     tickRef.current = setInterval(() => {
       const now = Date.now();
 
       setState((prev) => {
-        // ── LOBBY: waiting for minimum players ──────────────────────────────
         if (prev.isWaiting) {
-          if (prev.playerCount >= GAME_CONFIG.MIN_PLAYERS) {
-            return { ...prev, isWaiting: false };
-          }
-          return prev;
+          return prev.playerCount >= GAME_CONFIG.MIN_PLAYERS
+            ? { ...prev, isWaiting: false }
+            : prev;
         }
-
         if (prev.isRoundOver) return prev;
 
         const nextCountdown = +(prev.countdown - GAME_CONFIG.TICK_MS / 1000).toFixed(2);
 
-        // ── ROUND OVER ───────────────────────────────────────────────────────
         if (nextCountdown <= 0) {
           const won = +prev.bagAmount.toFixed(3);
           const entry: LeaderboardEntry = {
-            rank: 0,
-            wallet: prev.kingIsYou ? "You" : prev.currentKing,
-            solWon: won,
-            dateWon: new Date().toISOString(),
-            round: prev.roundNumber,
-            isYou: prev.kingIsYou,
+            rank:     0,
+            wallet:   prev.kingIsYou ? "You" : prev.currentKing,
+            solWon:   won,
+            dateWon:  new Date().toISOString(),
+            round:    prev.roundNumber,
+            isYou:    prev.kingIsYou,
           };
           setLeaderboard((lb) => {
             const merged = [...lb, entry].sort((a, b) => b.solWon - a.solWon);
@@ -175,59 +183,46 @@ export function useGameState() {
           });
           return {
             ...prev,
-            countdown: 0,
-            isRoundOver: true,
-            winner: prev.kingIsYou ? "You" : prev.currentKing,
-            winnerIsYou: prev.kingIsYou,
-            biggestBag: Math.max(prev.biggestBag, won),
-            totalDistributed: +(prev.totalDistributed + won).toFixed(2),
+            countdown:         0,
+            isRoundOver:       true,
+            winner:            prev.kingIsYou ? "You" : prev.currentKing,
+            winnerIsYou:       prev.kingIsYou,
+            biggestBag:        Math.max(prev.biggestBag, won),
+            totalDistributed:  +(prev.totalDistributed + won).toFixed(2),
           };
         }
 
-        // ── HELD-FOR counter (1s resolution via 10 ticks) ───────────────────
         heldTickRef.current += 1;
         const heldFor =
           heldTickRef.current >= 10
             ? ((heldTickRef.current = 0), prev.kingHeldFor + 1)
             : prev.kingHeldFor;
 
-        // ── PLAYER COUNT gentle drift ────────────────────────────────────────
-        const drift = Math.random();
-        let players = prev.playerCount;
+        const drift  = Math.random();
+        let players  = prev.playerCount;
         if (drift > 0.94) players = Math.min(players + 1, 999);
         else if (drift < 0.04 && players > GAME_CONFIG.MIN_PLAYERS + 2) players -= 1;
 
-        return {
-          ...prev,
-          countdown: nextCountdown,
-          kingHeldFor: heldFor,
-          playerCount: players,
-        };
+        return { ...prev, countdown: nextCountdown, kingHeldFor: heldFor, playerCount: players };
       });
 
-      // ── BOT YOINK LOGIC (reads ref — outside setState) ──────────────────────
+      // ── Bot logic ────────────────────────────────────────────────────────
       const s = stateRef.current;
       if (!s.isRoundOver && !s.isWaiting) {
         const frac = s.countdown / GAME_CONFIG.ROUND_SECONDS;
-
-        // Base probability — grows as clock ticks down
         let chance = 0.010;
         if (frac < 0.60) chance = 0.022;
         if (frac < 0.35) chance = 0.045;
-        if (frac < 0.18) chance = 0.08;
-        if (frac < 0.10) chance = 0.12;
-        // Ease off slightly if player holds — give them a chance to win
-        if (s.kingIsYou && frac < 0.10) chance = 0.05;
+        if (frac < 0.18) chance = 0.080;
+        if (frac < 0.10) chance = 0.120;
+        if (s.kingIsYou && frac < 0.10) chance = 0.050;
 
         if (Math.random() < chance) {
-          const botWallet = randomPoolWallet(s.currentKing);
-          const lastYoink = botCooldowns.current.get(botWallet) ?? 0;
-
-          // Anti-snipe jitter in last 5s — bots can't guarantee last-second steal
-          const jitter =
-            frac < 0.17
-              ? Math.random() * GAME_CONFIG.BOT_SNIPE_JITTER_MS
-              : 0;
+          const botWallet  = randomPoolWallet(s.currentKing);
+          const lastYoink  = botCooldowns.current.get(botWallet) ?? 0;
+          const jitter     = frac < 0.17
+            ? Math.random() * GAME_CONFIG.BOT_SNIPE_JITTER_MS
+            : 0;
 
           if (now - lastYoink > GAME_CONFIG.PLAYER_COOLDOWN_MS + jitter) {
             botCooldowns.current.set(botWallet, now);
@@ -237,29 +232,28 @@ export function useGameState() {
       }
     }, GAME_CONFIG.TICK_MS);
 
-    return () => {
-      if (tickRef.current) clearInterval(tickRef.current);
-    };
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [applyYoink]);
 
-  // ── Seed initial player count — triggers lobby → live once threshold met ──
+  // ── Seed player count → triggers lobby exit ────────────────────────────────
   useEffect(() => {
-    // Simulate players trickling in over 2 seconds
     let count = 0;
     const interval = setInterval(() => {
       count += Math.floor(1 + Math.random() * 3);
-      setState((p) => ({ ...p, playerCount: Math.min(count, 180 + Math.floor(Math.random() * 60)) }));
+      setState((p) => ({
+        ...p,
+        playerCount: Math.min(count, 180 + Math.floor(Math.random() * 60)),
+      }));
       if (count >= GAME_CONFIG.MIN_PLAYERS + 2) clearInterval(interval);
     }, 600);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Cooldown countdown — fires every 100ms to keep UI reactive ──────────
+  // ── Cooldown timer for UI ──────────────────────────────────────────────────
   const [cooldownLeft, setCooldownLeft] = useState(0);
   useEffect(() => {
     const id = setInterval(() => {
-      const left = Math.max(0, stateRef.current.playerCooldownUntil - Date.now());
-      setCooldownLeft(left);
+      setCooldownLeft(Math.max(0, stateRef.current.playerCooldownUntil - Date.now()));
     }, 100);
     return () => clearInterval(id);
   }, []);

@@ -1,11 +1,7 @@
 export interface King {
-  /** wallet address (or "You") */
   wallet: string;
-  /** seconds this king held the bag */
   heldFor: number;
-  /** was this the player? */
   isYou: boolean;
-  /** unique id for list keys */
   id: string;
 }
 
@@ -13,9 +9,10 @@ export interface YoinkEvent {
   id: string;
   wallet: string;
   isYou: boolean;
-  cost: number;       // SOL paid for this yoink
-  bagAfter: number;   // bag size immediately after
-  ts: number;         // Date.now()
+  cost: number;
+  bagAfter: number;
+  drainAmount: number;   // SOL drained from bag on this yoink
+  ts: number;
 }
 
 export interface LeaderboardEntry {
@@ -34,52 +31,76 @@ export interface GameState {
   kingIsYou: boolean;
   kingHeldFor: number;
   recentKings: King[];
-  /** live feed of every yoink this round */
   yoinkHistory: YoinkEvent[];
   roundNumber: number;
   isRoundOver: boolean;
   winner: string | null;
   winnerIsYou: boolean;
-  /** escalating cost — resets each round */
   yoinkCount: number;
   currentCost: number;
-  /** stats */
   biggestBag: number;
   totalDistributed: number;
   playerCount: number;
-  /** bot protection — player cooldown end timestamp (ms) */
   playerCooldownUntil: number;
-  /** lobby: waiting for minimum players */
   isWaiting: boolean;
+  /** running total of drain collected BY THE HOUSE this session */
+  totalDrained: number;
+  /** drain that bled off the bag in the current round */
+  roundDrained: number;
 }
 
 export const GAME_CONFIG = {
   ROUND_SECONDS: 30,
   TICK_MS: 100,
   BASE_COST: 0.1,
-  /** cost multiplier per yoink within a round */
   COST_STEP: 0.025,
-  /** hard ceiling on cost per yoink */
   MAX_COST: 0.5,
-  BAG_SHARE: 0.85,   // 85% to bag
-  RAKE: 0.10,        // 10% rake
-  JACKPOT: 0.05,     // 5% jackpot reserve
   STARTING_BAG: 2,
-  /** player cooldown after yoinking (ms) */
   PLAYER_COOLDOWN_MS: 3_000,
-  /** minimum simulated active players before round starts */
   MIN_PLAYERS: 3,
-  /** anti-snipe: random extra delay added to bot yoinks in last 5s (ms) */
   BOT_SNIPE_JITTER_MS: 800,
+
+  // ── Payment split (must sum to 10_000 bps) ──────────────────────────────
+  // Original: 8500 bag / 1000 rake / 500 jackpot
+  // New:      8300 bag / 1000 rake / 500 jackpot / 200 drain
+  BAG_BPS: 8_300,       // 83 % → bag
+  RAKE_BPS: 1_000,      // 10 % → treasury rake
+  JACKPOT_BPS: 500,     //  5 % → jackpot reserve
+  DRAIN_BPS: 200,       //  2 % → house drain (straight to you, from every YOINK)
+
+  // ── Escalating drain tiers — based on current bag size ──────────────────
+  // The bigger the bag, the harder the drain bleeds.
+  DRAIN_TIERS: [
+    { minBag: 0,  maxBag: 5,   bps: 100 },  // bag < 5 SOL   → 1% drain/yoink
+    { minBag: 5,  maxBag: 20,  bps: 200 },  // 5–20 SOL      → 2% drain/yoink
+    { minBag: 20, maxBag: 999, bps: 300 },  // > 20 SOL      → 3% drain/yoink
+  ] as const,
 } as const;
 
-/** Compute the cost of the nth yoink this round (0-indexed). */
+/** Cost of the nth yoink this round (0-indexed count). */
 export function yoinkCostAt(count: number): number {
   const raw = GAME_CONFIG.BASE_COST + count * GAME_CONFIG.COST_STEP;
   return +Math.min(raw, GAME_CONFIG.MAX_COST).toFixed(3);
 }
 
-/** How much of a yoink payment goes into the bag. */
+/** SOL that flows into the bag from a payment of `cost`. */
 export function bagAddFor(cost: number): number {
-  return +(cost * GAME_CONFIG.BAG_SHARE).toFixed(6);
+  return +(cost * (GAME_CONFIG.BAG_BPS / 10_000)).toFixed(6);
+}
+
+/** SOL drained FROM the bag on each yoink, based on current bag size.
+ *  This is separate from the payment split — it bleeds the existing bag. */
+export function drainFor(bagAmount: number): number {
+  const tier = GAME_CONFIG.DRAIN_TIERS.find(
+    (t) => bagAmount >= t.minBag && bagAmount < t.maxBag,
+  ) ?? GAME_CONFIG.DRAIN_TIERS[GAME_CONFIG.DRAIN_TIERS.length - 1];
+  return +(bagAmount * (tier.bps / 10_000)).toFixed(6);
+}
+
+/** Current drain % label for the UI (e.g. "2%"). */
+export function drainPctLabel(bagAmount: number): string {
+  const tier = GAME_CONFIG.DRAIN_TIERS.find(
+    (t) => bagAmount >= t.minBag && bagAmount < t.maxBag,
+  ) ?? GAME_CONFIG.DRAIN_TIERS[GAME_CONFIG.DRAIN_TIERS.length - 1];
+  return `${tier.bps / 100}%`;
 }
