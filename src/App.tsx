@@ -11,9 +11,9 @@ import { useGameState } from "@/hooks/useGameState";
 
 export default function App() {
   const [page, setPage] = useState<Page>("game");
-  const { state, leaderboard, yoink, playAgain } = useGameState();
+  const { state, leaderboard, yoink, playAgain, cooldownLeft } = useGameState();
 
-  const dangerActive = state.countdown <= 3 && !state.isRoundOver;
+  const dangerActive = state.countdown <= 3 && !state.isRoundOver && !state.isWaiting;
 
   return (
     <div className="relative z-10 flex min-h-dvh flex-col">
@@ -32,7 +32,11 @@ export default function App() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
             >
-              <GameScreen state={state} onYoink={yoink} />
+              <GameScreen
+                state={state}
+                onYoink={yoink}
+                cooldownLeft={cooldownLeft}
+              />
             </motion.div>
           ) : (
             <motion.div
