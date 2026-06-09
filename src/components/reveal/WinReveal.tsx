@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import gsap from "gsap";
-import { Crown, Twitter, RotateCcw, X } from "lucide-react";
+import { Twitter, RotateCcw, X } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { WinCrownArt, WinTrophy, WinBagArt } from "@/components/ui/WinArt";
 import { formatSol, truncateAddress } from "@/lib/utils";
 
 interface WinRevealProps {
@@ -168,21 +169,36 @@ export function WinReveal({
             className="premium-card relative z-10 flex w-full flex-col items-center gap-5 px-8 py-10 text-center"
           >
             <span className="reveal-winner flex flex-col items-center gap-2">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-gold/40 bg-gold/10">
-                <Crown className="h-7 w-7 text-gold" aria-hidden />
-              </span>
+              {/* Conditional art: trophy for others, bag burst for you */}
+              <motion.div
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 320, damping: 22, delay: 0.3 }}
+              >
+                {isYou ? (
+                  <WinBagArt size={120} />
+                ) : (
+                  <WinTrophy size={120} />
+                )}
+              </motion.div>
               <span className="font-mono text-sm text-slate">
                 {isYou ? "You" : winner ? truncateAddress(winner) : "—"}
                 <span className="text-dim"> · round #{round}</span>
               </span>
             </span>
 
-            <h2
-              className="reveal-title shimmer-text font-display font-black leading-none"
-              style={{ fontSize: "clamp(48px, 9vw, 72px)" }}
-            >
-              {title}
-            </h2>
+            {/* Big crown art behind the YOU WON title */}
+            <div className="relative flex flex-col items-center">
+              <div className="absolute -top-4 opacity-20" aria-hidden>
+                <WinCrownArt size={160} />
+              </div>
+              <h2
+                className="reveal-title shimmer-text relative z-10 font-display font-black leading-none"
+                style={{ fontSize: "clamp(48px, 9vw, 72px)" }}
+              >
+                {title}
+              </h2>
+            </div>
 
             <div className="flex items-baseline gap-2">
               <span className="gold-text-gradient font-display text-5xl font-black tabular-nums sm:text-6xl">
