@@ -3,7 +3,6 @@ import {
   GAME_CONFIG,
   bagAddFor,
   drainFor,
-  yoinkCostAt,
   type GameState,
   type King,
   type LeaderboardEntry,
