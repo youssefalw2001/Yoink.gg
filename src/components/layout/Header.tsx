@@ -1,7 +1,13 @@
 import { motion } from "framer-motion";
-import { Crown, Trophy, Swords, ShoppingBag, Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX } from "lucide-react";
 import { WalletButton } from "@/components/ui/WalletButton";
 import { ProgressStrip } from "@/components/ui/XPBar";
+import { YoinkIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
+import {
+  BagIcon,
+  ThroneSeatIcon,
+  RakeIcon,
+} from "@/components/ui/BrandIcons";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
 import type { PlayerProgress } from "@/lib/progression";
@@ -15,10 +21,11 @@ interface HeaderProps {
   progress: PlayerProgress;
 }
 
-const NAV: { id: Page; label: string; icon: typeof Swords }[] = [
-  { id: "game",        label: "The Bag",      icon: Swords },
-  { id: "leaderboard", label: "Hall of Kings", icon: Trophy },
-  { id: "shop",        label: "Armory",        icon: ShoppingBag },
+// Nav items use brand icons instead of generic lucide icons
+const NAV: { id: Page; label: string; Icon: React.ComponentType<{ size?: number; color?: string; className?: string }> }[] = [
+  { id: "game",        label: "The Bag",      Icon: BagIcon },
+  { id: "leaderboard", label: "Hall of Kings", Icon: ThroneSeatIcon },
+  { id: "shop",        label: "Armory",        Icon: RakeIcon },
 ];
 
 export function Header({ page, onNavigate, progress }: HeaderProps) {
@@ -46,25 +53,20 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
         {/* ── top bar: logo | (desktop nav) | right cluster ── */}
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
 
-          {/* logo */}
+          {/* logo — brand SVG icon + wordmark */}
           <button
             type="button"
             onClick={() => onNavigate("game")}
-            className="flex shrink-0 items-center gap-2"
+            className="flex shrink-0 items-center gap-2.5"
             aria-label="YOINK.GG home"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-gold/30 bg-gold/10">
-              <Crown className="h-4 w-4 text-gold" aria-hidden />
-            </span>
-            <span className="font-display text-lg font-black tracking-tight">
-              <span className="text-white">YOINK</span>
-              <span className="gold-text-gradient">.GG</span>
-            </span>
+            <YoinkIcon size={32} variant="gold" glow />
+            <YoinkWordmark size="md" />
           </button>
 
-          {/* desktop nav — visible md+ inline, not absolute */}
+          {/* desktop nav — brand icons, visible md+ */}
           <nav className="ml-4 hidden items-center gap-1 md:flex">
-            {NAV.map(({ id, label, icon: Icon }) => {
+            {NAV.map(({ id, label, Icon }) => {
               const active = page === id;
               return (
                 <button
@@ -83,7 +85,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
                       transition={{ type: "spring", stiffness: 420, damping: 34 }}
                     />
                   )}
-                  <Icon className="h-4 w-4" aria-hidden />
+                  <Icon size={16} color={active ? "#FFD700" : "currentColor"} />
                   {label}
                 </button>
               );
@@ -120,7 +122,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
         {/* ── bottom nav strip — ALWAYS visible, all screen sizes ── */}
         <div className="border-t border-white/[0.05] bg-[rgba(8,8,15,0.6)]">
           <div className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 py-1.5 no-scrollbar sm:px-6">
-            {NAV.map(({ id, label, icon: Icon }) => {
+            {NAV.map(({ id, label, Icon }) => {
               const active = page === id;
               return (
                 <button
@@ -139,7 +141,7 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
                       transition={{ type: "spring", stiffness: 420, damping: 34 }}
                     />
                   )}
-                  <Icon className="h-4 w-4" aria-hidden />
+                  <Icon size={16} color={active ? "#FFD700" : "currentColor"} />
                   <span>{label}</span>
                 </button>
               );
