@@ -8,6 +8,7 @@ import { SceneBackground } from "@/components/ui/SceneBackground";
 import { GameScreen } from "@/components/game/GameScreen";
 import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
+import { BidWarsScreen } from "@/components/bidwars/BidWarsScreen";
 import { WinReveal } from "@/components/reveal/WinReveal";
 import { LevelUpToast } from "@/components/ui/XPBar";
 import { useGameState } from "@/hooks/useGameState";
@@ -142,6 +143,16 @@ export default function App() {
                 onYoink={yoink}
                 cooldownLeft={cooldownLeft}
               />
+            </motion.div>
+          ) : page === "bidwars" ? (
+            <motion.div
+              key="bidwars"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <BidWarsScreen progress={progress} />
             </motion.div>
           ) : page === "leaderboard" ? (
             <motion.div
