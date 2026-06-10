@@ -30,7 +30,7 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
       : "rgba(112, 0, 255, 0.20)";
 
   return (
-    <div className="relative mx-auto flex w-full max-w-sm items-center justify-center">
+    <div className="relative flex w-full items-center justify-center sm:mx-auto sm:max-w-sm">
       <AnimatePresence mode="popLayout">
         {/* shockwave ring */}
         <motion.span
@@ -62,8 +62,8 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
               kingKey={key}
             />
 
-            <div className="relative px-6 py-6">
-              <div className="relative z-10 flex flex-col items-center gap-3">
+            <div className="relative px-4 py-4 sm:px-6 sm:py-6">
+              <div className="relative z-10 flex flex-col items-center gap-2 sm:gap-3">
                 {/* King badge */}
                 <span className="flex items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-3 py-1">
                   <Crown className="h-3.5 w-3.5 text-gold" aria-hidden />
@@ -72,7 +72,7 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
                   </span>
                 </span>
 
-                {/* Animated avatar — face parts reveal sequentially via anime.js timeline */}
+                {/* Animated avatar */}
                 <motion.div
                   key={`avatar-${key}`}
                   initial={{ scale: 0.7, opacity: 0 }}
@@ -81,9 +81,9 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
                   className="relative"
                 >
                   <div
-                    className="rounded-2xl overflow-hidden border-2 shadow-lg"
+                    className="overflow-hidden rounded-2xl border-2 shadow-lg"
                     style={{
-                      width: 88, height: 88,
+                      width: 72, height: 72,
                       borderColor: critical
                         ? "rgba(255,34,0,0.4)"
                         : isYou ? "rgba(255,215,0,0.4)"
@@ -96,7 +96,7 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
                   >
                     <AnimatedKingAvatar
                       wallet={isYou ? "You" : king}
-                      size={88}
+                      size={72}
                       isKing
                       critical={critical}
                     />
@@ -105,10 +105,10 @@ export function KingCard({ king, isYou, heldFor, critical }: KingCardProps) {
 
                 {/* Wallet + hold time */}
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="font-mono text-base font-bold text-white sm:text-lg">
+                  <span className="font-mono text-sm font-bold text-white sm:text-base">
                     {isYou ? "You" : truncateAddress(king, 4, 4)}
                   </span>
-                  <span className="font-mono text-xs text-slate">
+                  <span className="font-mono text-[10px] text-slate sm:text-xs">
                     holds the bag · {heldFor}s
                   </span>
                 </div>

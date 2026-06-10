@@ -250,10 +250,12 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-4 pb-40 pt-8 sm:px-6 lg:grid-cols-[1fr_320px] lg:pb-12"
+          className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 pb-[88px] pt-4 sm:gap-6 sm:px-6 sm:pb-6 sm:pt-6 lg:grid-cols-[1fr_320px] lg:pb-10"
         >
           {/* ── main column ── */}
-          <div className="flex flex-col items-center gap-10">
+          <div className="flex flex-col items-center gap-4 sm:gap-6">
+
+            {/* Bag amount — tighter on mobile */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -262,16 +264,23 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
               <BagAmount amount={state.bagAmount} />
             </motion.div>
 
-            <CountdownRing countdown={state.countdown} />
+            {/*
+              Mobile hero row: CountdownRing (compact) + KingCard side-by-side
+              — keeps the critical action area above the fold on 375px screens.
+              On sm+ they stack back to full-width centered.
+            */}
+            <div className="grid w-full grid-cols-[auto_1fr] items-center gap-3 sm:flex sm:flex-col sm:items-center sm:gap-6">
+              <CountdownRing countdown={state.countdown} compact />
 
-            <KingCard
-              king={state.currentKing}
-              isYou={state.kingIsYou}
-              heldFor={state.kingHeldFor}
-              critical={critical}
-            />
+              <KingCard
+                king={state.currentKing}
+                isYou={state.kingIsYou}
+                heldFor={state.kingHeldFor}
+                critical={critical}
+              />
+            </div>
 
-            {/* desktop YOINK button + fee breakdown */}
+            {/* YOINK button — visible on sm+ inline; hidden on mobile (fixed bar below) */}
             <div className="hidden w-full max-w-sm sm:block">
               <YoinkButton
                 onYoink={onYoink}
@@ -285,7 +294,8 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
               <FeeBreakdown bagAmount={state.bagAmount} />
             </div>
 
-            <div className="w-full space-y-6">
+            {/* Activity + chain — below fold on mobile, fine to scroll */}
+            <div className="w-full space-y-4 sm:space-y-6">
               {state.yoinkHistory.length > 0 && (
                 <ActivityFeed events={state.yoinkHistory} />
               )}
@@ -348,8 +358,8 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
             </SpotlightCard>
           </div>
 
-          {/* mobile fixed button */}
-          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.06] bg-[rgba(8,8,15,0.9)] p-4 backdrop-blur-xl sm:hidden">
+          {/* ── mobile fixed YOINK bar ── */}
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.06] bg-[rgba(8,8,15,0.92)] px-4 pb-[env(safe-area-inset-bottom,0px)] pt-3 backdrop-blur-xl sm:hidden">
             <YoinkButton
               onYoink={onYoink}
               critical={critical}

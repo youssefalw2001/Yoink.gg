@@ -1,26 +1,214 @@
 /**
- * YOINK.GG — SVG Banner System
+ * YOINK.GG — Banner System
  *
- * Four banners for every context:
- *
- *  HeroBanner       — 1200×630 OG image / landing hero
+ *  HeroBanner       — Hall of Kings hero (animated Void Eye, Framer Motion stats)
  *  WinShareBanner   — dynamic per-win social share card
  *  RoundLiveBanner  — "BAG IS LIVE" announcement strip
  *  RankShareBanner  — rank achievement flex card
- *
- * All inline React SVG. Pass as <img> src via encodeURIComponent or
- * render directly in the UI. Zero deps, zero cost, instant render.
  */
 
+import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { animate, createDrawable, stagger } from "animejs";
+import { Trophy, Users, Hash } from "lucide-react";
 import { RANKS } from "@/lib/progression";
 import { formatSol } from "@/lib/utils";
 
-// ─── HeroBanner — 1200×630 OG / landing ──────────────────────────────────────
+// ─── HeroBanner — Hall of Kings hero ─────────────────────────────────────────
 interface HeroBannerProps {
   bagAmount?: number;
   playerCount?: number;
   roundNumber?: number;
   className?: string;
+}
+
+/**
+ * Inline Void Eye SVG sized for the banner — re-implements the VoidEyeIcon
+ * geometry so we can attach anime.js refs to the strokes directly without
+ * fighting React key conflicts from the shared gradient IDs in YoinkLogo.
+ */
+function BannerVoidEye({ size = 200 }: { size?: number }) {
+  const svgRef  = useRef<SVGSVGElement>(null);
+  const hasRun  = useRef(false);
+
+  useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    // 1. Draw hex frame + eye path strokes
+    const strokes = svg.querySelectorAll<SVGGeometryElement>("polygon, path");
+    if (strokes.length) {
+      const drawables = createDrawable(strokes as unknown as NodeListOf<SVGGeometryElement>, 0, 0);
+      animate(drawables, {
+        draw:     ["0 0", "0 1"],
+        duration: 1100,
+        ease:     "outExpo",
+        delay:    stagger(70),
+      });
+    }
+
+    // 2. Pupil + slit + highlight — scale in after strokes finish
+    const circles = Array.from(svg.querySelectorAll<SVGElement>("circle, ellipse"));
+    animate(circles, {
+      scale:   [0, 1],
+      opacity: [0, 1],
+      duration: 400,
+      ease:    "spring(1, 80, 10, 0)",
+      delay:   stagger(45, { start: 850 }),
+    });
+
+    // 3. Tick lines fade in last
+    const lines = Array.from(svg.querySelectorAll<SVGElement>("line"));
+    animate(lines, {
+      opacity: [0, 0.18],
+      duration: 600,
+      ease:    "outQuart",
+      delay:   stagger(30, { start: 1100 }),
+    });
+  }, []);
+
+  const s  = size;
+  const cx = s / 2;
+  const cy = s / 2;
+
+  const hexPoints = (r: number) =>
+    Array.from({ length: 6 }, (_, i) => {
+      const a = (Math.PI / 180) * (60 * i - 30);
+      return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
+    }).join(" ");
+
+  const outerR  = s * 0.46;
+  const innerR  = s * 0.38;
+  const eyeW    = s * 0.28;
+  const eyeH    = s * 0.18;
+  const pupilR  = s * 0.09;
+  const innerPR = s * 0.055;
+
+  const eyePath = `M ${cx - eyeW} ${cy} Q ${cx} ${cy - eyeH} ${cx + eyeW} ${cy} Q ${cx} ${cy + eyeH} ${cx - eyeW} ${cy} Z`;
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${s} ${s}`}
+      width={s}
+      height={s}
+      fill="none"
+      aria-hidden
+    >
+      <defs>
+        <radialGradient id="bve-grad" cx="50%" cy="40%" r="60%">
+          <stop offset="0%"   stopColor="#FFE566" />
+          <stop offset="50%"  stopColor="#FFD700" />
+          <stop offset="100%" stopColor="#FF9900" />
+        </radialGradient>
+        <radialGradient id="bve-halo" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="#FFD700" stopOpacity="0.30" />
+          <stop offset="100%" stopColor="#FFD700" stopOpacity="0"    />
+        </radialGradient>
+        <radialGradient id="bve-phantom" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="#7000FF" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#7000FF" stopOpacity="0"    />
+        </radialGradient>
+        <linearGradient id="bve-slit" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#FF9900" />
+          <stop offset="40%"  stopColor="#FFD700" />
+          <stop offset="100%" stopColor="#FF9900" />
+        </linearGradient>
+        <filter id="bve-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation={s * 0.055} result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+
+      {/* Outer phantom glow halo */}
+      <polygon points={hexPoints(outerR * 1.22)} fill="url(#bve-phantom)" />
+      {/* Gold halo ring */}
+      <polygon points={hexPoints(outerR * 1.10)} fill="url(#bve-halo)" />
+
+      {/* Hexagon outer frame */}
+      <polygon
+        points={hexPoints(outerR)}
+        fill="rgba(8,8,15,0.96)"
+        stroke="url(#bve-grad)"
+        strokeWidth={s * 0.034}
+        strokeLinejoin="round"
+      />
+      {/* Inner hex ring — circuit board detail */}
+      <polygon
+        points={hexPoints(innerR)}
+        fill="none"
+        stroke="#FFD700"
+        strokeWidth={s * 0.011}
+        strokeOpacity="0.22"
+        strokeLinejoin="round"
+      />
+
+      {/* Eye shape */}
+      <path
+        d={eyePath}
+        fill="rgba(8,8,15,0.88)"
+        stroke="#FFD700"
+        strokeWidth={s * 0.022}
+        strokeLinejoin="round"
+      />
+
+      {/* Pupil coin circle */}
+      <circle cx={cx} cy={cy} r={pupilR}
+        fill="url(#bve-grad)"
+        filter="url(#bve-glow)"
+        style={{ willChange: "opacity", animation: "border-breathe 2.4s ease-in-out infinite" }}
+      />
+      {/* Inner coin ring */}
+      <circle cx={cx} cy={cy} r={innerPR}
+        fill="rgba(8,8,15,0.72)"
+        stroke="#FFE566"
+        strokeWidth={s * 0.016}
+      />
+      {/* Coin center dot */}
+      <circle cx={cx} cy={cy} r={s * 0.018} fill="#FFE566" />
+
+      {/* Vertical slit iris */}
+      <ellipse
+        cx={cx} cy={cy}
+        rx={pupilR * 0.28}
+        ry={pupilR * 0.78}
+        fill="url(#bve-slit)"
+        opacity="0.88"
+      />
+
+      {/* Highlight sparkle */}
+      <circle
+        cx={cx - pupilR * 0.35}
+        cy={cy - pupilR * 0.38}
+        r={s * 0.013}
+        fill="white"
+        opacity="0.65"
+      />
+
+      {/* Corner hex tick marks */}
+      {[0, 2, 4].map((i) => {
+        const a1 = (Math.PI / 180) * (60 * i - 30);
+        const a2 = (Math.PI / 180) * (60 * (i + 1) - 30);
+        return (
+          <line
+            key={i}
+            x1={cx + outerR * 0.72 * Math.cos(a1 + 0.3)}
+            y1={cy + outerR * 0.72 * Math.sin(a1 + 0.3)}
+            x2={cx + outerR * 0.72 * Math.cos(a2 - 0.3)}
+            y2={cy + outerR * 0.72 * Math.sin(a2 - 0.3)}
+            stroke="#FFD700"
+            strokeWidth={s * 0.013}
+            strokeOpacity="0.18"
+            strokeLinecap="round"
+          />
+        );
+      })}
+    </svg>
+  );
 }
 
 export function HeroBanner({
@@ -29,153 +217,206 @@ export function HeroBanner({
   roundNumber = 1847,
   className,
 }: HeroBannerProps) {
+  const stats = [
+    {
+      icon:  <Trophy className="h-3.5 w-3.5 text-gold" aria-hidden />,
+      label: "CURRENT BAG",
+      value: `${formatSol(bagAmount)} SOL`,
+      accent: "rgba(255,215,0,0.12)",
+      border: "rgba(255,215,0,0.22)",
+      color:  "text-gold",
+    },
+    {
+      icon:  <Users className="h-3.5 w-3.5 text-emerald" aria-hidden />,
+      label: "LIVE PLAYERS",
+      value: playerCount.toLocaleString(),
+      accent: "rgba(0,230,118,0.08)",
+      border: "rgba(0,230,118,0.2)",
+      color:  "text-emerald",
+    },
+    {
+      icon:  <Hash className="h-3.5 w-3.5 text-phantom" aria-hidden />,
+      label: "ROUND",
+      value: `#${roundNumber.toLocaleString()}`,
+      accent: "rgba(112,0,255,0.08)",
+      border: "rgba(112,0,255,0.2)",
+      color:  "text-phantom",
+    },
+  ];
+
   return (
-    <svg
-      viewBox="0 0 1200 630"
-      className={className}
-      aria-label="YOINK.GG — The King's Bag"
-      style={{ width: "100%", height: "auto", maxWidth: 1200 }}
+    <div
+      className={`relative overflow-hidden ${className ?? ""}`}
+      style={{
+        background: "linear-gradient(160deg, #0c0b18 0%, #08080f 60%, #0a0810 100%)",
+        minHeight: 300,
+      }}
     >
-      <defs>
-        {/* Void background */}
-        <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor="#0a0b14" />
-          <stop offset="100%" stopColor="#08080f" />
-        </linearGradient>
-        {/* Aurora violet pool */}
-        <radialGradient id="hav" cx="20%" cy="25%" r="45%">
-          <stop offset="0%"   stopColor="#7000FF" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#7000FF" stopOpacity="0" />
-        </radialGradient>
-        {/* Aurora gold pool */}
-        <radialGradient id="hag" cx="82%" cy="78%" r="48%">
-          <stop offset="0%"   stopColor="#FFD700" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#FFD700" stopOpacity="0" />
-        </radialGradient>
-        {/* Gold wordmark gradient */}
-        <linearGradient id="hwg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="50%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-        {/* Crown dagger gradient */}
-        <linearGradient id="hcg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="50%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-        {/* Bag amount gradient */}
-        <linearGradient id="hbag" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="45%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-        {/* Vignette */}
-        <radialGradient id="hvig" cx="50%" cy="50%" r="70%">
-          <stop offset="40%"  stopColor="transparent" />
-          <stop offset="100%" stopColor="rgba(0,0,0,0.6)" />
-        </radialGradient>
-        {/* Scanlines pattern */}
-        <pattern id="hscl" x="0" y="0" width="1" height="3" patternUnits="userSpaceOnUse">
-          <rect x="0" y="0" width="1200" height="1" fill="white" opacity="0.025" />
-        </pattern>
-        <filter id="hglow">
-          <feGaussianBlur stdDeviation="6" result="b" />
-          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-
-      {/* Background */}
-      <rect width="1200" height="630" fill="url(#hbg)" />
-      <rect width="1200" height="630" fill="url(#hav)" />
-      <rect width="1200" height="630" fill="url(#hag)" />
-      <rect width="1200" height="630" fill="url(#hscl)" />
-      <rect width="1200" height="630" fill="url(#hvig)" />
-
-      {/* Gold top accent line */}
-      <rect x="0" y="0" width="1200" height="2"
-        fill="url(#hwg)" opacity="0.8" />
-
-      {/* Crown-Dagger icon — large, left side */}
-      <g transform="translate(80, 160) scale(5.5)" filter="url(#hglow)">
-        {/* crown-dagger path (same as YoinkIcon, scaled) */}
-        <path
-          d="M4 28 L4 18 L10 22 L14 8 L20 14 L20 6 L20 14 L26 8 L30 22 L36 18 L36 28 L30 28 L28 34 L26 28 L20 28 L20 36 L20 28 L14 28 L12 34 L10 28 Z"
-          fill="url(#hcg)" stroke="#FFE566" strokeWidth="0.6" strokeLinejoin="round"
+      {/* ── Aurora pools — transform only, no box-shadow ── */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{ willChange: "transform" }}
+      >
+        {/* Phantom pool — top-left */}
+        <div
+          className="absolute"
+          style={{
+            top: "-10%", left: "-5%",
+            width: "55%", height: "80%",
+            background: "radial-gradient(ellipse at center, rgba(112,0,255,0.28) 0%, transparent 70%)",
+            willChange: "transform",
+            animation: "aurora-breathe 22s cubic-bezier(0.22,1,0.36,1) infinite",
+          }}
         />
-        <circle cx="20" cy="18" r="3" fill="#FF1744" stroke="#FFE566" strokeWidth="0.5" />
-        <circle cx="19" cy="17" r="1" fill="white" opacity="0.45" />
-        <circle cx="11" cy="20" r="1.8" fill="#7000FF" stroke="#FFE566" strokeWidth="0.4" />
-        <circle cx="29" cy="20" r="1.8" fill="#00C853" stroke="#FFE566" strokeWidth="0.4" />
-      </g>
+        {/* Gold pool — bottom-right */}
+        <div
+          className="absolute"
+          style={{
+            bottom: "-10%", right: "-5%",
+            width: "50%", height: "75%",
+            background: "radial-gradient(ellipse at center, rgba(255,215,0,0.18) 0%, transparent 70%)",
+            willChange: "transform",
+            animation: "aurora-drift 28s ease-in-out infinite",
+          }}
+        />
+        {/* Indigo accent — center */}
+        <div
+          className="absolute"
+          style={{
+            top: "20%", left: "40%",
+            width: "40%", height: "60%",
+            background: "radial-gradient(ellipse at center, rgba(68,0,204,0.14) 0%, transparent 70%)",
+            willChange: "transform",
+            animation: "aurora-breathe 18s cubic-bezier(0.22,1,0.36,1) infinite reverse",
+          }}
+        />
+      </div>
 
-      {/* YOINK.GG wordmark */}
-      <text x="380" y="230"
-        fontFamily="'Orbitron', sans-serif" fontWeight="900"
-        fontSize="110" fill="white" letterSpacing="6"
-      >YOINK</text>
-      <text x="380" y="352"
-        fontFamily="'Orbitron', sans-serif" fontWeight="900"
-        fontSize="110" fill="url(#hwg)" letterSpacing="6"
-      >.GG</text>
+      {/* ── Scanlines ── */}
+      <div
+        className="pointer-events-none absolute inset-0 hidden sm:block"
+        aria-hidden
+        style={{
+          background: "repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)",
+        }}
+      />
 
-      {/* Tagline */}
-      <text x="380" y="400"
-        fontFamily="'Space Grotesk', sans-serif" fontWeight="500"
-        fontSize="20" fill="#8892a4" letterSpacing="3"
-      >THE MOST DANGEROUS 30 SECONDS IN CRYPTO</text>
+      {/* ── Top gold accent bar ── */}
+      <div
+        className="absolute inset-x-0 top-0 h-[2px]"
+        style={{ background: "linear-gradient(90deg, transparent 0%, #FFE566 20%, #FFD700 50%, #FF9900 80%, transparent 100%)" }}
+      />
 
-      {/* Gold divider */}
-      <line x1="380" y1="420" x2="1140" y2="420"
-        stroke="url(#hwg)" strokeWidth="1" opacity="0.4" />
+      {/* ── Bottom vignette ── */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
+        style={{ background: "linear-gradient(to bottom, transparent, rgba(8,8,15,0.7))" }}
+        aria-hidden
+      />
 
-      {/* Live stats strip */}
-      <g transform="translate(380, 450)">
-        {/* Bag stat */}
-        <rect x="0" y="0" width="200" height="64" rx="12"
-          fill="rgba(255,215,0,0.08)" stroke="rgba(255,215,0,0.2)" strokeWidth="1" />
-        <text x="16" y="22"
-          fontFamily="'Space Grotesk', sans-serif" fontWeight="500"
-          fontSize="11" fill="#8892a4" letterSpacing="2"
-        >CURRENT BAG</text>
-        <text x="16" y="50"
-          fontFamily="'JetBrains Mono', monospace" fontWeight="700"
-          fontSize="22" fill="url(#hwg)"
-        >{formatSol(bagAmount)} SOL</text>
+      {/* ── Content ── */}
+      <div className="relative z-10 flex flex-col items-center gap-6 px-6 py-10 sm:py-14 md:flex-row md:items-center md:gap-12 md:px-14 md:py-16">
 
-        {/* Players stat */}
-        <rect x="220" y="0" width="180" height="64" rx="12"
-          fill="rgba(0,230,118,0.08)" stroke="rgba(0,230,118,0.2)" strokeWidth="1" />
-        <circle cx="236" cy="14" r="5" fill="#00E676" opacity="0.9" />
-        <text x="248" y="22"
-          fontFamily="'Space Grotesk', sans-serif" fontWeight="500"
-          fontSize="11" fill="#8892a4" letterSpacing="2"
-        >LIVE</text>
-        <text x="236" y="50"
-          fontFamily="'JetBrains Mono', monospace" fontWeight="700"
-          fontSize="22" fill="#00E676"
-        >{playerCount.toLocaleString()}</text>
+        {/* Void Eye — left on desktop, top on mobile */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.75 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          className="shrink-0"
+          style={{ filter: "drop-shadow(0 0 32px rgba(255,215,0,0.25)) drop-shadow(0 0 64px rgba(112,0,255,0.2))" }}
+        >
+          <BannerVoidEye size={180} />
+        </motion.div>
 
-        {/* Round stat */}
-        <rect x="420" y="0" width="180" height="64" rx="12"
-          fill="rgba(112,0,255,0.08)" stroke="rgba(112,0,255,0.2)" strokeWidth="1" />
-        <text x="436" y="22"
-          fontFamily="'Space Grotesk', sans-serif" fontWeight="500"
-          fontSize="11" fill="#8892a4" letterSpacing="2"
-        >ROUND</text>
-        <text x="436" y="50"
-          fontFamily="'JetBrains Mono', monospace" fontWeight="700"
-          fontSize="22" fill="#7000FF"
-        >#{roundNumber.toLocaleString()}</text>
-      </g>
+        {/* Text + stats — right */}
+        <div className="flex flex-1 flex-col items-center gap-5 text-center md:items-start md:text-left">
 
-      {/* yoink.gg URL bottom right */}
-      <text x="1140" y="606"
-        textAnchor="end"
-        fontFamily="'Orbitron', sans-serif" fontWeight="700"
-        fontSize="16" fill="rgba(255,215,0,0.35)" letterSpacing="2"
-      >yoink.gg</text>
-    </svg>
+          {/* Badge */}
+          <motion.span
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/10 px-3 py-1"
+          >
+            <Trophy className="h-3 w-3 text-gold" aria-hidden />
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold">
+              Hall of Kings
+            </span>
+          </motion.span>
+
+          {/* Wordmark */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col gap-1"
+          >
+            <h1
+              className="font-display font-black leading-none tracking-tight"
+              style={{ fontSize: "clamp(2.6rem, 6vw, 5rem)", letterSpacing: "0.02em" }}
+            >
+              <span className="text-white">YOINK</span>
+              <span className="gold-text-gradient">.GG</span>
+            </h1>
+            <p className="font-mono text-xs uppercase tracking-[0.28em] text-slate">
+              The Most Dangerous 30 Seconds in Crypto
+            </p>
+          </motion.div>
+
+          {/* Divider */}
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.6, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="h-px w-full origin-left"
+            style={{ background: "linear-gradient(90deg, rgba(255,215,0,0.45), rgba(112,0,255,0.2), transparent)" }}
+          />
+
+          {/* Stats row */}
+          <div className="flex flex-wrap justify-center gap-3 md:justify-start">
+            {stats.map((s, i) => (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.4,
+                  delay: 0.45 + i * 0.08,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="flex flex-col gap-1 rounded-xl px-4 py-3"
+                style={{
+                  background: s.accent,
+                  border: `1px solid ${s.border}`,
+                  minWidth: 110,
+                }}
+              >
+                <div className="flex items-center gap-1.5">
+                  {s.icon}
+                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-slate">
+                    {s.label}
+                  </span>
+                </div>
+                <span className={`font-mono text-lg font-bold tabular-nums ${s.color}`}>
+                  {s.value}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Corner watermark ── */}
+      <span
+        className="absolute bottom-3 right-4 font-display text-[10px] font-bold uppercase tracking-[0.25em]"
+        style={{ color: "rgba(255,215,0,0.2)" }}
+        aria-hidden
+      >
+        yoink.gg
+      </span>
+    </div>
   );
 }
 
