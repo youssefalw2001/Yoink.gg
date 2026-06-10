@@ -67,7 +67,6 @@ export function CountdownRing({ countdown, fuseSeconds, children, compact }: Dan
   const color   = useMemo(() => ringColor(elapsed), [elapsed]);
 
   // Arc shows how much time is LEFT (full arc = just started)
-  const frac  = 1 - elapsed;
   const offset = CIRC * elapsed;
 
   // Pulse gets faster as elapsed increases
