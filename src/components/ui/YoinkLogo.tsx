@@ -8,15 +8,13 @@
  * The reaching hand = aggression, speed, the grab.
  * The Y negative space = the brand, baked in, not spelled out.
  * Gold → Blood gradient = money at the top, danger at the tips.
- * No hexagon. No eye. No circuit ticks. Clean.
  *
  * Variants:
  *   SnatchIcon       — standalone mark (favicon / header / avatar)
+ *   VoidEyeIcon      — alias for SnatchIcon (backwards compat)
  *   YoinkWordmark    — YOINK in white + .GG in gold (HTML, not SVG text)
  *   YoinkLogo        — icon + wordmark side by side
  *   YoinkLogoStack   — stacked hero version
- *
- * VoidEyeIcon kept as alias → SnatchIcon for backwards compat.
  */
 
 interface IconProps {
@@ -37,16 +35,7 @@ const COLORS = {
 
 // ─── SnatchIcon ───────────────────────────────────────────────────────────────
 // The mark: a downward-reaching three-finger snatch.
-// Built from 4 smooth cubic-bezier paths — one per finger + palm arc.
-// Total path count intentionally low so createDrawable() feels instant.
-//
-// Coordinate system: 100×100 viewBox, scaled by consumer.
-// Key points (100×100 space):
-//   Palm centre: (50, 18)
-//   Index tip:   (27, 82)
-//   Middle tip:  (50, 90)
-//   Ring tip:    (73, 82)
-//
+// 4 smooth cubic-bezier paths. Readable at 16px. Dramatic at 200px.
 // The Y negative space lives between the three finger roots at ~(50, 52).
 
 export function SnatchIcon({
@@ -55,9 +44,9 @@ export function SnatchIcon({
   variant = "gold",
   pulse = false,
 }: IconProps) {
-  const c       = COLORS[variant];
-  const gradId  = `sg-${variant}-${size}`;
-  const glowId  = `sgg-${variant}-${size}`;
+  const c      = COLORS[variant];
+  const gradId = `sg-${variant}-${size}`;
+  const glowId = `sgg-${variant}-${size}`;
 
   return (
     <svg
@@ -74,13 +63,11 @@ export function SnatchIcon({
       }
     >
       <defs>
-        {/* Gold → blood vertical gradient */}
         <linearGradient id={gradId} x1="50" y1="10" x2="50" y2="92" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor={c.top} />
           <stop offset="55%"  stopColor={c.mid} />
           <stop offset="100%" stopColor={c.tip} />
         </linearGradient>
-        {/* Radial glow halo behind mark */}
         <radialGradient id={glowId} cx="50%" cy="25%" r="55%">
           <stop offset="0%"   stopColor={c.mid} stopOpacity="0.35" />
           <stop offset="100%" stopColor={c.mid} stopOpacity="0"    />
@@ -177,7 +164,7 @@ interface LogoProps {
   pulse?: boolean;
 }
 
-const LOGO_ICON_PX: Record<string, number> = { sm: 26, md: 34, lg: 46, xl: 62 };
+const LOGO_ICON_PX: Record<string, number> = { sm: 28, md: 36, lg: 48, xl: 64 };
 const LOGO_WM_SIZE: Record<string, WordmarkProps["size"]> = {
   sm: "sm", md: "md", lg: "lg", xl: "xl",
 };
@@ -226,7 +213,7 @@ export function YoinkLogoStack({
           style={{
             background: "linear-gradient(90deg, transparent, #FFD700, transparent)",
             width: size * 0.85,
-            opacity: 0.5,
+            opacity: 0.6,
           }}
         />
         {showTagline && (

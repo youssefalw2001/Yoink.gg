@@ -6,7 +6,6 @@
  *
  * Sequence:
  *   0ms   — fingers draw (stagger 85ms each)
- *   500ms — highlight glint fades in
  *   680ms — wordmark slides up + fades in
  *
  * GPU rules: transform + opacity only after draw completes.

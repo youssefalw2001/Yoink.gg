@@ -1,7 +1,7 @@
 /**
  * YOINK.GG — Banner System
  *
- *  HeroBanner       — Hall of Kings hero (animated Void Eye, Framer Motion stats)
+ *  HeroBanner       — Hall of Kings hero (Snatch mark, Framer Motion stats)
  *  WinShareBanner   — dynamic per-win social share card
  *  RoundLiveBanner  — "BAG IS LIVE" announcement strip
  *  RankShareBanner  — rank achievement flex card
@@ -20,7 +20,6 @@ interface HeroBannerProps {
   roundNumber?: number;
   className?: string;
 }
-
 
 export function HeroBanner({
   bagAmount = 12.5,
@@ -69,7 +68,6 @@ export function HeroBanner({
         aria-hidden
         style={{ willChange: "transform" }}
       >
-        {/* Phantom pool — top-left */}
         <div
           className="absolute"
           style={{
@@ -80,7 +78,6 @@ export function HeroBanner({
             animation: "aurora-breathe 22s cubic-bezier(0.22,1,0.36,1) infinite",
           }}
         />
-        {/* Gold pool — bottom-right */}
         <div
           className="absolute"
           style={{
@@ -91,7 +88,6 @@ export function HeroBanner({
             animation: "aurora-drift 28s ease-in-out infinite",
           }}
         />
-        {/* Indigo accent — center */}
         <div
           className="absolute"
           style={{
@@ -129,7 +125,7 @@ export function HeroBanner({
       {/* ── Content ── */}
       <div className="relative z-10 flex flex-col items-center gap-6 px-6 py-10 sm:py-14 md:flex-row md:items-center md:gap-12 md:px-14 md:py-16">
 
-        {/* Void Eye — left on desktop, top on mobile */}
+        {/* Snatch mark */}
         <motion.div
           initial={{ opacity: 0, scale: 0.75 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -139,10 +135,10 @@ export function HeroBanner({
         >
           <SnatchIcon size={180} variant="gold" pulse />
         </motion.div>
-        {/* Text + stats — right */}
+
+        {/* Text + stats */}
         <div className="flex flex-1 flex-col items-center gap-5 text-center md:items-start md:text-left">
 
-          {/* Badge */}
           <motion.span
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -155,7 +151,6 @@ export function HeroBanner({
             </span>
           </motion.span>
 
-          {/* Wordmark */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -174,7 +169,6 @@ export function HeroBanner({
             </p>
           </motion.div>
 
-          {/* Divider */}
           <motion.div
             initial={{ scaleX: 0 }}
             animate={{ scaleX: 1 }}
@@ -183,24 +177,15 @@ export function HeroBanner({
             style={{ background: "linear-gradient(90deg, rgba(255,215,0,0.45), rgba(112,0,255,0.2), transparent)" }}
           />
 
-          {/* Stats row */}
           <div className="flex flex-wrap justify-center gap-3 md:justify-start">
             {stats.map((s, i) => (
               <motion.div
                 key={s.label}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.4,
-                  delay: 0.45 + i * 0.08,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
+                transition={{ duration: 0.4, delay: 0.45 + i * 0.08, ease: [0.22, 1, 0.36, 1] }}
                 className="flex flex-col gap-1 rounded-xl px-4 py-3"
-                style={{
-                  background: s.accent,
-                  border: `1px solid ${s.border}`,
-                  minWidth: 110,
-                }}
+                style={{ background: s.accent, border: `1px solid ${s.border}`, minWidth: 110 }}
               >
                 <div className="flex items-center gap-1.5">
                   {s.icon}
@@ -214,11 +199,9 @@ export function HeroBanner({
               </motion.div>
             ))}
           </div>
-
         </div>
       </div>
 
-      {/* ── Corner watermark ── */}
       <span
         className="absolute bottom-3 right-4 font-display text-[10px] font-bold uppercase tracking-[0.25em]"
         style={{ color: "rgba(255,215,0,0.2)" }}
@@ -230,7 +213,7 @@ export function HeroBanner({
   );
 }
 
-// ─── WinShareBanner — dynamic win card ───────────────────────────────────────
+// ─── WinShareBanner ───────────────────────────────────────────────────────────
 interface WinShareBannerProps {
   wallet: string;
   solWon: number;
@@ -284,7 +267,7 @@ export function WinShareBanner({
       <rect x="0" y="0" width="800" height="6"
         fill={isYou ? "url(#wswg)" : "#7000FF"} />
 
-      {/* Snatch watermark */}
+      {/* Snatch watermark — background */}
       <g transform="translate(560, 50) scale(2.6)" opacity="0.07">
         <path d="M 38 22 C 33 22,27 28,25 38 C 23 48,24 62,27 82 C 27.5 85,30 87,32 86 C 34 85,35 83,35 80 C 34 65,34 52,36 44 C 38 36,41 30,41 26 C 41 23,40 22,38 22 Z" fill="url(#wscg)" />
         <path d="M 50 14 C 46 14,43 18,43 24 C 43 34,44 52,46 72 C 47 80,48 88,50 90 C 52 88,53 80,54 72 C 56 52,57 34,57 24 C 57 18,54 14,50 14 Z" fill="url(#wscg)" />
@@ -318,7 +301,7 @@ export function WinShareBanner({
       <line x1="60" y1="360" x2="740" y2="360"
         stroke="rgba(255,215,0,0.15)" strokeWidth="1" />
 
-      {/* YOINK.GG branding bottom */}
+      {/* YOINK.GG branding */}
       <text x="60" y="400"
         fontFamily="'Orbitron', sans-serif" fontWeight="900"
         fontSize="20" fill="white"
@@ -331,7 +314,7 @@ export function WinShareBanner({
   );
 }
 
-// ─── RoundLiveBanner — "BAG IS GROWING" announcement strip ────────────────────
+// ─── RoundLiveBanner ─────────────────────────────────────────────────────────
 interface RoundLiveBannerProps {
   bagAmount: number;
   className?: string;
@@ -392,7 +375,7 @@ export function RoundLiveBanner({ bagAmount, className }: RoundLiveBannerProps) 
         fontSize="32" fill="url(#rlwg)"
       >{formatSol(bagAmount)} SOL</text>
 
-      {/* Right: YOINK NOW CTA */}
+      {/* Right: CTA */}
       <rect x="680" y="35" width="190" height="50" rx="10"
         fill="rgba(255,215,0,0.1)" stroke="rgba(255,215,0,0.3)" strokeWidth="1" />
       <text x="775" y="56"
@@ -409,7 +392,7 @@ export function RoundLiveBanner({ bagAmount, className }: RoundLiveBannerProps) 
   );
 }
 
-// ─── RankShareBanner — level-up flex card ────────────────────────────────────
+// ─── RankShareBanner ──────────────────────────────────────────────────────────
 interface RankShareBannerProps {
   level: number;
   wallet: string;
@@ -451,22 +434,15 @@ export function RankShareBanner({
           <stop offset="50%"  stopColor="#FFD700" />
           <stop offset="100%" stopColor="#FF9900" />
         </linearGradient>
-        <linearGradient id="rsrankgrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor={rank.color} stopOpacity="0.8" />
-          <stop offset="100%" stopColor={rank.color} />
-        </linearGradient>
       </defs>
 
       <rect width="800" height="320" fill="url(#rsbg)"
         stroke={`${rank.color}33`} strokeWidth="1.5" rx="16" />
       <rect width="800" height="320" fill="url(#rsglow)" rx="16" />
 
-      {/* Left side: rank art (rendered as foreignObject for SVG-in-SVG) */}
-      {/* We position a simple rank emblem instead */}
       <rect x="40" y="40" width="200" height="240" rx="16"
         fill={`${rank.color}12`} stroke={`${rank.color}33`} strokeWidth="1" />
 
-      {/* Rank number large */}
       <text x="140" y="150"
         textAnchor="middle"
         fontFamily="'Orbitron', sans-serif" fontWeight="900"
@@ -483,7 +459,6 @@ export function RankShareBanner({
         fontSize="11" fill="#8892a4"
       >{rank.perk}</text>
 
-      {/* Right: info */}
       <text x="280" y="90"
         fontFamily="'Space Grotesk', sans-serif" fontWeight="700"
         fontSize="13" fill="#8892a4" letterSpacing="4"
@@ -499,7 +474,6 @@ export function RankShareBanner({
         fontSize="14" fill="#8892a4"
       >{display}</text>
 
-      {/* Stats row */}
       <rect x="280" y="210" width="120" height="54" rx="8"
         fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
       <text x="340" y="232" textAnchor="middle"
@@ -518,7 +492,6 @@ export function RankShareBanner({
         fontFamily="'JetBrains Mono', monospace" fontWeight="700" fontSize="18" fill="url(#rswg)"
       >{formatSol(totalSolWon)}</text>
 
-      {/* YOINK.GG branding */}
       <text x="280" y="298"
         fontFamily="'Orbitron', sans-serif" fontWeight="900"
         fontSize="16" fill="white"
