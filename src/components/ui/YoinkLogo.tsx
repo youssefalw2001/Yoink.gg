@@ -1,17 +1,20 @@
 /**
- * YOINK.GG — Void Eye Brand Identity
+ * YOINK.GG — The Snatch Brand Identity
  *
- * Concept: A single hexagonal eye with a gold coin for a pupil.
- * The eye = watching the timer, waiting to strike.
- * The hexagon = blockchain-native, web3.
- * The coin pupil = money, greed, crypto.
- * The slit = danger, focus, predatory instinct.
+ * Concept: A single abstract hand — three curved fingers reaching down to
+ * snatch something. The negative space at the base of the fingers traces a
+ * subtle "Y". Ultra minimal. One shape. New generation energy.
+ *
+ * The reaching hand = aggression, speed, the grab.
+ * The Y negative space = the brand, baked in, not spelled out.
+ * Gold → Blood gradient = money at the top, danger at the tips.
  *
  * Variants:
- *   VoidEyeIcon   — standalone mark (favicon / header / avatar)
- *   YoinkWordmark — YOINK in white + .GG in gold (HTML, not SVG text)
- *   YoinkLogo     — icon + wordmark side by side
- *   YoinkLogoStack— stacked hero version
+ *   SnatchIcon       — standalone mark (favicon / header / avatar)
+ *   VoidEyeIcon      — alias for SnatchIcon (backwards compat)
+ *   YoinkWordmark    — YOINK in white + .GG in gold (HTML, not SVG text)
+ *   YoinkLogo        — icon + wordmark side by side
+ *   YoinkLogoStack   — stacked hero version
  */
 
 interface IconProps {
@@ -19,179 +22,101 @@ interface IconProps {
   className?: string;
   /** "gold" | "phantom" | "blood" | "white" */
   variant?: "gold" | "phantom" | "blood" | "white";
-  /** Animate the pupil with a slow pulse */
+  /** Subtle idle breathe on the mark */
   pulse?: boolean;
 }
 
 const COLORS = {
-  gold:    { hex: "#FFD700", soft: "#FFE566", deep: "#FF9900", pupil: "#FF9900" },
-  phantom: { hex: "#7000FF", soft: "#9B40FF", deep: "#4400CC", pupil: "#7000FF" },
-  blood:   { hex: "#FF2200", soft: "#FF5533", deep: "#B81700", pupil: "#FF2200" },
-  white:   { hex: "#FFFFFF", soft: "#E0E0E0", deep: "#BDBDBD", pupil: "#FFD700" },
+  gold:    { top: "#FFE566", mid: "#FFD700", tip: "#FF4400" },
+  phantom: { top: "#9B40FF", mid: "#7000FF", tip: "#4400CC" },
+  blood:   { top: "#FF5533", mid: "#FF2200", tip: "#8B0000" },
+  white:   { top: "#FFFFFF", mid: "#E0E0E0", tip: "#FFD700" },
 } as const;
 
-// ─── VoidEyeIcon ─────────────────────────────────────────────────────────────
-export function VoidEyeIcon({
+// ─── SnatchIcon ───────────────────────────────────────────────────────────────
+// The mark: a downward-reaching three-finger snatch.
+// 4 smooth cubic-bezier paths. Readable at 16px. Dramatic at 200px.
+// The Y negative space lives between the three finger roots at ~(50, 52).
+
+export function SnatchIcon({
   size = 40,
   className,
   variant = "gold",
   pulse = false,
 }: IconProps) {
-  const c = COLORS[variant];
-  const s = size;
-  const cx = s / 2;
-  const cy = s / 2;
-
-  // Hexagon points centered at cx,cy with radius r
-  const hexPoints = (r: number) =>
-    Array.from({ length: 6 }, (_, i) => {
-      const a = (Math.PI / 180) * (60 * i - 30);
-      return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
-    }).join(" ");
-
-  const outerR = s * 0.46;
-  const innerR = s * 0.38;
-
-  // Eye lid curves — top arc + bottom arc meeting at left/right points
-  const eyeW = s * 0.28;
-  const eyeH = s * 0.18;
-  const eyeTop    = `M ${cx - eyeW} ${cy} Q ${cx} ${cy - eyeH} ${cx + eyeW} ${cy}`;
-  const eyeBottom = `Q ${cx} ${cy + eyeH} ${cx - eyeW} ${cy}`;
-  const eyePath   = `${eyeTop} ${eyeBottom} Z`;
-
-  // Pupil — coin shape (circle + ◎ mark)
-  const pupilR  = s * 0.09;
-  const innerPR = s * 0.055;
+  const c      = COLORS[variant];
+  const gradId = `sg-${variant}-${size}`;
+  const glowId = `sgg-${variant}-${size}`;
 
   return (
     <svg
-      viewBox={`0 0 ${s} ${s}`}
-      width={s}
-      height={s}
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
       fill="none"
       className={className}
-      aria-label="YOINK.GG — Void Eye"
+      aria-label="YOINK.GG"
+      style={
+        pulse
+          ? { willChange: "transform", animation: "border-breathe 2.4s ease-in-out infinite" }
+          : undefined
+      }
     >
       <defs>
-        <radialGradient id={`veg-${variant}-${s}`} cx="50%" cy="40%" r="60%">
-          <stop offset="0%"   stopColor={c.soft} />
-          <stop offset="50%"  stopColor={c.hex}  />
-          <stop offset="100%" stopColor={c.deep} />
-        </radialGradient>
-        <radialGradient id={`veglow-${variant}-${s}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor={c.hex}  stopOpacity="0.35" />
-          <stop offset="100%" stopColor={c.hex}  stopOpacity="0"    />
-        </radialGradient>
-        <filter id={`vegf-${s}`}>
-          <feGaussianBlur stdDeviation={s * 0.05} result="b" />
-          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        {/* Slit pupil gradient — dark center, glowing edge */}
-        <linearGradient id={`vslit-${s}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={c.deep}  />
-          <stop offset="40%"  stopColor={c.hex}   />
-          <stop offset="100%" stopColor={c.deep}  />
+        <linearGradient id={gradId} x1="50" y1="10" x2="50" y2="92" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor={c.top} />
+          <stop offset="55%"  stopColor={c.mid} />
+          <stop offset="100%" stopColor={c.tip} />
         </linearGradient>
+        <radialGradient id={glowId} cx="50%" cy="25%" r="55%">
+          <stop offset="0%"   stopColor={c.mid} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={c.mid} stopOpacity="0"    />
+        </radialGradient>
       </defs>
 
-      {/* Outer glow halo */}
-      <polygon
-        points={hexPoints(outerR * 1.12)}
-        fill={`url(#veglow-${variant}-${s})`}
-      />
+      {/* Glow halo */}
+      <ellipse cx="50" cy="30" rx="38" ry="32" fill={`url(#${glowId})`} />
 
-      {/* Hexagon frame */}
-      <polygon
-        points={hexPoints(outerR)}
-        fill={`rgba(8,8,15,0.95)`}
-        stroke={`url(#veg-${variant}-${s})`}
-        strokeWidth={s * 0.035}
-        strokeLinejoin="round"
-      />
-
-      {/* Inner hex ring — subtle */}
-      <polygon
-        points={hexPoints(innerR)}
-        fill="none"
-        stroke={c.hex}
-        strokeWidth={s * 0.012}
-        strokeOpacity="0.25"
-        strokeLinejoin="round"
-      />
-
-      {/* Eye white */}
+      {/* ① Index finger — sweeps left, sharp tip */}
       <path
-        d={eyePath}
-        fill={`rgba(8,8,15,0.9)`}
-        stroke={c.hex}
-        strokeWidth={s * 0.022}
-        strokeLinejoin="round"
+        d="M 38 22 C 33 22,27 28,25 38 C 23 48,24 62,27 82 C 27.5 85,30 87,32 86 C 34 85,35 83,35 80 C 34 65,34 52,36 44 C 38 36,41 30,41 26 C 41 23,40 22,38 22 Z"
+        fill={`url(#${gradId})`}
       />
 
-      {/* Pupil — coin circle */}
-      <circle
-        cx={cx}
-        cy={cy}
-        r={pupilR}
-        fill={`url(#veg-${variant}-${s})`}
-        filter={`url(#vegf-${s})`}
-        style={pulse ? { willChange: "opacity", animation: "border-breathe 2.4s ease-in-out infinite" } : undefined}
-      />
-      {/* Inner ring of coin */}
-      <circle
-        cx={cx}
-        cy={cy}
-        r={innerPR}
-        fill="rgba(8,8,15,0.7)"
-        stroke={c.soft}
-        strokeWidth={s * 0.016}
-      />
-      {/* Coin center dot */}
-      <circle cx={cx} cy={cy} r={s * 0.018} fill={c.soft} />
-
-      {/* Vertical slit — the predatory iris */}
-      <ellipse
-        cx={cx}
-        cy={cy}
-        rx={pupilR * 0.28}
-        ry={pupilR * 0.78}
-        fill={`url(#vslit-${s})`}
-        opacity="0.85"
+      {/* ② Middle finger — tallest, dominant */}
+      <path
+        d="M 50 14 C 46 14,43 18,43 24 C 43 34,44 52,46 72 C 47 80,48 88,50 90 C 52 88,53 80,54 72 C 56 52,57 34,57 24 C 57 18,54 14,50 14 Z"
+        fill={`url(#${gradId})`}
       />
 
-      {/* Highlight sparkle top-left of pupil */}
-      <circle
-        cx={cx - pupilR * 0.35}
-        cy={cy - pupilR * 0.38}
-        r={s * 0.014}
-        fill="white"
-        opacity="0.6"
+      {/* ③ Ring finger — mirrors index */}
+      <path
+        d="M 62 22 C 60 22,59 23,59 26 C 59 30,62 36,64 44 C 66 52,66 65,65 80 C 65 83,66 85,68 86 C 70 87,72.5 85,73 82 C 76 62,77 48,75 38 C 73 28,67 22,62 22 Z"
+        fill={`url(#${gradId})`}
       />
 
-      {/* Corner hex tick marks — circuit board aesthetic */}
-      {[0, 2, 4].map((i) => {
-        const a1 = (Math.PI / 180) * (60 * i - 30);
-        const a2 = (Math.PI / 180) * (60 * (i + 1) - 30);
-        const p1x = cx + outerR * 0.72 * Math.cos(a1 + 0.3);
-        const p1y = cy + outerR * 0.72 * Math.sin(a1 + 0.3);
-        const p2x = cx + outerR * 0.72 * Math.cos(a2 - 0.3);
-        const p2y = cy + outerR * 0.72 * Math.sin(a2 - 0.3);
-        return (
-          <line
-            key={i}
-            x1={p1x} y1={p1y} x2={p2x} y2={p2y}
-            stroke={c.hex}
-            strokeWidth={s * 0.014}
-            strokeOpacity="0.18"
-            strokeLinecap="round"
-          />
-        );
-      })}
+      {/* ④ Palm arc — bridges three finger bases. Concave dip = Y negative space */}
+      <path
+        d="M 26 34 C 26 28,31 20,38 18 C 42 16,45 15,50 14 C 55 15,58 16,62 18 C 69 20,74 28,74 34 C 70 32,66 28,62 27 C 58 26,55 26,50 26 C 45 26,42 26,38 27 C 34 28,30 32,26 34 Z"
+        fill={`url(#${gradId})`}
+        opacity="0.72"
+      />
+
+      {/* Highlight glint on middle finger */}
+      <path
+        d="M 49 18 C 49 24,49 36,49 52"
+        stroke="rgba(255,255,255,0.28)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-// ─── YoinkWordmark — HTML-based (no SVG text, no gradient ID conflicts) ───────
+// Backwards-compat alias — Header and other files import VoidEyeIcon
+export const VoidEyeIcon = SnatchIcon;
+
+// ─── YoinkWordmark ────────────────────────────────────────────────────────────
 interface WordmarkProps {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
@@ -216,7 +141,6 @@ export function YoinkWordmark({ size = "md", className, showTagline = false }: W
         aria-label="YOINK.GG"
       >
         <span className="text-white">YOINK</span>
-        {/* .GG — gold-text-gradient CSS class, never dark, never conflicts */}
         <span className="gold-text-gradient">.GG</span>
       </span>
       {showTagline && (
@@ -224,7 +148,7 @@ export function YoinkWordmark({ size = "md", className, showTagline = false }: W
           className="font-mono text-slate"
           style={{ fontSize: `calc(${s.fontSize} * 0.38)`, letterSpacing: "0.18em", marginTop: "0.3em" }}
         >
-          THE MOST DANGEROUS 30 SECONDS IN CRYPTO
+          HOLD THE BAG. WIN EVERYTHING.
         </span>
       )}
     </div>
@@ -241,7 +165,9 @@ interface LogoProps {
 }
 
 const LOGO_ICON_PX: Record<string, number> = { sm: 28, md: 36, lg: 48, xl: 64 };
-const LOGO_WM_SIZE: Record<string, WordmarkProps["size"]> = { sm: "sm", md: "md", lg: "lg", xl: "xl" };
+const LOGO_WM_SIZE: Record<string, WordmarkProps["size"]> = {
+  sm: "sm", md: "md", lg: "lg", xl: "xl",
+};
 
 export function YoinkLogo({
   size = "md",
@@ -252,7 +178,7 @@ export function YoinkLogo({
 }: LogoProps) {
   return (
     <div className={`inline-flex items-center gap-2.5 ${className ?? ""}`}>
-      <VoidEyeIcon size={LOGO_ICON_PX[size]} variant={iconVariant} pulse={pulse} />
+      <SnatchIcon size={LOGO_ICON_PX[size]} variant={iconVariant} pulse={pulse} />
       <YoinkWordmark size={LOGO_WM_SIZE[size]} showTagline={showTagline} />
     </div>
   );
@@ -272,7 +198,7 @@ export function YoinkLogoStack({
 }) {
   return (
     <div className={`inline-flex flex-col items-center gap-3 ${className ?? ""}`}>
-      <VoidEyeIcon size={size} variant={iconVariant} pulse />
+      <SnatchIcon size={size} variant={iconVariant} pulse />
       <div className="flex flex-col items-center gap-1">
         <span
           className="font-display font-black leading-none tracking-tight"
@@ -282,9 +208,8 @@ export function YoinkLogoStack({
           <span className="text-white">YOINK</span>
           <span className="gold-text-gradient">.GG</span>
         </span>
-        {/* gold underline */}
         <div
-          className="h-px w-full"
+          className="h-px"
           style={{
             background: "linear-gradient(90deg, transparent, #FFD700, transparent)",
             width: size * 0.85,
@@ -296,7 +221,7 @@ export function YoinkLogoStack({
             className="font-mono text-slate text-center"
             style={{ fontSize: size * 0.07, letterSpacing: "0.18em" }}
           >
-            THE MOST DANGEROUS 30 SECONDS IN CRYPTO
+            HOLD THE BAG. WIN EVERYTHING.
           </span>
         )}
       </div>
