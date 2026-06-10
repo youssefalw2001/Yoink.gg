@@ -77,17 +77,17 @@ export function BagAmount({ amount }: BagAmountProps) {
         <span
           ref={labelRef}
           className="gold-text-gradient font-display font-black leading-none"
-          style={{ fontSize: "clamp(64px, 10vw, 120px)" }}
+          style={{ fontSize: "clamp(42px, 8vw, 120px)" }}
           aria-live="polite"
           aria-label={`Bounty bag: ${display} SOL`}
         >
           {prefersReduced ? formatSol(amount) : display}
         </span>
-        <span className="font-display text-2xl font-bold text-gold/70 sm:text-3xl">
+        <span className="font-display text-xl font-bold text-gold/70 sm:text-2xl md:text-3xl">
           SOL
         </span>
       </motion.div>
-      <span className="mt-3 font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
+      <span className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.3em] text-slate sm:mt-3">
         Bounty Bag
       </span>
     </div>

@@ -46,8 +46,7 @@ export function YoinkButton({
 
   // ── Temporal state classification ────────────────────────────────────────
   const hasTemporalPricing = temporalMultiplier !== undefined;
-  const isCheapWindow  = hasTemporalPricing && temporalMultiplier < 0.75;
-  const isNeutral      = hasTemporalPricing && temporalMultiplier >= 0.75 && temporalMultiplier <= 1.25;
+  const isCheapWindow    = hasTemporalPricing && temporalMultiplier < 0.75;
   const isExpensiveEarly = hasTemporalPricing && temporalMultiplier > 1.25;
 
   // ── Escalation intensity from yoink count (unchanged) ───────────────────

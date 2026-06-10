@@ -6,6 +6,8 @@ import { clamp } from "@/lib/utils";
 interface CountdownRingProps {
   countdown: number;
   children?: React.ReactNode;
+  /** Render a compact ring (180px) for the mobile 2-col hero layout */
+  compact?: boolean;
 }
 
 /* interpolate Phantom → Gold → Blood as fraction goes 1 → 0 */
@@ -32,7 +34,7 @@ const STROKE = 10;
 const R      = (SIZE - STROKE) / 2;
 const CIRC   = 2 * Math.PI * R;
 
-export function CountdownRing({ countdown, children }: CountdownRingProps) {
+export function CountdownRing({ countdown, children, compact }: CountdownRingProps) {
   const frac     = clamp(countdown / GAME_CONFIG.ROUND_SECONDS, 0, 1);
   const color    = useMemo(() => ringColor(frac), [frac]);
   const offset   = CIRC * (1 - frac);
@@ -47,8 +49,13 @@ export function CountdownRing({ countdown, children }: CountdownRingProps) {
 
   return (
     <div
-      className="relative mx-auto flex items-center justify-center"
-      style={{ width: SIZE, height: SIZE, maxWidth: "92vw", maxHeight: "92vw" }}
+      className="relative mx-auto flex shrink-0 items-center justify-center"
+      style={{
+        width:     compact ? 180 : SIZE,
+        height:    compact ? 180 : SIZE,
+        maxWidth:  compact ? "48vw" : "92vw",
+        maxHeight: compact ? "48vw" : "92vw",
+      }}
     >
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -82,16 +89,16 @@ export function CountdownRing({ countdown, children }: CountdownRingProps) {
       {/* center */}
       <div className="relative z-10 flex flex-col items-center justify-center gap-1">
         <animated.span
-          className={`font-mono text-5xl font-bold tabular-nums sm:text-6xl ${
-            critical ? "glitch text-blood" : ""
-          }`}
+          className={`font-mono font-bold tabular-nums ${
+            compact ? "text-3xl" : "text-5xl sm:text-6xl"
+          } ${critical ? "glitch text-blood" : ""}`}
           style={!critical ? { color } : undefined}
           aria-live="polite"
           aria-label={`${Math.ceil(countdown)} seconds remaining`}
         >
           {val.to((v) => v.toFixed(1))}
         </animated.span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
+        <span className={`font-mono uppercase tracking-[0.3em] text-slate ${compact ? "text-[9px]" : "text-[10px]"}`}>
           seconds
         </span>
         {children}
