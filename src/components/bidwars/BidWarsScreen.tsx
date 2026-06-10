@@ -138,7 +138,7 @@ export function BidWarsScreen({ progress }: BidWarsScreenProps) {
 
         {/* LEFT — countdown + king card */}
         <div className="flex flex-col items-center gap-6">
-          <CountdownRing countdown={state.countdown} fuseSeconds={state.countdown} />
+          <CountdownRing countdown={state.countdown} fuseSeconds={state.countdown} showNumber />
           <BidKingCard
             leader={state.leader}
             yourBid={myBid}

@@ -294,7 +294,7 @@ export function BidWarsSpectate({ progress, requiredRank }: BidWarsSpectateProps
 
           {/* Countdown ring — compact on mobile, full on desktop */}
           <div className="w-full flex justify-center">
-            <CountdownRing countdown={state.countdown} fuseSeconds={state.countdown} />
+            <CountdownRing countdown={state.countdown} fuseSeconds={state.countdown} showNumber />
           </div>
 
           {/* Leader card — the psychological centrepiece */}

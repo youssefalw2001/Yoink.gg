@@ -24,13 +24,19 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 
 interface DangerRingProps {
-  /** Internal countdown — NOT shown to users */
+  /** Internal countdown — hidden by default (Hidden Fuse mechanic) */
   countdown: number;
   /** The total fuse seconds for this round */
   fuseSeconds: number;
   children?: React.ReactNode;
   /** Compact size for mobile */
   compact?: boolean;
+  /**
+   * Show the exact countdown number instead of "?".
+   * Used by Bid Wars where an auction NEEDS visible time.
+   * The main game rooms always use false (Hidden Fuse).
+   */
+  showNumber?: boolean;
 }
 
 function lerp(a: number, b: number, t: number) {
@@ -60,7 +66,7 @@ const R      = (SIZE - STROKE) / 2;
 const CIRC   = 2 * Math.PI * R;
 
 // ── Danger Ring ───────────────────────────────────────────────────────────────
-export function CountdownRing({ countdown, fuseSeconds, children, compact }: DangerRingProps) {
+export function CountdownRing({ countdown, fuseSeconds, children, compact, showNumber = false }: DangerRingProps) {
   // Elapsed fraction: 0 = round just started, 1 = about to end
   // We clamp to avoid negative values from floating point
   const elapsed = Math.max(0, Math.min(1, 1 - countdown / Math.max(fuseSeconds, 1)));
@@ -143,39 +149,52 @@ export function CountdownRing({ countdown, fuseSeconds, children, compact }: Dan
       {/* Center — NO number. The Hidden Fuse. */}
       <div className="relative z-10 flex flex-col items-center justify-center gap-1.5">
 
-        {/* Pulsing ? mark — pure tension */}
-        <motion.span
-          className={`font-mono font-black leading-none ${
-            compact ? "text-4xl" : "text-6xl sm:text-7xl"
-          }`}
-          style={{ color, willChange: "transform" }}
-          animate={dangerPhase ? {
-            scale: [1, 1.08, 1],
-          } : { scale: 1 }}
-          transition={{
-            duration: pulseDuration,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          aria-hidden
-        >
-          ?
-        </motion.span>
-
-        {/* Status label — descriptive, not numeric */}
-        <span
-          className={`font-mono uppercase tracking-[0.2em] ${
-            compact ? "text-[8px]" : "text-[10px]"
-          }`}
-          style={{ color: `${color}99` }}
-        >
-          {dangerLabel}
-        </span>
-
-        {/* Screen-reader only — gives accessibility without exposing time */}
-        <span className="sr-only">
-          Round in progress — time unknown
-        </span>
+        {showNumber ? (
+          /* Bid Wars mode — show exact countdown */
+          <>
+            <motion.span
+              className={`font-mono font-black tabular-nums leading-none ${
+                compact ? "text-3xl" : "text-5xl sm:text-6xl"
+              }`}
+              style={{ color, willChange: "transform" }}
+              aria-live="polite"
+              aria-label={`${Math.ceil(countdown)} seconds remaining`}
+            >
+              {countdown.toFixed(1)}
+            </motion.span>
+            <span
+              className={`font-mono uppercase tracking-[0.3em] text-slate ${
+                compact ? "text-[9px]" : "text-[10px]"
+              }`}
+            >
+              seconds
+            </span>
+          </>
+        ) : (
+          /* Hidden Fuse mode — ? only */
+          <>
+            <motion.span
+              className={`font-mono font-black leading-none ${
+                compact ? "text-4xl" : "text-6xl sm:text-7xl"
+              }`}
+              style={{ color, willChange: "transform" }}
+              animate={dangerPhase ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+              transition={{ duration: pulseDuration, repeat: Infinity, ease: "easeInOut" }}
+              aria-hidden
+            >
+              ?
+            </motion.span>
+            <span
+              className={`font-mono uppercase tracking-[0.2em] ${
+                compact ? "text-[8px]" : "text-[10px]"
+              }`}
+              style={{ color: `${color}99` }}
+            >
+              {dangerLabel}
+            </span>
+            <span className="sr-only">Round in progress — time unknown</span>
+          </>
+        )}
 
         {children}
       </div>
