@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Header, type Page } from "@/components/layout/Header";
 import { LiveTicker } from "@/components/layout/LiveTicker";
 import { Footer } from "@/components/layout/Footer";
 import { SceneBackground } from "@/components/ui/SceneBackground";
+import { ConnectScreen } from "@/components/ui/ConnectScreen";
 import { GameScreen } from "@/components/game/GameScreen";
 import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
@@ -13,6 +13,7 @@ import { WinReveal } from "@/components/reveal/WinReveal";
 import { LevelUpToast } from "@/components/ui/XPBar";
 import { useGameState } from "@/hooks/useGameState";
 import { usePlayerProgress } from "@/hooks/usePlayerProgress";
+import { useWallet } from "@/lib/wallet";
 import type { ShopItem } from "@/lib/shopItems";
 import {
   playYoink,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/sounds";
 
 export default function App() {
+  const { connected } = useWallet();
   const [page, setPage] = useState<Page>("game");
   const { state, leaderboard, yoink, playAgain, cooldownLeft } = useGameState();
   const {
@@ -125,11 +127,37 @@ export default function App() {
     <div className="relative z-10 flex min-h-dvh flex-col">
       <SceneBackground danger={dangerActive} />
 
-      <Header page={page} onNavigate={setPage} progress={progress} />
-      <LiveTicker recentKings={state.recentKings} currentKing={state.currentKing} />
+      {/* ── Wallet gate — show ConnectScreen until connected ── */}
+      <AnimatePresence mode="wait">
+        {!connected ? (
+          <motion.div
+            key="connect"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="relative z-20"
+          >
+            <ConnectScreen
+              bagAmount={state.bagAmount}
+              playerCount={state.playerCount}
+              roundNumber={state.roundNumber}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="app"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="flex min-h-dvh flex-col"
+          >
+            <Header page={page} onNavigate={setPage} progress={progress} />
+            <LiveTicker recentKings={state.recentKings} currentKing={state.currentKing} />
 
-      <main className="relative z-10 flex flex-1 flex-col">
-        <AnimatePresence mode="wait">
+            <main className="relative z-10 flex flex-1 flex-col">
+              <AnimatePresence mode="wait">
           {page === "game" ? (
             <motion.div
               key="game"
@@ -185,23 +213,26 @@ export default function App() {
               />
             </motion.div>
           )}
-        </AnimatePresence>
-      </main>
+              </AnimatePresence>
+            </main>
 
-      <Footer />
+            <Footer />
 
-      {/* Win reveal modal */}
-      <WinReveal
-        open={state.isRoundOver}
-        winner={state.winner}
-        isYou={state.winnerIsYou}
-        amount={state.bagAmount}
-        round={state.roundNumber}
-        onPlayAgain={playAgain}
-      />
+            {/* Win reveal modal */}
+            <WinReveal
+              open={state.isRoundOver}
+              winner={state.winner}
+              isYou={state.winnerIsYou}
+              amount={state.bagAmount}
+              round={state.roundNumber}
+              onPlayAgain={playAgain}
+            />
 
-      {/* Level-up toasts — fixed top-right, outside all layout */}
-      <LevelUpToast events={levelUpEvents} />
+            {/* Level-up toasts */}
+            <LevelUpToast events={levelUpEvents} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
