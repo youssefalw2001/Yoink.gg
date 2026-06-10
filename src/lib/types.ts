@@ -1,3 +1,24 @@
+/**
+ * YOINK.GG — Core Types + Game Config
+ *
+ * TRINITY MODEL (per Manus audit):
+ *   1. Hidden Fuse   — round ends at a random time between FUSE_MIN_S and
+ *                      FUSE_MAX_S. The exact end time is unknown to players.
+ *                      Kills waiting strategy + kills Jito MEV timing attacks.
+ *   2. Escalating Fee— each YOINK within a round adds a flat fee increment
+ *                      to the base cost. Punishes spam bots. Resets each round.
+ *   3. VRF Commit    — (devnet feature) end time is hashed on-chain before the
+ *                      first yoink so the house can't kill the clock manually.
+ *                      Not implemented in simulation mode.
+ *
+ * Temporal pricing has been ROLLED BACK per Manus audit:
+ *   - Added complexity without solving retention
+ *   - Created dead-game waiting strategy
+ *   - Created Jito MEV death blow (bots can time the last second perfectly)
+ *   - temporalMultiplier field kept in GameState for backwards compat but
+ *     always set to 1 and not used by any logic
+ */
+
 export interface King {
   wallet: string;
   heldFor: number;
@@ -26,6 +47,12 @@ export interface LeaderboardEntry {
 
 export interface GameState {
   bagAmount: number;
+  /**
+   * Internal countdown — ticks from fuseEndSeconds to 0.
+   * NEVER shown to players as a number. Only used to drive the danger ring
+   * visual intensity and to determine when the round ends.
+   * Players see only a pulsing ring with no number — the Hidden Fuse.
+   */
   countdown: number;
   currentKing: string;
   kingIsYou: boolean;
@@ -39,11 +66,23 @@ export interface GameState {
   yoinkCount: number;
   currentCost: number;
   /**
-   * The temporal multiplier currently applied to cost (for UI display only).
-   * 1.0 = neutral (t=25s sweet spot). >1.0 = expensive early yoink.
-   * <1.0 = cheap late snipe.
+   * Kept for backwards compat — always 1, not used by any logic.
+   * Temporal pricing was rolled back per Manus audit.
    */
   temporalMultiplier: number;
+  /**
+   * Escalating fee multiplier (Trinity Model Pillar 2).
+   * Starts at 1.0 each round, increases by FUSE_CONFIG.FEE_STEP per yoink.
+   * Applied additively on top of the yoink-count cost escalation.
+   * Shown in the UI so players can see the "heat" building.
+   */
+  roundFeeMultiplier: number;
+  /**
+   * The randomly chosen fuse duration for this round (in seconds).
+   * Visible to nobody — used only internally to determine when countdown=0.
+   * Shown post-round in the WinReveal as "The fuse burned for Xs."
+   */
+  fuseSeconds: number;
   biggestBag: number;
   totalDistributed: number;
   playerCount: number;
@@ -54,6 +93,7 @@ export interface GameState {
 }
 
 export const GAME_CONFIG = {
+  /** Nominal round seconds (used for bot logic + display fallback only) */
   ROUND_SECONDS: 30,
   TICK_MS: 100,
   BASE_COST: 0.1,
@@ -74,92 +114,60 @@ export const GAME_CONFIG = {
     { minBag: 5,  maxBag: 20,  bps: 200 },
     { minBag: 20, maxBag: 999, bps: 300 },
   ] as const,
-
-  /**
-   * Temporal pricing curve — cost multiplier based on time remaining.
-   *
-   * Design intent:
-   *   Early yoink (t≈30s) = expensive → you're buying a long runway, high EV
-   *   Mid round  (t≈15s)  = neutral
-   *   Late snipe (t≈5s)   = cheap   → high risk, you need to hold for only seconds
-   *   Final snipe (t≈1s)  = cheapest → pure gamble, floored at MIN_TEMPORAL_MULT
-   *
-   * This creates natural player archetypes:
-   *   Whale   → buys dominant position early, absorbs high cost
-   *   Sniper  → waits for cheap window, high-risk play
-   *   Grinder → mid-round opportunist
-   *
-   * Anti-exploitation: MIN_TEMPORAL_MULT floors the snipe cost so it's never
-   * actually free. The 3s cooldown per wallet limits how many cheap snipes
-   * any single wallet can land in the final seconds.
-   */
-  MAX_TEMPORAL_MULT: 3.0,   // multiplier at t=0s (round start, 30s remaining)
-  MIN_TEMPORAL_MULT: 0.5,   // floor multiplier at t=29s (1s remaining)
-  TEMPORAL_SWEET_SPOT: 25,  // seconds remaining where multiplier = 1.0 (neutral)
 } as const;
 
 /**
- * Pure function — temporal multiplier for a given countdown.
+ * FUSE_CONFIG — Hidden Fuse settings.
  *
- * Curve: piecewise linear
- *   countdown ≥ roundSeconds → MAX_TEMPORAL_MULT (3.0×)
- *   countdown = TEMPORAL_SWEET_SPOT (25s) → 1.0× (neutral)
- *   countdown ≤ 1s → MIN_TEMPORAL_MULT (0.5×)
+ * The fuse end time is chosen randomly at round start from [minSeconds, maxSeconds].
+ * Players see a danger ring that gets angrier over time but never see the number.
  *
- * Between segments it's linear interpolation so the UI
- * can display a smooth cost animation as the clock ticks.
+ * FEE_STEP: Escalating fee increment per yoink within a round.
+ *   Each yoink adds +FEE_STEP to the fee multiplier.
+ *   Cost = baseCost × roundFeeMultiplier + yoinkCountEscalation
+ *   FEE_STEP = 0.10 means each yoink adds 10% of baseCost.
+ *   After 8 yoinks: multiplier = 1 + 8×0.10 = 1.8× — spam is expensive.
+ *   Capped at FEE_MAX_MULT to prevent runaway.
  */
-export function getTemporalMultiplier(
-  countdown: number,
-  roundSeconds: number,
-): number {
-  const max   = GAME_CONFIG.MAX_TEMPORAL_MULT;
-  const min   = GAME_CONFIG.MIN_TEMPORAL_MULT;
-  const sweet = GAME_CONFIG.TEMPORAL_SWEET_SPOT;
+export const FUSE_CONFIG = {
+  MIN_SECONDS: 20,    // shortest possible round
+  MAX_SECONDS: 45,    // longest possible round
+  FEE_STEP:    0.10,  // +10% per yoink in the round
+  FEE_MAX_MULT: 2.5,  // fee multiplier cap (250% of base)
+} as const;
 
-  // Clamp countdown to valid range
-  const t = Math.max(0, Math.min(roundSeconds, countdown));
-
-  if (t >= sweet) {
-    // Early phase: interpolate from max (at roundSeconds) down to 1.0 (at sweet)
-    const frac = (t - sweet) / (roundSeconds - sweet);
-    return +(1.0 + frac * (max - 1.0)).toFixed(4);
-  } else {
-    // Late phase: interpolate from 1.0 (at sweet) down to min (at 0)
-    const frac = t / sweet;
-    return +(min + frac * (1.0 - min)).toFixed(4);
-  }
+/**
+ * Draw a random fuse duration for a new round.
+ * In simulation mode this is Math.random(). In production this
+ * would be replaced by a VRF reveal.
+ */
+export function drawFuseSeconds(roomRoundSeconds: number): number {
+  const min = Math.max(FUSE_CONFIG.MIN_SECONDS, Math.floor(roomRoundSeconds * 0.65));
+  const max = Math.floor(roomRoundSeconds * 1.5);
+  return min + Math.floor(Math.random() * (max - min + 1));
 }
 
 /**
- * Full cost for a yoink: combines yoink-count escalation WITH temporal
- * pricing. Both pressures stack multiplicatively.
+ * Compute the cost for the next yoink.
+ * Combines yoink-count escalation with the round's escalating fee multiplier.
+ * These are additive — fee multiplier scales the base, count escalation adds on top.
  *
- * @param baseCost   - room's base cost (e.g. 0.1 SOL)
- * @param costStep   - room's per-yoink increment (e.g. 0.025 SOL)
- * @param maxCost    - room's cost cap (e.g. 0.5 SOL)
- * @param yoinkCount - number of yoinks already taken this round
- * @param countdown  - seconds remaining on the clock
- * @param roundSeconds - total seconds in the round
+ * Formula:
+ *   base = baseCost × roundFeeMultiplier
+ *   cost = base + yoinkCount × costStep
+ *   cost = clamp(cost, baseCost × 0.5, maxCost × roundFeeMultiplier)
  */
-export function getTemporalCost(
-  baseCost: number,
-  costStep: number,
-  maxCost: number,
-  yoinkCount: number,
-  countdown: number,
-  roundSeconds: number,
+export function computeYoinkCost(
+  baseCost:    number,
+  costStep:    number,
+  maxCost:     number,
+  yoinkCount:  number,
+  feeMult:     number,
 ): number {
-  // Step 1: yoink-count escalation (same as before)
-  const countCost = baseCost + yoinkCount * costStep;
-
-  // Step 2: apply temporal multiplier
-  const mult = getTemporalMultiplier(countdown, roundSeconds);
-  const raw  = countCost * mult;
-
-  // Step 3: cap at maxCost, floor at baseCost * MIN_TEMPORAL_MULT
-  const floor = +(baseCost * GAME_CONFIG.MIN_TEMPORAL_MULT).toFixed(3);
-  return +Math.max(floor, Math.min(raw, maxCost)).toFixed(3);
+  const base = +(baseCost * feeMult).toFixed(4);
+  const raw  = base + yoinkCount * costStep;
+  const cap  = +Math.min(maxCost * feeMult, maxCost * FUSE_CONFIG.FEE_MAX_MULT).toFixed(4);
+  return +Math.min(raw, cap).toFixed(3);
 }
 
 /** SOL that flows into the bag from a payment of `cost`. */

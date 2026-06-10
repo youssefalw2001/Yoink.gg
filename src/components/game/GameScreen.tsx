@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { TrendingUp, Droplets, Coins, Zap } from "lucide-react";
+import { TrendingUp, Droplets, Coins, Zap, Flame, DollarSign } from "lucide-react";
 import type { GameState } from "@/lib/types";
-import { GAME_CONFIG, drainPctLabel } from "@/lib/types";
+import { GAME_CONFIG, FUSE_CONFIG, drainPctLabel } from "@/lib/types";
 import { formatSol } from "@/lib/utils";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { BagAmount } from "./BagAmount";
@@ -19,7 +19,7 @@ interface GameScreenProps {
   cooldownLeft: number;
 }
 
-// ── Earnings card — shows the house revenue accumulating live ─────────────────
+// ── Earnings card ──────────────────────────────────────────────────────────────
 function EarningsCard({
   totalDrained,
   roundDrained,
@@ -30,7 +30,6 @@ function EarningsCard({
   bagAmount: number;
 }) {
   const currentDrainPct = drainPctLabel(bagAmount);
-
   return (
     <SpotlightCard
       spotlightColor="rgba(0,230,118,0.12)"
@@ -38,7 +37,6 @@ function EarningsCard({
       className="premium-card rounded-[24px]"
     >
       <div className="flex flex-col gap-3 px-5 py-4">
-        {/* header */}
         <div className="flex items-center justify-between">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
             House Earnings
@@ -48,26 +46,17 @@ function EarningsCard({
             Live
           </span>
         </div>
-
-        {/* rows */}
         <div className="divide-y divide-white/[0.05]">
-          {/* rake row */}
           <div className="flex items-center justify-between py-2.5">
             <span className="flex items-center gap-2 font-mono text-xs text-slate">
               <Coins className="h-3.5 w-3.5 text-gold-deep" aria-hidden />
               10% rake (per YOINK)
             </span>
             <span className="font-mono text-xs font-bold text-gold">
-              {formatSol(
-                (GAME_CONFIG.RAKE_BPS / 10_000) *
-                  GAME_CONFIG.BASE_COST,
-                3,
-              )}{" "}
+              {formatSol((GAME_CONFIG.RAKE_BPS / 10_000) * GAME_CONFIG.BASE_COST, 3)}{" "}
               <span className="text-gold/50">SOL ea.</span>
             </span>
           </div>
-
-          {/* drain this round */}
           <div className="flex items-center justify-between py-2.5">
             <span className="flex items-center gap-2 font-mono text-xs text-slate">
               <Droplets className="h-3.5 w-3.5 text-phantom" aria-hidden />
@@ -83,20 +72,15 @@ function EarningsCard({
               {formatSol(roundDrained, 4)} SOL
             </motion.span>
           </div>
-
-          {/* current drain tier */}
           <div className="flex items-center justify-between py-2.5">
             <span className="flex items-center gap-2 font-mono text-xs text-slate">
               <Zap className="h-3.5 w-3.5 text-gold" aria-hidden />
               Current drain tier
             </span>
             <span className="font-mono text-xs font-bold text-gold">
-              {currentDrainPct}{" "}
-              <span className="text-dim">per YOINK</span>
+              {currentDrainPct} <span className="text-dim">per YOINK</span>
             </span>
           </div>
-
-          {/* total drained all time */}
           <div className="flex items-center justify-between py-2.5">
             <span className="flex items-center gap-2 font-mono text-xs text-slate">
               <TrendingUp className="h-3.5 w-3.5 text-emerald" aria-hidden />
@@ -113,39 +97,22 @@ function EarningsCard({
             </motion.span>
           </div>
         </div>
-
-        {/* drain tier ladder */}
         <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2.5">
           <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-dim">
             Drain tiers
           </p>
           <div className="flex flex-col gap-1">
             {GAME_CONFIG.DRAIN_TIERS.map((tier, i) => {
-              const active =
-                bagAmount >= tier.minBag && bagAmount < tier.maxBag;
+              const active = bagAmount >= tier.minBag && bagAmount < tier.maxBag;
               return (
-                <div
-                  key={i}
-                  className="flex items-center justify-between transition-colors duration-300"
-                >
-                  <span
-                    className="font-mono text-[11px]"
-                    style={{ color: active ? "#FFD700" : "#3a3f4f" }}
-                  >
-                    {tier.minBag === 0 ? "< " : ""}
-                    {tier.maxBag >= 999
-                      ? `> ${tier.minBag} SOL`
-                      : `${tier.minBag}–${tier.maxBag} SOL`}
+                <div key={i} className="flex items-center justify-between transition-colors duration-300">
+                  <span className="font-mono text-[11px]" style={{ color: active ? "#FFD700" : "#3a3f4f" }}>
+                    {tier.maxBag >= 999 ? `> ${tier.minBag} SOL` : `${tier.minBag}–${tier.maxBag} SOL`}
                   </span>
-                  <span
-                    className="font-mono text-[11px] font-bold tabular-nums"
-                    style={{ color: active ? "#FFD700" : "#3a3f4f" }}
-                  >
+                  <span className="font-mono text-[11px] font-bold tabular-nums" style={{ color: active ? "#FFD700" : "#3a3f4f" }}>
                     {tier.bps / 100}% drain
                     {active && (
-                      <span className="ml-1.5 rounded-full bg-gold/20 px-1.5 py-0.5 text-[9px] text-gold">
-                        active
-                      </span>
+                      <span className="ml-1.5 rounded-full bg-gold/20 px-1.5 py-0.5 text-[9px] text-gold">active</span>
                     )}
                   </span>
                 </div>
@@ -153,61 +120,115 @@ function EarningsCard({
             })}
           </div>
         </div>
-
-        <p className="font-mono text-[10px] text-dim">
-          Drain bleeds the bag directly into the house wallet on every YOINK.
-          Resets to 1% each new round.
-        </p>
       </div>
     </SpotlightCard>
   );
 }
 
-// ── Cost escalation card ───────────────────────────────────────────────────────
-function CostEscalationCard({ currentCost }: { currentCost: number }) {
+// ── Fuse + Escalating Fee card — replaces CostEscalationCard ──────────────────
+function FuseCard({
+  roundFeeMultiplier,
+  currentCost,
+  yoinkCount,
+}: {
+  roundFeeMultiplier: number;
+  currentCost: number;
+  yoinkCount: number;
+}) {
+  const feeIntensity = (roundFeeMultiplier - 1) / (FUSE_CONFIG.FEE_MAX_MULT - 1);
+  const feeColor =
+    feeIntensity < 0.3 ? "#00E676" :
+    feeIntensity < 0.6 ? "#FFD700" :
+    "#FF2200";
+
   return (
     <SpotlightCard
-      spotlightColor="rgba(255,153,0,0.15)"
+      spotlightColor="rgba(255,34,0,0.10)"
       radius={220}
       className="premium-card rounded-[24px]"
     >
       <div className="flex flex-col gap-3 px-5 py-4">
-        <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
-          Cost Escalation
-        </h3>
-        <div className="flex flex-col gap-1.5">
-          {Array.from({ length: 6 }).map((_, i) => {
-            const stepCost = Math.min(0.1 + i * 0.025, 0.5);
-            const active   = Math.abs(stepCost - currentCost) < 0.001;
-            const past     = stepCost < currentCost - 0.001;
-            return (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg px-3 py-1.5 transition-colors duration-200"
-                style={{
-                  background: active ? "rgba(255,215,0,0.08)" : "transparent",
-                  border:     active ? "1px solid rgba(255,215,0,0.15)" : "1px solid transparent",
-                }}
-              >
-                <span
-                  className="font-mono text-xs"
-                  style={{ color: active ? "#FFD700" : past ? "#3a3f4f" : "#8892a4" }}
-                >
-                  YOINK #{i + 1}{i === 5 ? "+" : ""}
-                </span>
-                <span
-                  className="font-mono text-xs font-bold tabular-nums"
-                  style={{ color: active ? "#FFD700" : past ? "#3a3f4f" : "#8892a4" }}
-                >
-                  {stepCost.toFixed(3)} SOL
-                </span>
-              </div>
-            );
-          })}
+        <div className="flex items-center justify-between">
+          <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
+            Round Heat
+          </h3>
+          <span
+            className="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
+            style={{
+              background: `${feeColor}18`,
+              border: `1px solid ${feeColor}40`,
+              color: feeColor,
+            }}
+          >
+            {roundFeeMultiplier.toFixed(2)}×
+          </span>
         </div>
+
+        {/* Fee bar */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[11px] text-dim">Escalating fee</span>
+            <span className="font-mono text-[11px] font-bold" style={{ color: feeColor }}>
+              +{((roundFeeMultiplier - 1) * 100).toFixed(0)}%
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
+            <motion.div
+              className="h-full rounded-full"
+              style={{
+                background: `linear-gradient(90deg, #00E676, ${feeColor})`,
+                transformOrigin: "left center",
+                willChange: "transform",
+              }}
+              animate={{ scaleX: feeIntensity }}
+              initial={{ scaleX: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            />
+          </div>
+        </div>
+
+        {/* Current cost */}
+        <div
+          className="flex items-center justify-between rounded-xl px-3 py-2.5"
+          style={{
+            background: `${feeColor}08`,
+            border: `1px solid ${feeColor}20`,
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-3.5 w-3.5" style={{ color: feeColor }} aria-hidden />
+            <span className="font-mono text-xs text-slate">Next YOINK costs</span>
+          </div>
+          <motion.span
+            key={currentCost.toFixed(3)}
+            initial={{ scale: 1.12 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="font-mono text-sm font-bold tabular-nums"
+            style={{ color: feeColor, willChange: "transform" }}
+          >
+            {formatSol(currentCost, 3)} SOL
+          </motion.span>
+        </div>
+
+        {/* Yoink count this round */}
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] text-dim">YOINKs this round</span>
+          <span className="font-mono text-[11px] font-bold text-white">{yoinkCount}</span>
+        </div>
+
         <p className="font-mono text-[10px] text-dim">
-          Cost resets to 0.100 each new round
+          Each YOINK adds +{(FUSE_CONFIG.FEE_STEP * 100).toFixed(0)}% to the base cost.
+          Spam is expensive. Act decisively.
         </p>
+
+        {/* Hidden fuse callout */}
+        <div className="flex items-center gap-2 rounded-xl border border-blood/15 bg-blood/[0.06] px-3 py-2">
+          <Flame className="h-3.5 w-3.5 shrink-0 text-blood" aria-hidden />
+          <p className="font-mono text-[10px] text-blood/80">
+            The fuse is lit. Nobody knows when it ends.
+          </p>
+        </div>
       </div>
     </SpotlightCard>
   );
@@ -225,7 +246,9 @@ function FeeBreakdown({ bagAmount }: { bagAmount: number }) {
 
 // ── Main GameScreen ────────────────────────────────────────────────────────────
 export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
-  const critical = state.countdown <= 5 && !state.isRoundOver;
+  // Critical = last ~15% of the fuse — but we estimate from fee multiplier
+  // since we don't expose exact time. High fee = late in round = critical.
+  const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
 
   return (
     <AnimatePresence mode="wait">
@@ -255,7 +278,6 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
           {/* ── main column ── */}
           <div className="flex flex-col items-center gap-4 sm:gap-6">
 
-            {/* Bag amount — tighter on mobile */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -264,14 +286,13 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
               <BagAmount amount={state.bagAmount} />
             </motion.div>
 
-            {/*
-              Mobile hero row: CountdownRing (compact) + KingCard side-by-side
-              — keeps the critical action area above the fold on 375px screens.
-              On sm+ they stack back to full-width centered.
-            */}
             <div className="grid w-full grid-cols-[auto_1fr] items-center gap-3 sm:flex sm:flex-col sm:items-center sm:gap-6">
-              <CountdownRing countdown={state.countdown} compact />
-
+              {/* Hidden fuse danger ring — no countdown shown */}
+              <CountdownRing
+                countdown={state.countdown}
+                fuseSeconds={state.fuseSeconds}
+                compact
+              />
               <KingCard
                 king={state.currentKing}
                 isYou={state.kingIsYou}
@@ -280,7 +301,6 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
               />
             </div>
 
-            {/* YOINK button — visible on sm+ inline; hidden on mobile (fixed bar below) */}
             <div className="hidden w-full max-w-sm sm:block">
               <YoinkButton
                 onYoink={onYoink}
@@ -290,11 +310,11 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
                 cost={state.currentCost}
                 cooldownLeft={cooldownLeft}
                 yoinkCount={state.yoinkCount}
+                roundFeeMultiplier={state.roundFeeMultiplier}
               />
               <FeeBreakdown bagAmount={state.bagAmount} />
             </div>
 
-            {/* Activity + chain — below fold on mobile, fine to scroll */}
             <div className="w-full space-y-4 sm:space-y-6">
               {state.yoinkHistory.length > 0 && (
                 <ActivityFeed events={state.yoinkHistory} />
@@ -311,17 +331,16 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
               totalDistributed={state.totalDistributed}
               playerCount={state.playerCount}
             />
-
-            {/* EARNINGS CARD — live house revenue tracker */}
             <EarningsCard
               totalDrained={state.totalDrained}
               roundDrained={state.roundDrained}
               bagAmount={state.bagAmount}
             />
-
-            <CostEscalationCard currentCost={state.currentCost} />
-
-            {/* how it works */}
+            <FuseCard
+              roundFeeMultiplier={state.roundFeeMultiplier}
+              currentCost={state.currentCost}
+              yoinkCount={state.yoinkCount}
+            />
             <SpotlightCard
               spotlightColor="rgba(68,0,204,0.18)"
               radius={220}
@@ -332,27 +351,20 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
                   How it works
                 </h3>
                 <ol className="flex flex-col gap-2 text-xs text-slate">
+                  <li><span className="font-mono text-gold">01</span> One king holds the bag at all times.</li>
+                  <li><span className="font-mono text-gold">02</span> Pay SOL to YOINK the bag — resets the fuse.</li>
                   <li>
-                    <span className="font-mono text-gold">01</span> One king
-                    holds the bag at all times.
+                    <span className="font-mono text-gold">03</span>{" "}
+                    <span className="text-blood">The fuse end time is hidden.</span>{" "}
+                    Nobody knows when the round ends.
                   </li>
+                  <li><span className="font-mono text-gold">04</span> When the fuse blows — king wins everything.</li>
                   <li>
-                    <span className="font-mono text-gold">02</span> Pay{" "}
-                    {GAME_CONFIG.BASE_COST} SOL (escalates) to YOINK and reset
-                    the clock.
+                    <span className="font-mono text-gold">05</span>{" "}
+                    Each YOINK raises the cost by +{(FUSE_CONFIG.FEE_STEP * 100).toFixed(0)}%.
+                    Spam costs you.
                   </li>
-                  <li>
-                    <span className="font-mono text-gold">03</span> Clock hits
-                    zero — king wins the entire bag.
-                  </li>
-                  <li>
-                    <span className="font-mono text-gold">04</span> 3s cooldown
-                    per wallet — no bot sniping.
-                  </li>
-                  <li>
-                    <span className="font-mono text-gold">05</span> Each YOINK
-                    drains 1–3% of the bag to the house.
-                  </li>
+                  <li><span className="font-mono text-gold">06</span> 3s cooldown per wallet — no bot sniping.</li>
                 </ol>
               </div>
             </SpotlightCard>
@@ -368,6 +380,7 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
               cost={state.currentCost}
               cooldownLeft={cooldownLeft}
               yoinkCount={state.yoinkCount}
+              roundFeeMultiplier={state.roundFeeMultiplier}
             />
           </div>
         </motion.div>

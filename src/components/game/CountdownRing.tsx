@@ -1,29 +1,54 @@
-import { useMemo } from "react";
-import { useSpring, animated } from "@react-spring/web";
-import { GAME_CONFIG } from "@/lib/types";
-import { clamp } from "@/lib/utils";
+/**
+ * YOINK.GG — Danger Ring (Hidden Fuse)
+ *
+ * The Hidden Fuse mechanic means the exact countdown is NEVER shown to players.
+ * Instead, this ring shows psychological tension:
+ *   - The arc depletes as time passes (from full → empty)
+ *   - The colour shifts from Phantom (calm) → Gold (building) → Blood (danger)
+ *   - The pulse speed increases as the round progresses
+ *   - "?" where the number used to be — nobody knows when it ends
+ *
+ * The internal countdown prop is used ONLY to drive the visual.
+ * The fuseSeconds prop tells us what 100% looks like.
+ *
+ * On round start: full arc, slow pulse, phantom colour.
+ * At 50% elapsed: half arc, medium pulse, gold.
+ * At 80%+ elapsed: small arc, fast pulse, blood red.
+ *
+ * This is the core psychological innovation:
+ *   Everyone acts on instinct, not math.
+ *   Bots can't time the final second because there is no visible final second.
+ */
 
-interface CountdownRingProps {
+import { useMemo } from "react";
+import { motion } from "framer-motion";
+
+interface DangerRingProps {
+  /** Internal countdown — NOT shown to users */
   countdown: number;
+  /** The total fuse seconds for this round */
+  fuseSeconds: number;
   children?: React.ReactNode;
-  /** Render a compact ring (180px) for the mobile 2-col hero layout */
+  /** Compact size for mobile */
   compact?: boolean;
 }
 
-/* interpolate Phantom → Gold → Blood as fraction goes 1 → 0 */
 function lerp(a: number, b: number, t: number) {
-  return Math.round(a + (b - a) * t);
+  return Math.round(a + (b - a) * Math.max(0, Math.min(1, t)));
 }
-function ringColor(frac: number): string {
+
+function ringColor(elapsed: number): string {
   const phantom = [112, 0, 255];
   const gold    = [255, 215, 0];
   const blood   = [255, 34, 0];
   let c: number[];
-  if (frac > 0.4) {
-    const t = clamp((1 - frac) / 0.6, 0, 1);
+  if (elapsed < 0.4) {
+    // Phantom → Gold
+    const t = elapsed / 0.4;
     c = phantom.map((p, i) => lerp(p, gold[i], t));
   } else {
-    const t = clamp((0.4 - frac) / 0.4, 0, 1);
+    // Gold → Blood
+    const t = (elapsed - 0.4) / 0.6;
     c = gold.map((g, i) => lerp(g, blood[i], t));
   }
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
@@ -34,18 +59,33 @@ const STROKE = 10;
 const R      = (SIZE - STROKE) / 2;
 const CIRC   = 2 * Math.PI * R;
 
-export function CountdownRing({ countdown, children, compact }: CountdownRingProps) {
-  const frac     = clamp(countdown / GAME_CONFIG.ROUND_SECONDS, 0, 1);
-  const color    = useMemo(() => ringColor(frac), [frac]);
-  const offset   = CIRC * (1 - frac);
-  const critical = countdown <= 5;
-  const pulsing  = frac <= 0.1;
+// ── Danger Ring ───────────────────────────────────────────────────────────────
+export function CountdownRing({ countdown, fuseSeconds, children, compact }: DangerRingProps) {
+  // Elapsed fraction: 0 = round just started, 1 = about to end
+  // We clamp to avoid negative values from floating point
+  const elapsed = Math.max(0, Math.min(1, 1 - countdown / Math.max(fuseSeconds, 1)));
+  const color   = useMemo(() => ringColor(elapsed), [elapsed]);
 
-  // React Spring — smooth digit physics
-  const { val } = useSpring({
-    val: Math.max(0, countdown),
-    config: { tension: 300, friction: 30, precision: 0.01 },
-  });
+  // Arc shows how much time is LEFT (full arc = just started)
+  const frac  = 1 - elapsed;
+  const offset = CIRC * elapsed;
+
+  // Pulse gets faster as elapsed increases
+  // 0-40%: slow (2.4s), 40-70%: medium (1.2s), 70-100%: fast (0.5s)
+  const pulseDuration =
+    elapsed < 0.4 ? 2.4 :
+    elapsed < 0.7 ? 1.2 :
+    0.5;
+
+  // Danger phase — visually intense
+  const dangerPhase = elapsed > 0.7;
+
+  // Label shows ambiguous urgency not time
+  const dangerLabel =
+    elapsed < 0.25 ? "holding" :
+    elapsed < 0.5  ? "building" :
+    elapsed < 0.75 ? "getting hot" :
+    "critical";
 
   return (
     <div
@@ -57,50 +97,87 @@ export function CountdownRing({ countdown, children, compact }: CountdownRingPro
         maxHeight: compact ? "48vw" : "92vw",
       }}
     >
+      {/* Glow halo behind ring when danger */}
+      {dangerPhase && (
+        <div
+          className="pointer-events-none absolute inset-0 rounded-full"
+          style={{
+            background: `radial-gradient(circle, ${color}22 0%, transparent 70%)`,
+            willChange: "opacity",
+            animation:  `danger-pulse ${pulseDuration}s ease-in-out infinite`,
+          }}
+          aria-hidden
+        />
+      )}
+
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="absolute inset-0 h-full w-full -rotate-90"
         style={{
-          animation: pulsing ? "danger-pulse 0.7s ease-in-out infinite" : undefined,
           willChange: "opacity",
+          animation:  dangerPhase
+            ? `danger-pulse ${pulseDuration}s ease-in-out infinite`
+            : undefined,
         }}
         aria-hidden
       >
-        {/* track */}
+        {/* Track */}
         <circle
           cx={SIZE / 2} cy={SIZE / 2} r={R}
           fill="none"
           stroke="rgba(255,255,255,0.06)"
           strokeWidth={STROKE}
         />
-        {/* progress */}
+        {/* Progress arc */}
         <circle
           cx={SIZE / 2} cy={SIZE / 2} r={R}
           fill="none"
           stroke={color}
-          strokeWidth={STROKE}
+          strokeWidth={STROKE + (dangerPhase ? 2 : 0)}
           strokeLinecap="round"
           strokeDasharray={CIRC}
           strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 100ms linear, stroke 300ms linear" }}
+          style={{ transition: "stroke-dashoffset 100ms linear, stroke 400ms linear" }}
         />
       </svg>
 
-      {/* center */}
-      <div className="relative z-10 flex flex-col items-center justify-center gap-1">
-        <animated.span
-          className={`font-mono font-bold tabular-nums ${
-            compact ? "text-3xl" : "text-5xl sm:text-6xl"
-          } ${critical ? "glitch text-blood" : ""}`}
-          style={!critical ? { color } : undefined}
-          aria-live="polite"
-          aria-label={`${Math.ceil(countdown)} seconds remaining`}
+      {/* Center — NO number. The Hidden Fuse. */}
+      <div className="relative z-10 flex flex-col items-center justify-center gap-1.5">
+
+        {/* Pulsing ? mark — pure tension */}
+        <motion.span
+          className={`font-mono font-black leading-none ${
+            compact ? "text-4xl" : "text-6xl sm:text-7xl"
+          }`}
+          style={{ color, willChange: "transform" }}
+          animate={dangerPhase ? {
+            scale: [1, 1.08, 1],
+          } : { scale: 1 }}
+          transition={{
+            duration: pulseDuration,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          aria-hidden
         >
-          {val.to((v) => v.toFixed(1))}
-        </animated.span>
-        <span className={`font-mono uppercase tracking-[0.3em] text-slate ${compact ? "text-[9px]" : "text-[10px]"}`}>
-          seconds
+          ?
+        </motion.span>
+
+        {/* Status label — descriptive, not numeric */}
+        <span
+          className={`font-mono uppercase tracking-[0.2em] ${
+            compact ? "text-[8px]" : "text-[10px]"
+          }`}
+          style={{ color: `${color}99` }}
+        >
+          {dangerLabel}
         </span>
+
+        {/* Screen-reader only — gives accessibility without exposing time */}
+        <span className="sr-only">
+          Round in progress — time unknown
+        </span>
+
         {children}
       </div>
     </div>

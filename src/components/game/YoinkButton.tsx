@@ -1,6 +1,20 @@
+/**
+ * YoinkButton — Trinity Model update
+ *
+ * Temporal pricing removed. Escalating fee replaces it.
+ * roundFeeMultiplier: 1.0 = fresh round, 2.5 = maximum heat.
+ *
+ * Button states:
+ *   king     → ShieldAlert "You hold the bag — defend it"
+ *   cooldown → Timer + progress bar
+ *   hot (fee > 1.5) → Flame badge warning cost is escalating
+ *   normal   → Swords + cost display
+ */
+
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Swords, ShieldAlert, Timer, TrendingDown, TrendingUp } from "lucide-react";
+import { Swords, ShieldAlert, Timer, Flame } from "lucide-react";
+import { FUSE_CONFIG } from "@/lib/types";
 import { formatSol } from "@/lib/utils";
 
 interface YoinkButtonProps {
@@ -8,18 +22,14 @@ interface YoinkButtonProps {
   critical: boolean;
   disabled?: boolean;
   youAreKing?: boolean;
-  /** Current cost in SOL — already includes temporal multiplier */
   cost: number;
-  /** ms remaining on player cooldown (0 = ready) */
   cooldownLeft: number;
-  /** How many yoinks this round */
   yoinkCount: number;
   /**
-   * The temporal multiplier currently applied (from GameState.temporalMultiplier).
-   * 1.0 = neutral. <1 = cheap window. >1 = expensive early phase.
-   * undefined = temporal pricing not active for this room (The Pit).
+   * Escalating fee multiplier for this round (1.0 = fresh, 2.5 = max heat).
+   * Drives the "HOT" badge and cost colour intensity.
    */
-  temporalMultiplier?: number;
+  roundFeeMultiplier?: number;
 }
 
 export function YoinkButton({
@@ -30,7 +40,7 @@ export function YoinkButton({
   cost,
   cooldownLeft,
   yoinkCount,
-  temporalMultiplier,
+  roundFeeMultiplier = 1,
 }: YoinkButtonProps) {
   const [bursts, setBursts] = useState<number[]>([]);
   const onCooldown = cooldownLeft > 0;
@@ -44,16 +54,28 @@ export function YoinkButton({
     onYoink();
   };
 
-  // ── Temporal state classification ────────────────────────────────────────
-  const hasTemporalPricing = temporalMultiplier !== undefined;
-  const isCheapWindow    = hasTemporalPricing && temporalMultiplier < 0.75;
-  const isExpensiveEarly = hasTemporalPricing && temporalMultiplier > 1.25;
+  // ── Escalating fee state ───────────────────────────────────────────────────
+  const feeIntensity = (roundFeeMultiplier - 1) / (FUSE_CONFIG.FEE_MAX_MULT - 1);
+  const isHot        = roundFeeMultiplier > 1.5;
+  const isBlazing    = roundFeeMultiplier > 2.0;
 
-  // ── Escalation intensity from yoink count (unchanged) ───────────────────
-  const escalationFrac = Math.min((cost - 0.1) / 0.4, 1);
-  const isBurning = escalationFrac > 0.4;
+  // ── Burst colour ───────────────────────────────────────────────────────────
+  const burstColor = critical
+    ? "rgba(255,34,0,0.55)"
+    : isBlazing
+      ? "rgba(255,100,0,0.55)"
+      : "rgba(255,215,0,0.5)";
 
-  // ── Label logic ───────────────────────────────────────────────────────────
+  // ── Button tint ───────────────────────────────────────────────────────────
+  const tintColor = critical
+    ? "rgba(255,34,0,0.18)"
+    : isBlazing
+      ? "rgba(255,100,0,0.14)"
+      : isHot
+        ? "rgba(255,153,0,0.08)"
+        : "transparent";
+
+  // ── Label ──────────────────────────────────────────────────────────────────
   let label: string;
   let sublabel: string | null = null;
 
@@ -65,30 +87,18 @@ export function YoinkButton({
     sublabel = "One YOINK per 3 seconds — no bots allowed";
   } else {
     label = `YOINK THE BAG — ${formatSol(cost, 3)} SOL`;
-    if (isCheapWindow) {
-      sublabel = `Cheap snipe window — ${(temporalMultiplier! * 100).toFixed(0)}% of base price`;
-    } else if (isExpensiveEarly) {
-      sublabel = `Early lock-in — ${(temporalMultiplier! * 100).toFixed(0)}% of base price`;
+    if (isBlazing) {
+      sublabel = `Fee blazing — ${roundFeeMultiplier.toFixed(1)}× base. Act now or pay more.`;
+    } else if (isHot) {
+      sublabel = `Fee heating up — ${((roundFeeMultiplier - 1) * 100).toFixed(0)}% above base cost`;
     } else if (yoinkCount > 0) {
-      sublabel = `Cost escalates each round · was ${formatSol(cost - 0.025 < 0.1 ? 0.1 : cost - 0.025, 3)} SOL`;
+      sublabel = `+${(FUSE_CONFIG.FEE_STEP * 100).toFixed(0)}% per YOINK this round`;
     }
   }
 
-  // ── Button accent colour based on temporal state ─────────────────────────
-  // Cheap window = green tint hint (opportunity)
-  // Expensive early = orange/red tint (warning)
-  // Critical countdown overrides everything with blood red
-  const temporalTint = critical
-    ? "rgba(255,34,0,0.18)"
-    : isCheapWindow
-      ? "rgba(0,230,118,0.10)"
-      : isExpensiveEarly
-        ? "rgba(255,100,0,0.12)"
-        : "transparent";
-
   return (
     <>
-      {/* full-screen radial burst on click */}
+      {/* Full-screen radial burst on click */}
       <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center overflow-hidden">
         <AnimatePresence>
           {bursts.map((id) => (
@@ -102,13 +112,7 @@ export function YoinkButton({
               style={{
                 width: "100vmax",
                 height: "100vmax",
-                background: critical
-                  ? "radial-gradient(circle, rgba(255,34,0,0.55), transparent 60%)"
-                  : isCheapWindow
-                    ? "radial-gradient(circle, rgba(0,230,118,0.45), transparent 60%)"
-                    : isBurning
-                      ? "radial-gradient(circle, rgba(255,153,0,0.55), transparent 60%)"
-                      : "radial-gradient(circle, rgba(255,215,0,0.5), transparent 60%)",
+                background: `radial-gradient(circle, ${burstColor}, transparent 60%)`,
               }}
             />
           ))}
@@ -117,41 +121,34 @@ export function YoinkButton({
 
       <div className="flex w-full flex-col gap-2">
 
-        {/* ── Cheap window badge — appears above button ────────────────── */}
+        {/* ── HOT badge — escalating fee warning ───────────────────────── */}
         <AnimatePresence>
-          {isCheapWindow && !onCooldown && !youAreKing && (
+          {isHot && !onCooldown && !youAreKing && (
             <motion.div
-              key="cheap-badge"
+              key="hot-badge"
               initial={{ opacity: 0, y: 6, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.95 }}
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-emerald/30 bg-emerald/10 py-2"
-              style={{ willChange: "transform" }}
+              className="flex items-center justify-center gap-2 rounded-xl py-2"
+              style={{
+                background: isBlazing ? "rgba(255,34,0,0.10)" : "rgba(255,100,0,0.07)",
+                border:     isBlazing ? "1px solid rgba(255,34,0,0.25)" : "1px solid rgba(255,100,0,0.18)",
+                willChange: "transform",
+              }}
             >
-              <TrendingDown className="h-3.5 w-3.5 text-emerald" aria-hidden />
-              <span className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-emerald">
-                Cheap snipe window — {formatSol(cost, 3)} SOL
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Expensive early badge ─────────────────────────────────────── */}
-        <AnimatePresence>
-          {isExpensiveEarly && !onCooldown && !youAreKing && !isCheapWindow && (
-            <motion.div
-              key="expensive-badge"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-gold/20 bg-gold/[0.06] py-2"
-              style={{ willChange: "transform" }}
-            >
-              <TrendingUp className="h-3.5 w-3.5 text-gold" aria-hidden />
-              <span className="font-mono text-xs uppercase tracking-[0.12em] text-gold/70">
-                Early position — {(temporalMultiplier! * 100).toFixed(0)}% premium
+              <Flame
+                className="h-3.5 w-3.5"
+                style={{ color: isBlazing ? "#FF2200" : "#FF6600" }}
+                aria-hidden
+              />
+              <span
+                className="font-mono text-xs font-bold uppercase tracking-[0.12em]"
+                style={{ color: isBlazing ? "#FF2200" : "#FF6600" }}
+              >
+                {isBlazing
+                  ? `Blazing — ${roundFeeMultiplier.toFixed(1)}× base`
+                  : `Hot — ${((roundFeeMultiplier - 1) * 100).toFixed(0)}% fee added`}
               </span>
             </motion.div>
           )}
@@ -170,7 +167,7 @@ export function YoinkButton({
           aria-label={label}
           style={{ willChange: "transform" }}
         >
-          {/* cooldown progress bar */}
+          {/* Cooldown bar */}
           <AnimatePresence>
             {onCooldown && (
               <motion.span
@@ -190,15 +187,27 @@ export function YoinkButton({
             )}
           </AnimatePresence>
 
-          {/* temporal tint overlay */}
-          {hasTemporalPricing && !onCooldown && !youAreKing && (
+          {/* Heat tint overlay */}
+          {!onCooldown && !youAreKing && (
             <span
               className="pointer-events-none absolute inset-0 rounded-[inherit] transition-colors duration-500"
-              style={{ background: temporalTint }}
+              style={{ background: tintColor }}
               aria-hidden
             />
           )}
 
+          {/* Fee intensity heat fill (left→right gradient as fee builds) */}
+          {isHot && !onCooldown && !youAreKing && (
+            <span
+              className="pointer-events-none absolute inset-0 rounded-[inherit]"
+              style={{
+                background: `linear-gradient(90deg, transparent, rgba(255,${isBlazing ? "34" : "100"},0,${feeIntensity * 0.22}))`,
+              }}
+              aria-hidden
+            />
+          )}
+
+          {/* Icon */}
           {onCooldown ? (
             <Timer className="h-5 w-5 shrink-0" aria-hidden />
           ) : youAreKing ? (
@@ -207,16 +216,19 @@ export function YoinkButton({
             <Swords className="h-5 w-5 shrink-0" aria-hidden />
           )}
 
-          {/* Cost display with live animation when temporal pricing is active */}
+          {/* Cost — animates on change */}
           <span className="relative z-10 flex items-center gap-2">
-            {!youAreKing && !onCooldown && hasTemporalPricing ? (
+            {!youAreKing && !onCooldown ? (
               <>
                 <span>YOINK THE BAG —</span>
                 <motion.span
                   key={cost.toFixed(3)}
-                  initial={{ scale: 1.15, color: isCheapWindow ? "#00E676" : "#FFE566" }}
+                  initial={{
+                    scale: 1.12,
+                    color: isBlazing ? "#FF2200" : isHot ? "#FF6600" : "#FFE566",
+                  }}
                   animate={{ scale: 1, color: "#08080f" }}
-                  transition={{ duration: 0.35 }}
+                  transition={{ duration: 0.3 }}
                   className="font-mono font-black tabular-nums"
                   style={{ willChange: "transform" }}
                 >
@@ -227,17 +239,6 @@ export function YoinkButton({
               label
             )}
           </span>
-
-          {/* escalation heat tint */}
-          {isBurning && !onCooldown && !youAreKing && (
-            <span
-              className="pointer-events-none absolute inset-0 rounded-[inherit]"
-              style={{
-                background: `linear-gradient(90deg, transparent, rgba(255,100,0,${escalationFrac * 0.25}))`,
-              }}
-              aria-hidden
-            />
-          )}
         </motion.button>
 
         {/* ── Sublabel ─────────────────────────────────────────────────── */}
@@ -262,37 +263,6 @@ export function YoinkButton({
             </motion.p>
           )}
         </AnimatePresence>
-
-        {/* ── Cost ladder (non-temporal rooms only) ────────────────────── */}
-        {!hasTemporalPricing && !onCooldown && !youAreKing && yoinkCount > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center justify-center gap-2"
-          >
-            <span className="font-mono text-[10px] text-dim">Cost ladder:</span>
-            {[0, 1, 2, 3, 4].map((step) => {
-              const stepCost = Math.min(0.1 + step * 0.025, 0.5);
-              const active   = Math.abs(stepCost - cost) < 0.001;
-              const past     = stepCost < cost - 0.001;
-              return (
-                <span
-                  key={step}
-                  className="font-mono text-[10px] tabular-nums transition-colors duration-200"
-                  style={{
-                    color:      active ? "#FFD700" : past ? "#3a3f4f" : "#8892a4",
-                    fontWeight: active ? 700 : 400,
-                  }}
-                >
-                  {formatSol(stepCost, 2)}
-                </span>
-              );
-            })}
-            {cost >= 0.2 && (
-              <span className="font-mono text-[10px] text-gold-deep">…</span>
-            )}
-          </motion.div>
-        )}
       </div>
     </>
   );

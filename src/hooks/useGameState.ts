@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GAME_CONFIG,
+  FUSE_CONFIG,
   bagAddFor,
   drainFor,
+  drawFuseSeconds,
+  computeYoinkCost,
   type GameState,
   type King,
   type LeaderboardEntry,
@@ -36,12 +39,12 @@ function seedLeaderboard(): LeaderboardEntry[] {
   return rows.map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
-/** Build a fresh GameState initialised for the given room. */
 function makeInitial(roomId: RoomId): GameState {
-  const room = ROOMS[roomId];
+  const room        = ROOMS[roomId];
+  const fuseSeconds = drawFuseSeconds(room.roundSeconds);
   return {
     bagAmount:           room.startingBag,
-    countdown:           room.roundSeconds,
+    countdown:           fuseSeconds,
     currentKing:         randomPoolWallet(),
     kingIsYou:           false,
     kingHeldFor:         0,
@@ -54,6 +57,8 @@ function makeInitial(roomId: RoomId): GameState {
     yoinkCount:          0,
     currentCost:         room.baseCost,
     temporalMultiplier:  1,
+    roundFeeMultiplier:  1,
+    fuseSeconds,
     biggestBag:          128.4,
     totalDistributed:    9421.62,
     playerCount:         0,
@@ -70,7 +75,6 @@ export function useGameState(roomId: RoomId = "arena") {
   const [state, setState]           = useState<GameState>(() => makeInitial(roomId));
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(seedLeaderboard);
 
-  // Re-initialise when the player switches rooms
   const prevRoomId = useRef(roomId);
   useEffect(() => {
     if (roomId === prevRoomId.current) return;
@@ -81,20 +85,11 @@ export function useGameState(roomId: RoomId = "arena") {
     botCooldowns.current.clear();
   }, [roomId]);
 
-  const stateRef      = useRef(state);
-  stateRef.current    = state;
-  const tickRef       = useRef<ReturnType<typeof setInterval> | null>(null);
-  const heldTickRef   = useRef(0);
-  const botCooldowns  = useRef<Map<string, number>>(new Map());
-
-  // ── Room-aware cost helper ─────────────────────────────────────────────────
-  const roomYoinkCost = useCallback(
-    (count: number) => {
-      const raw = room.baseCost + count * room.costStep;
-      return +Math.min(raw, room.maxCost).toFixed(3);
-    },
-    [room],
-  );
+  const stateRef     = useRef(state);
+  stateRef.current   = state;
+  const tickRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heldTickRef  = useRef(0);
+  const botCooldowns = useRef<Map<string, number>>(new Map());
 
   const applyYoink = useCallback(
     (byPlayer: boolean) => {
@@ -102,9 +97,16 @@ export function useGameState(roomId: RoomId = "arena") {
       setState((prev) => {
         if (prev.isRoundOver || prev.isWaiting) return prev;
 
-        const cost      = prev.currentCost;
-        const nextCount = prev.yoinkCount + 1;
-        const nextCost  = roomYoinkCost(nextCount);
+        const cost         = prev.currentCost;
+        const nextCount    = prev.yoinkCount + 1;
+        // Escalating fee: each yoink adds FEE_STEP to the multiplier, capped at FEE_MAX_MULT
+        const nextFeeMult  = +Math.min(
+          prev.roundFeeMultiplier + FUSE_CONFIG.FEE_STEP,
+          FUSE_CONFIG.FEE_MAX_MULT,
+        ).toFixed(3);
+        const nextCost     = computeYoinkCost(
+          room.baseCost, room.costStep, room.maxCost, nextCount, nextFeeMult,
+        );
 
         const bagAdd = bagAddFor(cost);
         const drain  = drainFor(prev.bagAmount);
@@ -117,7 +119,9 @@ export function useGameState(roomId: RoomId = "arena") {
           id:      nextId(),
         };
 
-        const newKing = byPlayer ? "You" : randomPoolWallet(prev.currentKing);
+        const newKing  = byPlayer ? "You" : randomPoolWallet(prev.currentKing);
+        // Hidden fuse: draw a new end time when the clock resets on yoink
+        const newFuse  = drawFuseSeconds(room.roundSeconds);
 
         const event: YoinkEvent = {
           id:          nextId(),
@@ -132,7 +136,7 @@ export function useGameState(roomId: RoomId = "arena") {
         return {
           ...prev,
           bagAmount:           netBag,
-          countdown:           room.roundSeconds,
+          countdown:           newFuse,  // reset to a NEW random fuse duration
           currentKing:         newKing,
           kingIsYou:           byPlayer,
           kingHeldFor:         0,
@@ -140,6 +144,8 @@ export function useGameState(roomId: RoomId = "arena") {
           yoinkHistory:        [event, ...prev.yoinkHistory].slice(0, 50),
           yoinkCount:          nextCount,
           currentCost:         nextCost,
+          roundFeeMultiplier:  nextFeeMult,
+          fuseSeconds:         newFuse,
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),
           playerCooldownUntil: byPlayer
@@ -149,7 +155,7 @@ export function useGameState(roomId: RoomId = "arena") {
       });
       heldTickRef.current = 0;
     },
-    [room, roomYoinkCost],
+    [room],
   );
 
   const yoink = useCallback(() => {
@@ -179,7 +185,6 @@ export function useGameState(roomId: RoomId = "arena") {
 
   // ── Core tick ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Restart interval whenever room changes
     if (tickRef.current) clearInterval(tickRef.current);
 
     tickRef.current = setInterval(() => {
@@ -226,32 +231,35 @@ export function useGameState(roomId: RoomId = "arena") {
             ? ((heldTickRef.current = 0), prev.kingHeldFor + 1)
             : prev.kingHeldFor;
 
-        const drift   = Math.random();
-        let players   = prev.playerCount;
+        const drift  = Math.random();
+        let players  = prev.playerCount;
         if (drift > 0.94) players = Math.min(players + 1, room.maxPlayers);
         else if (drift < 0.04 && players > GAME_CONFIG.MIN_PLAYERS + 2) players -= 1;
 
         return { ...prev, countdown: nextCountdown, kingHeldFor: heldFor, playerCount: players };
       });
 
-      // ── Bot logic — scales with room's cost/tension ──────────────────────
-      const s = stateRef.current;
+      // ── Bot logic ──────────────────────────────────────────────────────────
+      // Bots don't know the fuse end time either — they use a probability curve
+      // based on elapsed time fraction, not an exact countdown.
+      const s   = stateRef.current;
+      const elapsed = (s.fuseSeconds - s.countdown) / s.fuseSeconds;
       if (!s.isRoundOver && !s.isWaiting) {
-        const frac = s.countdown / room.roundSeconds;
-        let chance = 0.010;
-        if (frac < 0.60) chance = 0.022;
-        if (frac < 0.35) chance = 0.045;
-        if (frac < 0.18) chance = 0.080;
-        if (frac < 0.10) chance = 0.120;
-        // King's Court bots are more aggressive
+        let chance = 0.012;
+        if (elapsed > 0.3)  chance = 0.022;
+        if (elapsed > 0.5)  chance = 0.038;
+        if (elapsed > 0.7)  chance = 0.055;
+        if (elapsed > 0.85) chance = 0.080;
         if (roomId === "court") chance *= 1.5;
         if (roomId === "pit")   chance *= 1.3;
-        if (s.kingIsYou && frac < 0.10) chance = 0.050;
+        // Bots are also cost-sensitive — escalating fee reduces activity
+        if (s.roundFeeMultiplier > 1.5) chance *= 0.6;
+        if (s.kingIsYou && elapsed > 0.85) chance = 0.045;
 
         if (Math.random() < chance) {
           const botWallet = randomPoolWallet(s.currentKing);
           const lastYoink = botCooldowns.current.get(botWallet) ?? 0;
-          const jitter    = frac < 0.17
+          const jitter    = elapsed > 0.8
             ? Math.random() * GAME_CONFIG.BOT_SNIPE_JITTER_MS
             : 0;
 
@@ -266,15 +274,17 @@ export function useGameState(roomId: RoomId = "arena") {
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [applyYoink, room, roomId]);
 
-  // ── Seed player count → triggers lobby exit ────────────────────────────────
+  // ── Seed player count ──────────────────────────────────────────────────────
   useEffect(() => {
     let count = 0;
     const interval = setInterval(() => {
       count += Math.floor(1 + Math.random() * 3);
-      const [, max] = [GAME_CONFIG.MIN_PLAYERS, room.maxPlayers];
       setState((p) => ({
         ...p,
-        playerCount: Math.min(count, Math.floor(max * 0.6 + Math.random() * max * 0.3)),
+        playerCount: Math.min(
+          count,
+          Math.floor(room.maxPlayers * 0.6 + Math.random() * room.maxPlayers * 0.3),
+        ),
       }));
       if (count >= GAME_CONFIG.MIN_PLAYERS + 2) clearInterval(interval);
     }, 600);
