@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { Volume2, VolumeX } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Volume2, VolumeX, ChevronLeft } from "lucide-react";
 import { WalletButton } from "@/components/ui/WalletButton";
 import { ProgressStrip } from "@/components/ui/XPBar";
 import { VoidEyeIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
@@ -7,6 +7,7 @@ import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
 import type { PlayerProgress } from "@/lib/progression";
+import type { Room } from "@/lib/rooms";
 import { useState } from "react";
 
 export type Page = "game" | "bidwars" | "leaderboard" | "shop";
@@ -15,6 +16,10 @@ interface HeaderProps {
   page: Page;
   onNavigate: (page: Page) => void;
   progress: PlayerProgress;
+  /** The room the player is currently in — null = room select is showing */
+  currentRoom?: Room | null;
+  /** Called when the player clicks the room badge to go back to room select */
+  onLeaveRoom?: () => void;
 }
 
 // Nav uses animated brand icons — draw on mount, re-draw on active change
@@ -25,14 +30,8 @@ const NAV = [
   { id: "shop"        as const, label: "Armory",        icon: "rake"        as const },
 ];
 
-interface HeaderProps {
-  page: Page;
-  onNavigate: (page: Page) => void;
-  progress: PlayerProgress;
-}
-
 // Nav items use brand icons instead of generic lucide icons
-export function Header({ page, onNavigate, progress }: HeaderProps) {
+export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom }: HeaderProps) {
   const [muted, setMuted] = useState(() => getVolume() === 0);
 
   function toggleMute() {
@@ -67,6 +66,32 @@ export function Header({ page, onNavigate, progress }: HeaderProps) {
             <VoidEyeIcon size={32} variant="gold" pulse />
             <YoinkWordmark size="md" />
           </button>
+
+          {/* Room badge — shown while a room is active */}
+          <AnimatePresence>
+            {currentRoom && page === "game" && (
+              <motion.button
+                key="room-badge"
+                type="button"
+                onClick={onLeaveRoom}
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                whileTap={{ scale: 0.95 }}
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.18em] transition-opacity duration-150 hover:opacity-80"
+                style={{
+                  background: `${currentRoom.accentRgba}0.12)`,
+                  border:     `1px solid ${currentRoom.accentRgba}0.3)`,
+                  color:      currentRoom.accentColor,
+                }}
+                aria-label={`Leave ${currentRoom.name}`}
+              >
+                <ChevronLeft className="h-3 w-3" aria-hidden />
+                {currentRoom.name}
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* desktop nav */}
           <nav className="ml-4 hidden items-center gap-1 md:flex">
