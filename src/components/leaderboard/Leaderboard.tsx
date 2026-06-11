@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
-import { Trophy, Crown, Share2 } from "lucide-react";
+import { Trophy, Crown, Share2, Zap } from "lucide-react";
 import { useSpring, animated } from "@react-spring/web";
 import type { LeaderboardEntry } from "@/lib/types";
 import { formatSol, truncateAddress, cn } from "@/lib/utils";
 import { HeroBanner, RankShareBanner } from "@/components/ui/Banners";
+import { SeasonLeaderboard } from "./SeasonLeaderboard";
+import { useWallet } from "@/lib/wallet";
 import { useState } from "react";
 
 interface LeaderboardProps {
@@ -48,11 +50,13 @@ export function Leaderboard({
   roundNumber = 1847,
 }: LeaderboardProps) {
   const [shareTarget, setShareTarget] = useState<LeaderboardEntry | null>(null);
+  const [tab, setTab] = useState<"alltime" | "season">("alltime");
+  const { publicKey } = useWallet();
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8">
 
-      {/* Hero OG banner — makes it feel like a real product page */}
+      {/* Hero OG banner */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -106,7 +110,41 @@ export function Leaderboard({
         </motion.div>
       )}
 
-      {/* Table */}
+      {/* Tab switcher — All Time vs Season */}
+      <div
+        className="flex gap-2 rounded-2xl p-1.5"
+        style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        {([
+          { id: "alltime" as const, label: "Hall of Kings", icon: <Trophy className="h-3.5 w-3.5" aria-hidden /> },
+          { id: "season" as const, label: "Weekly Season", icon: <Zap className="h-3.5 w-3.5" aria-hidden /> },
+        ] as const).map(({ id, label, icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-mono text-xs font-bold uppercase tracking-[0.1em] transition-colors duration-200"
+            style={{ color: tab === id ? "#FFD700" : "#8892a4" }}
+          >
+            {tab === id && (
+              <motion.span
+                layoutId="lb-tab-bg"
+                className="absolute inset-0 rounded-xl"
+                style={{ background: "rgba(255,215,0,0.08)", border: "1px solid rgba(255,215,0,0.2)" }}
+                transition={{ type: "spring", stiffness: 420, damping: 34 }}
+              />
+            )}
+            <span className="relative z-10">{icon}</span>
+            <span className="relative z-10">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Season Leaderboard */}
+      {tab === "season" && <SeasonLeaderboard playerWallet={publicKey} />}
+
+      {/* All-time table */}
+      {tab === "alltime" && (
       <div className="premium-card overflow-hidden">
         {/* header row */}
         <div className="grid grid-cols-[44px_1fr_auto] gap-3 border-b border-white/[0.06] px-4 py-3 sm:grid-cols-[56px_1fr_120px_120px_100px_40px] sm:px-6">
@@ -205,6 +243,7 @@ export function Leaderboard({
           })}
         </div>
       </div>
+      )} {/* end alltime tab */}
     </div>
   );
 }

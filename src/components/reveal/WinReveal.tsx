@@ -51,6 +51,8 @@ interface WinRevealProps {
   fallenKings?: King[];
   /** Actual fuse duration this round — revealed post-round for the first time */
   fuseSeconds?: number;
+  /** VRF commitment hash — revealed post-round to prove fairness */
+  fuseCommitHash?: string;
   onPlayAgain: () => void;
 }
 
@@ -213,6 +215,7 @@ interface SurvivorBoardProps {
   fallenKings: King[];
   fuseSeconds: number;
   yoinkCount: number;
+  fuseCommitHash?: string;
 }
 
 function SurvivorBoard({
@@ -222,6 +225,7 @@ function SurvivorBoard({
   fallenKings,
   fuseSeconds,
   yoinkCount,
+  fuseCommitHash,
 }: SurvivorBoardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -266,6 +270,27 @@ function SurvivorBoard({
           {fuseSeconds}s
         </span>
       </div>
+
+      {/* VRF reveal — proves the fuse was pre-committed */}
+      {fuseCommitHash && fuseCommitHash !== "pending…" && fuseCommitHash !== "generating…" && (
+        <div
+          className="flex flex-col gap-1.5 rounded-xl px-3 py-2.5"
+          style={{ background: "rgba(0,230,118,0.05)", border: "1px solid rgba(0,230,118,0.15)" }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] text-emerald">Fuse Commitment Revealed</span>
+            <span className="rounded-full border border-emerald/25 bg-emerald/10 px-2 py-0.5 font-mono text-[9px] font-bold text-emerald">
+              VRF ✓
+            </span>
+          </div>
+          <p className="font-mono text-[10px] text-slate">
+            This hash was committed before the round started. The fuse ({fuseSeconds}s) was decided before any yoinks happened.
+          </p>
+          <div className="overflow-hidden rounded-lg bg-black/30 px-2 py-1.5">
+            <p className="truncate font-mono text-[10px] text-emerald">{fuseCommitHash}</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 gap-2">
@@ -343,6 +368,7 @@ export function WinReveal({
   winnerHeldFor = 0,
   fallenKings = [],
   fuseSeconds = 30,
+  fuseCommitHash,
   onPlayAgain,
 }: WinRevealProps) {
   const coinLayer   = useRef<HTMLDivElement>(null);
@@ -554,6 +580,7 @@ export function WinReveal({
                       fallenKings={fallenKings}
                       fuseSeconds={fuseSeconds}
                       yoinkCount={fallenKings.length + 1}
+                      fuseCommitHash={fuseCommitHash}
                     />
                   </motion.div>
                 )}

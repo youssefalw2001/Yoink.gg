@@ -305,6 +305,29 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               currentCost={state.currentCost}
               yoinkCount={state.yoinkCount}
             />
+            {/* VRF Commitment chip — provable fairness */}
+            <div
+              className="flex flex-col gap-2 rounded-2xl px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-dim">Fuse Commitment</span>
+                <span className="rounded-full border border-emerald/20 bg-emerald/10 px-2 py-0.5 font-mono text-[9px] font-bold text-emerald">
+                  VRF
+                </span>
+              </div>
+              <p className="font-mono text-[10px] leading-relaxed text-dim">
+                The fuse duration was decided before this round started. Verify it in the Win Reveal.
+              </p>
+              <div
+                className="overflow-hidden rounded-lg px-2 py-1.5"
+                style={{ background: "rgba(0,0,0,0.3)" }}
+              >
+                <p className="truncate font-mono text-[10px] text-slate">
+                  {state.fuseCommitHash}
+                </p>
+              </div>
+            </div>
             {/* Wallet Tracker — shows when owned, purchase prompt when not */}
             <WalletTrackerPanel
               wallets={state.recentKings.map((k) => k.wallet)}

@@ -309,6 +309,7 @@ export default function App() {
               winnerHeldFor={state.kingHeldFor}
               fallenKings={state.recentKings}
               fuseSeconds={state.fuseSeconds}
+              fuseCommitHash={state.fuseCommitHash}
               onPlayAgain={playAgain}
             />
 

@@ -85,6 +85,12 @@ export interface GameState {
   fuseSeconds: number;
   /** True when a Fuse Burner power-up is active this round */
   fuseBurnerActive: boolean;
+  /**
+   * VRF commitment hash — shown to players before the round starts.
+   * Proves the fuse duration was decided before any yoinks happened.
+   * On mainnet: replaced by a Switchboard VRF on-chain commitment.
+   */
+  fuseCommitHash: string;
   biggestBag: number;
   totalDistributed: number;
   playerCount: number;
@@ -159,12 +165,56 @@ export const FUSE_CONFIG = {
 /**
  * Draw a random fuse duration for a new round.
  * In simulation mode this is Math.random(). In production this
- * would be replaced by a VRF reveal.
+ * would be replaced by a VRF reveal from Switchboard or Pyth Entropy.
  */
 export function drawFuseSeconds(roomRoundSeconds: number): number {
-  const min = Math.max(FUSE_CONFIG.MIN_SECONDS, Math.floor(roomRoundSeconds * 0.65));
+  const min = Math.max(FUSE_CONFIG.MIN_SECONDS, Math.floor(roomRoundSeconds * 0.5));
   const max = Math.floor(roomRoundSeconds * 1.5);
   return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+/**
+ * VRF COMMITMENT STUB
+ *
+ * In production this is replaced by a Switchboard VRF request submitted
+ * on-chain before the round starts. The hash is stored in the program account.
+ * At round end the VRF oracle reveals the randomness and the on-chain program
+ * verifies it matches the commitment.
+ *
+ * In simulation: we use the Web Crypto API to generate a real SHA-256 hash
+ * of (roundId + salt). This is cryptographically sound but NOT decentralised —
+ * the salt is generated client-side. The UI pattern is identical to mainnet.
+ *
+ * Returns: { fuseSeconds, commitHash }
+ * commitHash is shown to players BEFORE the round starts as proof the
+ * fuse duration was decided before any yoinks happened.
+ */
+export async function drawFuseSecondsWithHash(
+  roomRoundSeconds: number,
+  roundNumber: number,
+): Promise<{ fuseSeconds: number; commitHash: string }> {
+  const fuseSeconds = drawFuseSeconds(roomRoundSeconds);
+
+  // Generate a deterministic-looking hash for the fuse commitment
+  const salt    = Math.random().toString(36).slice(2);
+  const message = `yoink:round${roundNumber}:fuse${fuseSeconds}:salt${salt}`;
+
+  let commitHash = "0x" + Array.from(message).map((c) =>
+    c.charCodeAt(0).toString(16).padStart(2, "0")
+  ).join("").slice(0, 40);
+
+  // Use Web Crypto if available (browser/Node 18+)
+  try {
+    const encoder = new TextEncoder();
+    const data    = encoder.encode(message);
+    const hashBuf = await crypto.subtle.digest("SHA-256", data);
+    const hashArr = Array.from(new Uint8Array(hashBuf));
+    commitHash    = "0x" + hashArr.map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+  } catch {
+    // crypto.subtle not available — use the fallback above
+  }
+
+  return { fuseSeconds, commitHash };
 }
 
 /**

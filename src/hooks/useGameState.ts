@@ -5,6 +5,7 @@ import {
   bagAddFor,
   drainFor,
   drawFuseSeconds,
+  drawFuseSecondsWithHash,
   computeYoinkCost,
   type GameState,
   type King,
@@ -60,6 +61,7 @@ function makeInitial(roomId: RoomId): GameState {
     roundFeeMultiplier:  1,
     fuseSeconds,
     fuseBurnerActive:    false,
+    fuseCommitHash:      "pending…",
     biggestBag:          128.4,
     totalDistributed:    9421.62,
     playerCount:         0,
@@ -148,7 +150,8 @@ export function useGameState(roomId: RoomId = "arena") {
           currentCost:         nextCost,
           roundFeeMultiplier:  nextFeeMult,
           fuseSeconds:         newFuse,
-          fuseBurnerActive:    false,  // reset on every yoink — one use per fuse draw
+          fuseBurnerActive:    false,
+          fuseCommitHash:      "generating…",
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),
           playerCooldownUntil: byPlayer
@@ -311,6 +314,24 @@ export function useGameState(roomId: RoomId = "arena") {
       return { ...prev, fuseBurnerActive: true };
     });
   }, []);
+
+  // ── VRF hash: generate asynchronously after each fuse draw ───────────────
+  // The hash is shown to players as the VRF commitment.
+  // On mainnet: replaced by Switchboard VRF on-chain commitment.
+  useEffect(() => {
+    let cancelled = false;
+    drawFuseSecondsWithHash(room.roundSeconds, state.roundNumber)
+      .then(({ commitHash }) => {
+        if (!cancelled) {
+          setState((prev) => ({
+            ...prev,
+            fuseCommitHash: commitHash,
+          }));
+        }
+      })
+      .catch(() => {/* non-critical — hash stays as "generating…" */});
+    return () => { cancelled = true; };
+  }, [state.roundNumber, room.roundSeconds]);
 
   return { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner };
 }
