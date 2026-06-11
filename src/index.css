@@ -56,6 +56,17 @@ body {
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
   position: relative;
+  /* Prevent horizontal scroll on all viewports */
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* Prevent root div from causing horizontal overflow */
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  position: relative;
 }
 
 /* ---- Breathing Aurora Pools (pure CSS, perpetual) ---- */
