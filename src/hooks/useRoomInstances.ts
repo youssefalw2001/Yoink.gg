@@ -122,7 +122,7 @@ export function useRoomInstances() {
 
         return { instances: pruned };
       });
-    }, 2_500);
+    }, 5_000);  // 5s — room counts don't need rapid updates
 
     return () => clearInterval(interval);
   }, []);

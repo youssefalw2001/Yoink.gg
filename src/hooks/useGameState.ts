@@ -184,7 +184,7 @@ export function useGameState(roomId: RoomId = "arena") {
     botCooldowns.current.clear();
   }, [roomId, room]);
 
-  // ── Core tick ──────────────────────────────────────────────────────────────
+  // ── Core tick — 150ms (was 100ms, 33% fewer renders, still smooth) ──────────
   useEffect(() => {
     if (tickRef.current) clearInterval(tickRef.current);
 
@@ -270,7 +270,7 @@ export function useGameState(roomId: RoomId = "arena") {
           }
         }
       }
-    }, GAME_CONFIG.TICK_MS);
+    }, 150);  // 150ms tick — was 100ms, 33% fewer renders, imperceptible difference
 
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [applyYoink, room, roomId]);
@@ -292,12 +292,12 @@ export function useGameState(roomId: RoomId = "arena") {
     return () => clearInterval(interval);
   }, [roomId, room.maxPlayers]);
 
-  // ── Cooldown timer for UI ──────────────────────────────────────────────────
+  // ── Cooldown timer — 250ms resolution (was 100ms, smooth enough) ────────────
   const [cooldownLeft, setCooldownLeft] = useState(0);
   useEffect(() => {
     const id = setInterval(() => {
       setCooldownLeft(Math.max(0, stateRef.current.playerCooldownUntil - Date.now()));
-    }, 100);
+    }, 250);
     return () => clearInterval(id);
   }, []);
 

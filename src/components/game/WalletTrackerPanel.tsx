@@ -60,25 +60,15 @@ export function WalletTrackerPanel({
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   ).current;
 
-  const [balances, setBalances] = useState<Record<string, number>>(() => {
+  const [balances] = useState<Record<string, number>>(() => {
     const map: Record<string, number> = { You: seedBalance("You_player") };
     wallets.forEach((w) => { map[w] = seedBalance(w); });
     return map;
   });
 
-  useEffect(() => {
-    if (reduced || !active) return;
-    const id = setInterval(() => {
-      setBalances((prev) => {
-        const next = { ...prev };
-        Object.keys(next).forEach((w) => {
-          next[w] = Math.max(0.01, +(next[w] + (Math.random() - 0.5) * 0.3).toFixed(3));
-        });
-        return next;
-      });
-    }, 3_000);
-    return () => clearInterval(id);
-  }, [active, reduced]);
+  // Balance drift removed — no setInterval in components.
+  // Balances are seeded on mount. On devnet they'll be fetched live from RPC.
+  // Static seeded balances are fine for simulation — no extra renders needed.
 
   const prevBalances = useRef<Record<string, number>>({});
   useEffect(() => { prevBalances.current = { ...balances }; });
