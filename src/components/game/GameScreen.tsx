@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { TrendingUp, Droplets, Coins, Zap, Flame, DollarSign } from "lucide-react";
+import { Flame, DollarSign } from "lucide-react";
 import type { GameState } from "@/lib/types";
-import { GAME_CONFIG, FUSE_CONFIG, drainPctLabel } from "@/lib/types";
+import { FUSE_CONFIG } from "@/lib/types";
 import { type RoomId } from "@/lib/rooms";
 import { formatSol } from "@/lib/utils";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
@@ -23,112 +23,6 @@ interface GameScreenProps {
   ownedItems?: string[];
   pumpFakeBalance?: number | null;
   onActivateWalletTracker?: () => void;
-}
-
-// ── Earnings card ──────────────────────────────────────────────────────────────
-function EarningsCard({
-  totalDrained,
-  roundDrained,
-  bagAmount,
-}: {
-  totalDrained: number;
-  roundDrained: number;
-  bagAmount: number;
-}) {
-  const currentDrainPct = drainPctLabel(bagAmount);
-  return (
-    <SpotlightCard
-      spotlightColor="rgba(0,230,118,0.12)"
-      radius={220}
-      className="premium-card rounded-[24px]"
-    >
-      <div className="flex flex-col gap-3 px-5 py-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
-            House Earnings
-          </h3>
-          <span className="flex items-center gap-1.5 rounded-full border border-emerald/20 bg-emerald/10 px-2 py-0.5 font-mono text-[10px] text-emerald">
-            <span className="blink-dot h-1.5 w-1.5" aria-hidden />
-            Live
-          </span>
-        </div>
-        <div className="divide-y divide-white/[0.05]">
-          <div className="flex items-center justify-between py-2.5">
-            <span className="flex items-center gap-2 font-mono text-xs text-slate">
-              <Coins className="h-3.5 w-3.5 text-gold-deep" aria-hidden />
-              10% rake (per YOINK)
-            </span>
-            <span className="font-mono text-xs font-bold text-gold">
-              {formatSol((GAME_CONFIG.RAKE_BPS / 10_000) * GAME_CONFIG.BASE_COST, 3)}{" "}
-              <span className="text-gold/50">SOL ea.</span>
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="flex items-center gap-2 font-mono text-xs text-slate">
-              <Droplets className="h-3.5 w-3.5 text-phantom" aria-hidden />
-              Bag drain this round
-            </span>
-            <motion.span
-              key={roundDrained.toFixed(4)}
-              initial={{ scale: 1.1, color: "#00E676" }}
-              animate={{ scale: 1, color: "#FFE566" }}
-              transition={{ duration: 0.3 }}
-              className="font-mono text-xs font-bold tabular-nums"
-            >
-              {formatSol(roundDrained, 4)} SOL
-            </motion.span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="flex items-center gap-2 font-mono text-xs text-slate">
-              <Zap className="h-3.5 w-3.5 text-gold" aria-hidden />
-              Current drain tier
-            </span>
-            <span className="font-mono text-xs font-bold text-gold">
-              {currentDrainPct} <span className="text-dim">per YOINK</span>
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="flex items-center gap-2 font-mono text-xs text-slate">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald" aria-hidden />
-              Total drained (session)
-            </span>
-            <motion.span
-              key={totalDrained.toFixed(3)}
-              initial={{ scale: 1.08, color: "#00E676" }}
-              animate={{ scale: 1, color: "#eef1f6" }}
-              transition={{ duration: 0.4 }}
-              className="font-mono text-xs font-bold tabular-nums text-white"
-            >
-              {formatSol(totalDrained, 4)} SOL
-            </motion.span>
-          </div>
-        </div>
-        <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2.5">
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-dim">
-            Drain tiers
-          </p>
-          <div className="flex flex-col gap-1">
-            {GAME_CONFIG.DRAIN_TIERS.map((tier, i) => {
-              const active = bagAmount >= tier.minBag && bagAmount < tier.maxBag;
-              return (
-                <div key={i} className="flex items-center justify-between transition-colors duration-300">
-                  <span className="font-mono text-[11px]" style={{ color: active ? "#FFD700" : "#3a3f4f" }}>
-                    {tier.maxBag >= 999 ? `> ${tier.minBag} SOL` : `${tier.minBag}–${tier.maxBag} SOL`}
-                  </span>
-                  <span className="font-mono text-[11px] font-bold tabular-nums" style={{ color: active ? "#FFD700" : "#3a3f4f" }}>
-                    {tier.bps / 100}% drain
-                    {active && (
-                      <span className="ml-1.5 rounded-full bg-gold/20 px-1.5 py-0.5 text-[9px] text-gold">active</span>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </SpotlightCard>
-  );
 }
 
 // ── Fuse + Escalating Fee card — replaces CostEscalationCard ──────────────────
@@ -241,11 +135,10 @@ function FuseCard({
 }
 
 // ── Fee breakdown label ────────────────────────────────────────────────────────
-function FeeBreakdown({ bagAmount }: { bagAmount: number }) {
-  const drainPct = drainPctLabel(bagAmount);
+function FeeBreakdown() {
   return (
     <p className="mt-3 text-center font-mono text-[11px] text-dim">
-      83% to bag · 10% rake · 5% jackpot · {drainPct} bag drain
+      83% to bag · 10% rake · 5% jackpot · 1–3% bag drain
     </p>
   );
 }
@@ -318,7 +211,7 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
                 yoinkCount={state.yoinkCount}
                 roundFeeMultiplier={state.roundFeeMultiplier}
               />
-              <FeeBreakdown bagAmount={state.bagAmount} />
+              <FeeBreakdown />
             </div>
 
             <div className="w-full space-y-4 sm:space-y-6">
@@ -336,11 +229,6 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               biggestBag={state.biggestBag}
               totalDistributed={state.totalDistributed}
               playerCount={state.playerCount}
-            />
-            <EarningsCard
-              totalDrained={state.totalDrained}
-              roundDrained={state.roundDrained}
-              bagAmount={state.bagAmount}
             />
             <FuseCard
               roundFeeMultiplier={state.roundFeeMultiplier}

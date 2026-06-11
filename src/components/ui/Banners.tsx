@@ -1,18 +1,17 @@
 /**
  * YOINK.GG — Banner System
  *
- *  HeroBanner       — Hall of Kings hero (animated Void Eye, Framer Motion stats)
+ *  HeroBanner       — Hall of Kings hero (Snatch mark, Framer Motion stats)
  *  WinShareBanner   — dynamic per-win social share card
  *  RoundLiveBanner  — "BAG IS LIVE" announcement strip
  *  RankShareBanner  — rank achievement flex card
  */
 
-import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { animate, createDrawable, stagger } from "animejs";
 import { Trophy, Users, Hash } from "lucide-react";
 import { RANKS } from "@/lib/progression";
 import { formatSol } from "@/lib/utils";
+import { SnatchIcon } from "@/components/ui/YoinkLogo";
 
 // ─── HeroBanner — Hall of Kings hero ─────────────────────────────────────────
 interface HeroBannerProps {
@@ -20,195 +19,6 @@ interface HeroBannerProps {
   playerCount?: number;
   roundNumber?: number;
   className?: string;
-}
-
-/**
- * Inline Void Eye SVG sized for the banner — re-implements the VoidEyeIcon
- * geometry so we can attach anime.js refs to the strokes directly without
- * fighting React key conflicts from the shared gradient IDs in YoinkLogo.
- */
-function BannerVoidEye({ size = 200 }: { size?: number }) {
-  const svgRef  = useRef<SVGSVGElement>(null);
-  const hasRun  = useRef(false);
-
-  useEffect(() => {
-    if (hasRun.current) return;
-    hasRun.current = true;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return;
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    // 1. Draw hex frame + eye path strokes
-    const strokes = svg.querySelectorAll<SVGGeometryElement>("polygon, path");
-    if (strokes.length) {
-      const drawables = createDrawable(strokes as unknown as NodeListOf<SVGGeometryElement>, 0, 0);
-      animate(drawables, {
-        draw:     ["0 0", "0 1"],
-        duration: 1100,
-        ease:     "outExpo",
-        delay:    stagger(70),
-      });
-    }
-
-    // 2. Pupil + slit + highlight — scale in after strokes finish
-    const circles = Array.from(svg.querySelectorAll<SVGElement>("circle, ellipse"));
-    animate(circles, {
-      scale:   [0, 1],
-      opacity: [0, 1],
-      duration: 400,
-      ease:    "spring(1, 80, 10, 0)",
-      delay:   stagger(45, { start: 850 }),
-    });
-
-    // 3. Tick lines fade in last
-    const lines = Array.from(svg.querySelectorAll<SVGElement>("line"));
-    animate(lines, {
-      opacity: [0, 0.18],
-      duration: 600,
-      ease:    "outQuart",
-      delay:   stagger(30, { start: 1100 }),
-    });
-  }, []);
-
-  const s  = size;
-  const cx = s / 2;
-  const cy = s / 2;
-
-  const hexPoints = (r: number) =>
-    Array.from({ length: 6 }, (_, i) => {
-      const a = (Math.PI / 180) * (60 * i - 30);
-      return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
-    }).join(" ");
-
-  const outerR  = s * 0.46;
-  const innerR  = s * 0.38;
-  const eyeW    = s * 0.28;
-  const eyeH    = s * 0.18;
-  const pupilR  = s * 0.09;
-  const innerPR = s * 0.055;
-
-  const eyePath = `M ${cx - eyeW} ${cy} Q ${cx} ${cy - eyeH} ${cx + eyeW} ${cy} Q ${cx} ${cy + eyeH} ${cx - eyeW} ${cy} Z`;
-
-  return (
-    <svg
-      ref={svgRef}
-      viewBox={`0 0 ${s} ${s}`}
-      width={s}
-      height={s}
-      fill="none"
-      aria-hidden
-    >
-      <defs>
-        <radialGradient id="bve-grad" cx="50%" cy="40%" r="60%">
-          <stop offset="0%"   stopColor="#FFE566" />
-          <stop offset="50%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </radialGradient>
-        <radialGradient id="bve-halo" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#FFD700" stopOpacity="0.30" />
-          <stop offset="100%" stopColor="#FFD700" stopOpacity="0"    />
-        </radialGradient>
-        <radialGradient id="bve-phantom" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#7000FF" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#7000FF" stopOpacity="0"    />
-        </radialGradient>
-        <linearGradient id="bve-slit" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#FF9900" />
-          <stop offset="40%"  stopColor="#FFD700" />
-          <stop offset="100%" stopColor="#FF9900" />
-        </linearGradient>
-        <filter id="bve-glow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation={s * 0.055} result="b" />
-          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-      </defs>
-
-      {/* Outer phantom glow halo */}
-      <polygon points={hexPoints(outerR * 1.22)} fill="url(#bve-phantom)" />
-      {/* Gold halo ring */}
-      <polygon points={hexPoints(outerR * 1.10)} fill="url(#bve-halo)" />
-
-      {/* Hexagon outer frame */}
-      <polygon
-        points={hexPoints(outerR)}
-        fill="rgba(8,8,15,0.96)"
-        stroke="url(#bve-grad)"
-        strokeWidth={s * 0.034}
-        strokeLinejoin="round"
-      />
-      {/* Inner hex ring — circuit board detail */}
-      <polygon
-        points={hexPoints(innerR)}
-        fill="none"
-        stroke="#FFD700"
-        strokeWidth={s * 0.011}
-        strokeOpacity="0.22"
-        strokeLinejoin="round"
-      />
-
-      {/* Eye shape */}
-      <path
-        d={eyePath}
-        fill="rgba(8,8,15,0.88)"
-        stroke="#FFD700"
-        strokeWidth={s * 0.022}
-        strokeLinejoin="round"
-      />
-
-      {/* Pupil coin circle */}
-      <circle cx={cx} cy={cy} r={pupilR}
-        fill="url(#bve-grad)"
-        filter="url(#bve-glow)"
-        style={{ willChange: "opacity", animation: "border-breathe 2.4s ease-in-out infinite" }}
-      />
-      {/* Inner coin ring */}
-      <circle cx={cx} cy={cy} r={innerPR}
-        fill="rgba(8,8,15,0.72)"
-        stroke="#FFE566"
-        strokeWidth={s * 0.016}
-      />
-      {/* Coin center dot */}
-      <circle cx={cx} cy={cy} r={s * 0.018} fill="#FFE566" />
-
-      {/* Vertical slit iris */}
-      <ellipse
-        cx={cx} cy={cy}
-        rx={pupilR * 0.28}
-        ry={pupilR * 0.78}
-        fill="url(#bve-slit)"
-        opacity="0.88"
-      />
-
-      {/* Highlight sparkle */}
-      <circle
-        cx={cx - pupilR * 0.35}
-        cy={cy - pupilR * 0.38}
-        r={s * 0.013}
-        fill="white"
-        opacity="0.65"
-      />
-
-      {/* Corner hex tick marks */}
-      {[0, 2, 4].map((i) => {
-        const a1 = (Math.PI / 180) * (60 * i - 30);
-        const a2 = (Math.PI / 180) * (60 * (i + 1) - 30);
-        return (
-          <line
-            key={i}
-            x1={cx + outerR * 0.72 * Math.cos(a1 + 0.3)}
-            y1={cy + outerR * 0.72 * Math.sin(a1 + 0.3)}
-            x2={cx + outerR * 0.72 * Math.cos(a2 - 0.3)}
-            y2={cy + outerR * 0.72 * Math.sin(a2 - 0.3)}
-            stroke="#FFD700"
-            strokeWidth={s * 0.013}
-            strokeOpacity="0.18"
-            strokeLinecap="round"
-          />
-        );
-      })}
-    </svg>
-  );
 }
 
 export function HeroBanner({
@@ -318,7 +128,7 @@ export function HeroBanner({
       {/* ── Content ── */}
       <div className="relative z-10 flex flex-col items-center gap-6 px-6 py-10 sm:py-14 md:flex-row md:items-center md:gap-12 md:px-14 md:py-16">
 
-        {/* Void Eye — left on desktop, top on mobile */}
+        {/* Snatch mark — left on desktop, top on mobile */}
         <motion.div
           initial={{ opacity: 0, scale: 0.75 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -326,7 +136,7 @@ export function HeroBanner({
           className="shrink-0"
           style={{ filter: "drop-shadow(0 0 32px rgba(255,215,0,0.25)) drop-shadow(0 0 64px rgba(112,0,255,0.2))" }}
         >
-          <BannerVoidEye size={180} />
+          <SnatchIcon size={180} variant="gold" pulse />
         </motion.div>
 
         {/* Text + stats — right */}
@@ -360,7 +170,7 @@ export function HeroBanner({
               <span className="gold-text-gradient">.GG</span>
             </h1>
             <p className="font-mono text-xs uppercase tracking-[0.28em] text-slate">
-              The Most Dangerous 30 Seconds in Crypto
+              The clock is hidden. The bag is real.
             </p>
           </motion.div>
 

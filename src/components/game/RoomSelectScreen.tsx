@@ -171,74 +171,95 @@ function RoomCard({
   const locked     = room.lockReason !== null;
   const warning    = getWalletWarning(walletBalance, room);
   const [expanded, setExpanded] = useState(false);
+  const [hovered, setHovered]   = useState(false);
 
-  // Find recommended instance (most players but not full)
   const available    = instances.filter((i) => i.status !== "full");
-  const recommended  = available.sort((a, b) => b.playerCount - a.playerCount)[0]
-    ?? instances[0];
+  const recommended  = available.sort((a, b) => b.playerCount - a.playerCount)[0] ?? instances[0];
   const totalPlayers = instances.reduce((s, i) => s + i.playerCount, 0);
   const allFull      = instances.every((i) => i.status === "full");
   const liveInstances = instances.length;
 
-  function handleJoin(key: string) {
-    onSelect(roomId, key);
-  }
+  // Biggest live bag across instances
+  const liveBag = instances.reduce((m, i) => Math.max(m, i.bagAmount), room.startingBag);
 
+  function handleJoin(key: string) { onSelect(roomId, key); }
   function handleQuickJoin() {
     if (!recommended || locked) return;
     onSelect(roomId, recommended.key);
   }
 
+  const tierLabels: Record<RoomId, string> = {
+    pit: "Entry", grind: "Mid-Tier", arena: "Standard", court: "Elite",
+  };
+
+  // Per-room atmospheric glow
+  const atmosphereColor: Record<RoomId, string> = {
+    pit:   "rgba(0,230,118,",
+    grind: "rgba(255,153,0,",
+    arena: "rgba(255,215,0,",
+    court: "rgba(112,0,255,",
+  };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.1 + cardIndex * 0.1, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, y: 32, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.5, delay: 0.08 + cardIndex * 0.1, ease: [0.22, 1, 0.36, 1] }}
       className="w-full"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <SpotlightCard
-        spotlightColor={`${room.accentRgba}0.14)`}
-        radius={280}
+        spotlightColor={`${room.accentRgba}0.18)`}
+        radius={320}
         className={cn(
-          "premium-card w-full rounded-[24px]",
+          "premium-card w-full rounded-[28px] transition-transform duration-300",
+          hovered && !locked && "scale-[1.012]",
           locked && "opacity-60",
         )}
       >
-        {/* Accent bar */}
+        {/* Atmospheric background glow — unique per room */}
+        <div className="pointer-events-none absolute inset-0 rounded-[28px] overflow-hidden" aria-hidden>
+          <div
+            className="absolute"
+            style={{
+              top: "-30%", left: "-20%",
+              width: "80%", height: "80%",
+              background: `radial-gradient(ellipse, ${atmosphereColor[roomId]}0.12) 0%, transparent 70%)`,
+              willChange: "transform",
+              animation: hovered ? `aurora-breathe 8s ease-in-out infinite` : "none",
+            }}
+          />
+        </div>
+
+        {/* Accent bar — thicker for premium rooms */}
         <div
-          className="h-[2px] w-full rounded-t-[24px]"
-          style={{ background: `linear-gradient(90deg, transparent, ${room.accentColor}, transparent)` }}
+          className="h-[3px] w-full rounded-t-[28px]"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${room.accentColor}, ${room.accentColor}, transparent)`,
+            opacity: hovered ? 1 : 0.7,
+            transition: "opacity 0.3s",
+          }}
         />
 
-        <div className="flex flex-col gap-5 px-6 py-6">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <span
-                className="w-fit rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.25em]"
-                style={{
-                  background: `${room.accentRgba}0.12)`,
-                  border: `1px solid ${room.accentRgba}0.3)`,
-                  color: room.accentColor,
-                }}
-              >
-                {roomId === "pit" ? "Entry" : roomId === "grind" ? "Mid-Tier" : roomId === "arena" ? "Standard" : "Elite"}
-              </span>
-              <h2 className="font-display text-2xl font-black leading-tight tracking-tight"
-                style={{ color: room.accentColor }}>
-                {room.name}
-              </h2>
-              <p className="font-mono text-xs text-slate">{room.tagline}</p>
-            </div>
+        <div className="relative flex flex-col gap-5 px-6 py-6">
 
-            {/* Live players + instances */}
-            <div className="flex flex-col items-end gap-1.5">
+          {/* Top: tier badge + live badge */}
+          <div className="flex items-center justify-between">
+            <span
+              className="rounded-full px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.25em]"
+              style={{
+                background: `${room.accentRgba}0.14)`,
+                border: `1px solid ${room.accentRgba}0.35)`,
+                color: room.accentColor,
+              }}
+            >
+              {tierLabels[roomId]}
+            </span>
+            <div className="flex items-center gap-2">
               <div
-                className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-                style={{
-                  background: `${room.accentRgba}0.08)`,
-                  border: `1px solid ${room.accentRgba}0.2)`,
-                }}
+                className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+                style={{ background: `${room.accentRgba}0.08)`, border: `1px solid ${room.accentRgba}0.2)` }}
               >
                 <motion.span
                   className="h-1.5 w-1.5 rounded-full"
@@ -251,29 +272,63 @@ function RoomCard({
                 </span>
                 <Users className="h-3 w-3 text-slate" aria-hidden />
               </div>
-              <span className="font-mono text-[9px] text-dim">
-                {liveInstances} table{liveInstances !== 1 ? "s" : ""} running
-              </span>
+            </div>
+          </div>
+
+          {/* Room name + tagline */}
+          <div className="flex flex-col gap-1.5">
+            <motion.h2
+              className="font-display text-3xl font-black leading-none tracking-tight"
+              style={{ color: room.accentColor }}
+              animate={hovered ? { scale: 1.02 } : { scale: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              {room.name}
+            </motion.h2>
+            <p className="font-mono text-xs text-slate">{room.tagline}</p>
+          </div>
+
+          {/* Live bag — prominent display */}
+          <div
+            className="flex items-center justify-between rounded-2xl px-4 py-3"
+            style={{
+              background: `${room.accentRgba}0.08)`,
+              border: `1px solid ${room.accentRgba}0.18)`,
+            }}
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">Live Bag</span>
+              <motion.span
+                key={liveBag.toFixed(2)}
+                initial={{ scale: 1.06 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="font-display text-2xl font-black tabular-nums"
+                style={{ color: room.accentColor, willChange: "transform" }}
+              >
+                {liveBag.toFixed(2)}
+              </motion.span>
+            </div>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">SOL</span>
+              <span className="font-mono text-[10px] text-slate">{liveInstances} table{liveInstances !== 1 ? "s" : ""}</span>
             </div>
           </div>
 
           {/* Stats grid */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              { icon: <TrendingUp className="h-3.5 w-3.5" aria-hidden />, label: "Starting Bag", value: `${room.startingBag} SOL` },
+              { icon: <TrendingUp className="h-3.5 w-3.5" aria-hidden />, label: "Entry", value: room.baseCost === 0 ? "Free" : `${room.baseCost} SOL` },
               { icon: <Zap className="h-3.5 w-3.5" aria-hidden />, label: "Base Cost", value: `${room.baseCost} SOL` },
               { icon: <Users className="h-3.5 w-3.5" aria-hidden />, label: "Per Table", value: `${room.maxPlayers}` },
             ].map((stat) => (
               <div
                 key={stat.label}
                 className="flex flex-col gap-1 rounded-xl px-3 py-2.5"
-                style={{
-                  background: `${room.accentRgba}0.05)`,
-                  border: `1px solid ${room.accentRgba}0.1)`,
-                }}
+                style={{ background: `${room.accentRgba}0.05)`, border: `1px solid ${room.accentRgba}0.1)` }}
               >
-                <span style={{ color: room.accentColor, opacity: 0.7 }}>{stat.icon}</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">{stat.label}</span>
+                <span style={{ color: room.accentColor, opacity: 0.65 }}>{stat.icon}</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">{stat.label}</span>
                 <span className="font-mono text-sm font-bold tabular-nums" style={{ color: room.accentColor }}>
                   {stat.value}
                 </span>
@@ -311,20 +366,16 @@ function RoomCard({
                   >
                     <div className="flex flex-col gap-1.5 pt-1">
                       <AnimatePresence initial={false}>
-                        {instances
-                          .sort((a, b) => a.index - b.index)
-                          .map((inst) => (
-                            <InstanceRow
-                              key={inst.key}
-                              inst={inst}
-                              room={room}
-                              isRecommended={inst.key === recommended?.key}
-                              onJoin={handleJoin}
-                            />
-                          ))}
+                        {instances.sort((a, b) => a.index - b.index).map((inst) => (
+                          <InstanceRow
+                            key={inst.key}
+                            inst={inst}
+                            room={room}
+                            isRecommended={inst.key === recommended?.key}
+                            onJoin={handleJoin}
+                          />
+                        ))}
                       </AnimatePresence>
-
-                      {/* Auto-spawn notice when all full */}
                       <AnimatePresence>
                         {allFull && (
                           <motion.div
@@ -332,10 +383,7 @@ function RoomCard({
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
                             className="flex items-center gap-2 rounded-xl px-3 py-2"
-                            style={{
-                              background: "rgba(255,34,0,0.06)",
-                              border: "1px solid rgba(255,34,0,0.15)",
-                            }}
+                            style={{ background: "rgba(255,34,0,0.06)", border: "1px solid rgba(255,34,0,0.15)" }}
                           >
                             <Flame className="h-3.5 w-3.5 shrink-0 text-blood" aria-hidden />
                             <p className="font-mono text-[10px] text-blood/80">
@@ -351,7 +399,7 @@ function RoomCard({
             </>
           )}
 
-          {/* Wallet balance warning — soft, never blocks */}
+          {/* Wallet warning */}
           <AnimatePresence>
             {!locked && warning && (
               <motion.div
@@ -361,26 +409,14 @@ function RoomCard({
                 exit={{ opacity: 0, y: 2 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-start gap-2.5 rounded-xl px-3 py-2.5"
-                style={{
-                  background: `${warningColor(warning.level)}10`,
-                  border:     `1px solid ${warningColor(warning.level)}30`,
-                }}
+                style={{ background: `${warningColor(warning.level)}10`, border: `1px solid ${warningColor(warning.level)}30` }}
               >
-                <AlertTriangle
-                  className="h-3.5 w-3.5 shrink-0 mt-0.5"
-                  style={{ color: warningColor(warning.level) }}
-                  aria-hidden
-                />
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: warningColor(warning.level) }} aria-hidden />
                 <div className="flex flex-col gap-0.5">
-                  <span
-                    className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]"
-                    style={{ color: warningColor(warning.level) }}
-                  >
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: warningColor(warning.level) }}>
                     {warning.message}
                   </span>
-                  <span className="font-mono text-[10px] text-slate leading-relaxed">
-                    {warning.detail}
-                  </span>
+                  <span className="font-mono text-[10px] text-slate leading-relaxed">{warning.detail}</span>
                 </div>
               </motion.div>
             )}
@@ -388,7 +424,7 @@ function RoomCard({
 
           {/* CTA */}
           {locked ? (
-            <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 py-3.5">
+            <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 py-4">
               <Lock className="h-4 w-4 text-slate" aria-hidden />
               <span className="font-mono text-sm text-slate">{room.lockReason}</span>
             </div>
@@ -397,24 +433,18 @@ function RoomCard({
               type="button"
               onClick={handleQuickJoin}
               disabled={allFull}
+              whileHover={!allFull ? { scale: 1.03 } : undefined}
               whileTap={allFull ? {} : { scale: 0.97 }}
-              transition={{ duration: 0.12 }}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-sm font-bold uppercase tracking-[0.15em] transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-40"
-              style={{
-                background: room.accentColor,
-                color: roomId === "court" ? "#fff" : "#08080f",
-                willChange: "transform",
-              }}
+              transition={{ duration: 0.15, ease: [0.34, 1.56, 0.64, 1] }}
+              className="flex w-full items-center justify-center gap-2.5 rounded-2xl py-4 font-display text-sm font-black uppercase tracking-[0.15em] transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ background: room.accentColor, color: roomId === "court" ? "#fff" : "#08080f", willChange: "transform" }}
             >
-              {allFull ? (
-                "Tables Full — Spawning New…"
-              ) : (
+              {allFull ? "Tables Full — Spawning New…" : (
                 <>
                   Enter {room.name}
                   {warning?.level === "danger"
                     ? <AlertTriangle className="h-4 w-4" aria-hidden />
-                    : <ArrowRight className="h-4 w-4" aria-hidden />
-                  }
+                    : <ArrowRight className="h-4 w-4" aria-hidden />}
                 </>
               )}
             </motion.button>

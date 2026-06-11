@@ -191,11 +191,7 @@ export default function App() {
             transition={{ duration: 0.3 }}
             className="relative z-20"
           >
-            <ConnectScreen
-              bagAmount={state.bagAmount}
-              playerCount={state.playerCount}
-              roundNumber={state.roundNumber}
-            />
+            <ConnectScreen />
           </motion.div>
         ) : (
           <motion.div
