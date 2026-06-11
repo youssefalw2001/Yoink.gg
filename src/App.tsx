@@ -305,6 +305,9 @@ export default function App() {
               isYou={state.winnerIsYou}
               amount={state.bagAmount}
               round={state.roundNumber}
+              winnerHeldFor={state.kingHeldFor}
+              fallenKings={state.recentKings}
+              fuseSeconds={state.fuseSeconds}
               onPlayAgain={playAgain}
             />
 
