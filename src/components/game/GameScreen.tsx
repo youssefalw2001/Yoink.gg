@@ -17,6 +17,7 @@ interface GameScreenProps {
   state: GameState;
   onYoink: () => void;
   cooldownLeft: number;
+  roomId?: import("@/lib/rooms").RoomId;
 }
 
 // ── Earnings card ──────────────────────────────────────────────────────────────
@@ -245,7 +246,7 @@ function FeeBreakdown({ bagAmount }: { bagAmount: number }) {
 }
 
 // ── Main GameScreen ────────────────────────────────────────────────────────────
-export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
+export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena" }: GameScreenProps) {
   // Critical = last ~15% of the fuse — but we estimate from fee multiplier
   // since we don't expose exact time. High fee = late in round = critical.
   const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
@@ -264,6 +265,7 @@ export function GameScreen({ state, onYoink, cooldownLeft }: GameScreenProps) {
             playerCount={state.playerCount}
             bagAmount={state.bagAmount}
             roundNumber={state.roundNumber}
+            roomId={roomId}
           />
         </motion.div>
       ) : (

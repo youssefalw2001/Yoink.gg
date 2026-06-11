@@ -1,23 +1,30 @@
 import { motion } from "framer-motion";
-import { Users } from "lucide-react";
+import { Users, AlertTriangle } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { AnimatedLogo } from "@/components/ui/AnimatedLogo";
 import { RoundLiveBanner } from "@/components/ui/Banners";
 import { GAME_CONFIG } from "@/lib/types";
+import { ROOMS, getWalletWarning, warningColor } from "@/lib/rooms";
+import { useWallet } from "@/lib/wallet";
 
 interface LobbyScreenProps {
   playerCount: number;
-  bagAmount: number;
+  bagAmount:   number;
   roundNumber: number;
+  /** Room ID — used for wallet balance warning */
+  roomId?: import("@/lib/rooms").RoomId;
 }
 
 /**
  * LobbyScreen — shown while playerCount < MIN_PLAYERS.
  * Simulates a "waiting room" that builds anticipation before the round starts.
  */
-export function LobbyScreen({ playerCount, bagAmount, roundNumber }: LobbyScreenProps) {
+export function LobbyScreen({ playerCount, bagAmount, roundNumber, roomId = "arena" }: LobbyScreenProps) {
   const needed = Math.max(0, GAME_CONFIG.MIN_PLAYERS - playerCount);
-  const pct = Math.min(playerCount / GAME_CONFIG.MIN_PLAYERS, 1);
+  const pct    = Math.min(playerCount / GAME_CONFIG.MIN_PLAYERS, 1);
+  const { walletBalance } = useWallet();
+  const room    = ROOMS[roomId];
+  const warning = getWalletWarning(walletBalance, room);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-8 px-4 py-16">
@@ -123,6 +130,29 @@ export function LobbyScreen({ playerCount, bagAmount, roundNumber }: LobbyScreen
           <p className="text-center font-mono text-[10px] text-dim">
             Round starts automatically when {GAME_CONFIG.MIN_PLAYERS} players are present
           </p>
+
+          {/* Wallet balance warning — second layer after room select */}
+          {warning && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="flex items-start gap-2.5 rounded-xl px-3 py-2.5"
+              style={{
+                background: `${warningColor(warning.level)}08`,
+                border:     `1px solid ${warningColor(warning.level)}25`,
+              }}
+            >
+              <AlertTriangle
+                className="h-3.5 w-3.5 shrink-0 mt-0.5"
+                style={{ color: warningColor(warning.level) }}
+                aria-hidden
+              />
+              <p className="font-mono text-[10px] leading-relaxed" style={{ color: warningColor(warning.level) }}>
+                {warning.detail}
+              </p>
+            </motion.div>
+          )}
         </div>
       </SpotlightCard>
     </div>

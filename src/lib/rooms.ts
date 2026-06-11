@@ -186,3 +186,69 @@ export const ROOM_PLAYER_RANGES: Record<RoomId, [number, number]> = {
   arena: [6, 18],
   court: [2, 8],
 };
+
+
+// ─── Wallet Balance Gate ───────────────────────────────────────────────────────
+
+export type WalletWarningLevel = "safe" | "tight" | "risky" | "danger";
+
+export interface WalletWarning {
+  level:   WalletWarningLevel;
+  message: string;
+  detail:  string;
+}
+
+/**
+ * Returns a warning (or null if safe) based on the player's wallet balance
+ * relative to the room they're trying to enter.
+ *
+ * Thresholds — "comfortable sessions" = 10 base-cost yoinks:
+ *   safe:   balance >= 10 × baseCost  (can play 10+ rounds freely)
+ *   tight:  balance >= 5 × baseCost   (can play 5 rounds — feel the squeeze)
+ *   risky:  balance >= 1 × baseCost   (can afford entry but not much more)
+ *   danger: balance < 1 × baseCost    (can't even afford one yoink)
+ *
+ * No hard blocks — players can always enter. This is a warning only.
+ */
+export function getWalletWarning(
+  walletBalance: number,
+  room: Room,
+): WalletWarning | null {
+  const base = room.baseCost;
+
+  if (walletBalance < base) {
+    return {
+      level:   "danger",
+      message: `Need ${base} SOL to play`,
+      detail:  `Your wallet has ${walletBalance.toFixed(3)} SOL — not enough for one YOINK in ${room.name}.`,
+    };
+  }
+
+  if (walletBalance < base * 3) {
+    return {
+      level:   "risky",
+      message: `Low balance — risky`,
+      detail:  `${walletBalance.toFixed(3)} SOL covers ${Math.floor(walletBalance / base)} yoink${Math.floor(walletBalance / base) !== 1 ? "s" : ""}. One bad round and you're out.`,
+    };
+  }
+
+  if (walletBalance < base * 8) {
+    return {
+      level:   "tight",
+      message: `Tight wallet`,
+      detail:  `${walletBalance.toFixed(3)} SOL is enough to play but won't last long. ${room.name} recommends ${(base * 8).toFixed(2)}+ SOL.`,
+    };
+  }
+
+  return null; // safe — no warning needed
+}
+
+/** Warning level colour for UI */
+export function warningColor(level: WalletWarningLevel): string {
+  switch (level) {
+    case "danger": return "#FF2200";
+    case "risky":  return "#FF6600";
+    case "tight":  return "#FFD700";
+    default:       return "#00E676";
+  }
+}

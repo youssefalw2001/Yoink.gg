@@ -18,15 +18,17 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, TrendingUp, Zap, ArrowRight, Lock,
-  ChevronDown, Flame, Circle,
+  ChevronDown, Flame, Circle, AlertTriangle,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { AnimatedLogo } from "@/components/ui/AnimatedLogo";
 import {
   ROOMS, ROOM_ORDER,
+  getWalletWarning, warningColor,
   type RoomId, type RoomInstance,
 } from "@/lib/rooms";
 import { useRoomInstances } from "@/hooks/useRoomInstances";
+import { useWallet } from "@/lib/wallet";
 import { cn } from "@/lib/utils";
 
 interface RoomSelectScreenProps {
@@ -157,14 +159,17 @@ function RoomCard({
   instances,
   onSelect,
   index: cardIndex,
+  walletBalance,
 }: {
   roomId: RoomId;
   instances: RoomInstance[];
   onSelect: (roomId: RoomId, instanceKey: string) => void;
   index: number;
+  walletBalance: number;
 }) {
   const room       = ROOMS[roomId];
   const locked     = room.lockReason !== null;
+  const warning    = getWalletWarning(walletBalance, room);
   const [expanded, setExpanded] = useState(false);
 
   // Find recommended instance (most players but not full)
@@ -346,6 +351,41 @@ function RoomCard({
             </>
           )}
 
+          {/* Wallet balance warning — soft, never blocks */}
+          <AnimatePresence>
+            {!locked && warning && (
+              <motion.div
+                key={warning.level}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 2 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-start gap-2.5 rounded-xl px-3 py-2.5"
+                style={{
+                  background: `${warningColor(warning.level)}10`,
+                  border:     `1px solid ${warningColor(warning.level)}30`,
+                }}
+              >
+                <AlertTriangle
+                  className="h-3.5 w-3.5 shrink-0 mt-0.5"
+                  style={{ color: warningColor(warning.level) }}
+                  aria-hidden
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]"
+                    style={{ color: warningColor(warning.level) }}
+                  >
+                    {warning.message}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate leading-relaxed">
+                    {warning.detail}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* CTA */}
           {locked ? (
             <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 py-3.5">
@@ -371,7 +411,10 @@ function RoomCard({
               ) : (
                 <>
                   Enter {room.name}
-                  <ArrowRight className="h-4 w-4" aria-hidden />
+                  {warning?.level === "danger"
+                    ? <AlertTriangle className="h-4 w-4" aria-hidden />
+                    : <ArrowRight className="h-4 w-4" aria-hidden />
+                  }
                 </>
               )}
             </motion.button>
@@ -385,6 +428,7 @@ function RoomCard({
 // ── Main screen ───────────────────────────────────────────────────────────────
 export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
   const { getInstancesForRoom, totalPlayers } = useRoomInstances();
+  const { walletBalance } = useWallet();
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-4 py-12 sm:px-6">
@@ -439,6 +483,7 @@ export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
             instances={getInstancesForRoom(roomId)}
             onSelect={onSelect}
             index={i}
+            walletBalance={walletBalance}
           />
         ))}
       </div>
