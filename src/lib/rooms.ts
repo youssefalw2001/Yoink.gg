@@ -13,7 +13,7 @@
  *   DEAD     → 0 players for 60s (pruned automatically)
  */
 
-export type RoomId = "pit" | "arena" | "court";
+export type RoomId = "pit" | "grind" | "arena" | "court";
 
 export interface Room {
   id:           RoomId;
@@ -143,6 +143,23 @@ export const ROOMS: Record<RoomId, Room> = {
     lockReason:   null,
     temporal: { enabled: false, maxMultiplier: 1, minMultiplier: 1, sweetSpot: 15 },
   },
+  grind: {
+    id:           "grind",
+    name:         "The Grind",
+    tagline:      "Mid entry. Real tension. Anyone can win.",
+    minBuyIn:     0.05,
+    maxBuyIn:     0.2,
+    maxPlayers:   35,
+    startingBag:  1,
+    baseCost:     0.05,
+    costStep:     0.01,
+    maxCost:      0.2,
+    roundSeconds: 30,
+    accentColor:  "#FF9900",
+    accentRgba:   "rgba(255,153,0,",
+    lockReason:   null,
+    temporal: { enabled: false, maxMultiplier: 1, minMultiplier: 1, sweetSpot: 15 },
+  },
   arena: {
     id:           "arena",
     name:         "The Arena",
@@ -179,10 +196,11 @@ export const ROOMS: Record<RoomId, Room> = {
   },
 } as const;
 
-export const ROOM_ORDER: RoomId[] = ["pit", "arena", "court"];
+export const ROOM_ORDER: RoomId[] = ["pit", "grind", "arena", "court"];
 
 export const ROOM_PLAYER_RANGES: Record<RoomId, [number, number]> = {
   pit:   [18, 48],
+  grind: [8, 28],
   arena: [6, 18],
   court: [2, 8],
 };

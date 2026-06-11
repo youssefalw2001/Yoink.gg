@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { TrendingUp, Droplets, Coins, Zap, Flame, DollarSign } from "lucide-react";
 import type { GameState } from "@/lib/types";
 import { GAME_CONFIG, FUSE_CONFIG, drainPctLabel } from "@/lib/types";
+import { type RoomId } from "@/lib/rooms";
 import { formatSol } from "@/lib/utils";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { BagAmount } from "./BagAmount";
@@ -12,12 +13,16 @@ import { ChainOfFallen } from "./ChainOfFallen";
 import { StatsSidebar } from "./StatsSidebar";
 import { LobbyScreen } from "./LobbyScreen";
 import { ActivityFeed } from "./ActivityFeed";
+import { WalletTrackerPanel } from "./WalletTrackerPanel";
 
 interface GameScreenProps {
   state: GameState;
   onYoink: () => void;
   cooldownLeft: number;
-  roomId?: import("@/lib/rooms").RoomId;
+  roomId?: RoomId;
+  ownedItems?: string[];
+  pumpFakeBalance?: number | null;
+  onActivateWalletTracker?: () => void;
 }
 
 // ── Earnings card ──────────────────────────────────────────────────────────────
@@ -246,10 +251,9 @@ function FeeBreakdown({ bagAmount }: { bagAmount: number }) {
 }
 
 // ── Main GameScreen ────────────────────────────────────────────────────────────
-export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena" }: GameScreenProps) {
-  // Critical = last ~15% of the fuse — but we estimate from fee multiplier
-  // since we don't expose exact time. High fee = late in round = critical.
+export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker }: GameScreenProps) {
   const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
+  const walletTrackerActive = ownedItems.includes("wallet_tracker");
 
   return (
     <AnimatePresence mode="wait">
@@ -342,6 +346,14 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena" }: G
               roundFeeMultiplier={state.roundFeeMultiplier}
               currentCost={state.currentCost}
               yoinkCount={state.yoinkCount}
+            />
+            {/* Wallet Tracker — shows when owned, purchase prompt when not */}
+            <WalletTrackerPanel
+              wallets={state.recentKings.map((k) => k.wallet)}
+              currentKing={state.currentKing}
+              pumpFakeBalance={pumpFakeBalance}
+              active={walletTrackerActive}
+              onActivate={onActivateWalletTracker ?? (() => {})}
             />
             <SpotlightCard
               spotlightColor="rgba(68,0,204,0.18)"

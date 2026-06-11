@@ -134,7 +134,7 @@ export default function App() {
 
   // ── Shop purchase ─────────────────────────────────────────────────────────
   function handleBuy(item: ShopItem) {
-    purchaseItem(item.id);
+    purchaseItem(item.id, item.priceXp);
   }
 
   // ── Reset refs on new round ───────────────────────────────────────────────
@@ -244,6 +244,10 @@ export default function App() {
                       state={state}
                       onYoink={yoink}
                       cooldownLeft={cooldownLeft}
+                      roomId={roomId ?? "arena"}
+                      ownedItems={raw.ownedItems}
+                      pumpFakeBalance={raw.pumpFakeBalance ?? null}
+                      onActivateWalletTracker={() => purchaseItem("wallet_tracker")}
                     />
                   </motion.div>
                 )}

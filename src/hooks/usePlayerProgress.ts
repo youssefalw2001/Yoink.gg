@@ -108,14 +108,18 @@ export function usePlayerProgress() {
     });
   }, [awardXP]);
 
-  /** Shop: purchase an item */
-  const purchaseItem = useCallback((itemId: string) => {
-    setRaw((p) => ({
-      ...p,
-      ownedItems: p.ownedItems.includes(itemId)
-        ? p.ownedItems
-        : [...p.ownedItems, itemId],
-    }));
+  /** Shop: purchase an item (handles both SOL-priced and XP-priced items) */
+  const purchaseItem = useCallback((itemId: string, xpCost?: number) => {
+    setRaw((p) => {
+      const newXp = xpCost ? Math.max(0, p.xp - xpCost) : p.xp;
+      return {
+        ...p,
+        xp: newXp,
+        ownedItems: p.ownedItems.includes(itemId)
+          ? p.ownedItems
+          : [...p.ownedItems, itemId],
+      };
+    });
   }, []);
 
   const ownsItem = useCallback(

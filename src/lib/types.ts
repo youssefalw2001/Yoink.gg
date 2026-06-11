@@ -130,10 +130,22 @@ export const GAME_CONFIG = {
  *   Capped at FEE_MAX_MULT to prevent runaway.
  */
 export const FUSE_CONFIG = {
-  MIN_SECONDS: 20,    // shortest possible round
-  MAX_SECONDS: 45,    // longest possible round
-  FEE_STEP:    0.10,  // +10% per yoink in the round
-  FEE_MAX_MULT: 2.5,  // fee multiplier cap (250% of base)
+  MIN_SECONDS:  25,   // shortest possible round (raised from 20 — felt too fast in testing)
+  MAX_SECONDS:  45,   // longest possible round
+  FEE_STEP:     0.10, // +10% per yoink in the round
+  FEE_MAX_MULT: 2.5,  // default fee multiplier cap (override per room)
+  /**
+   * Per-room fee caps:
+   *   King's Court reduced from 2.5× → 2.0× (Manus audit finding:
+   *   at 2.5× cap whales see a single yoink cost >$100 and leave)
+   *   The Grind lower cap (1.8×) — cheaper room, faster rounds
+   */
+  FEE_MAX_MULT_BY_ROOM: {
+    pit:   2.5,
+    grind: 1.8,
+    arena: 2.5,
+    court: 2.0,
+  } as Record<string, number>,
 } as const;
 
 /**

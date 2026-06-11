@@ -71,6 +71,7 @@ export interface ProgressState {
   equippedFlameColor: string;
   equippedCardTheme: string;
   displayName: string;
+  pumpFakeBalance: number | null;
 }
 
 export const DEFAULT_STATE: ProgressState = {
@@ -84,6 +85,7 @@ export const DEFAULT_STATE: ProgressState = {
   equippedFlameColor: "gold",
   equippedCardTheme: "default",
   displayName: "",
+  pumpFakeBalance: null,
 };
 
 export function loadProgress(): ProgressState {

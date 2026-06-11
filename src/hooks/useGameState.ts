@@ -99,10 +99,11 @@ export function useGameState(roomId: RoomId = "arena") {
 
         const cost         = prev.currentCost;
         const nextCount    = prev.yoinkCount + 1;
-        // Escalating fee: each yoink adds FEE_STEP to the multiplier, capped at FEE_MAX_MULT
+        // Escalating fee: each yoink adds FEE_STEP to the multiplier, capped per room
+        const roomFeeCap = FUSE_CONFIG.FEE_MAX_MULT_BY_ROOM[roomId] ?? FUSE_CONFIG.FEE_MAX_MULT;
         const nextFeeMult  = +Math.min(
           prev.roundFeeMultiplier + FUSE_CONFIG.FEE_STEP,
-          FUSE_CONFIG.FEE_MAX_MULT,
+          roomFeeCap,
         ).toFixed(3);
         const nextCost     = computeYoinkCost(
           room.baseCost, room.costStep, room.maxCost, nextCount, nextFeeMult,

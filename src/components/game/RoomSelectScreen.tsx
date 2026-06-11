@@ -222,7 +222,7 @@ function RoomCard({
                   color: room.accentColor,
                 }}
               >
-                {roomId === "pit" ? "Entry" : roomId === "arena" ? "Standard" : "Elite"}
+                {roomId === "pit" ? "Entry" : roomId === "grind" ? "Mid-Tier" : roomId === "arena" ? "Standard" : "Elite"}
               </span>
               <h2 className="font-display text-2xl font-black leading-tight tracking-tight"
                 style={{ color: room.accentColor }}>
