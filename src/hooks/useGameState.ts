@@ -59,6 +59,7 @@ function makeInitial(roomId: RoomId): GameState {
     temporalMultiplier:  1,
     roundFeeMultiplier:  1,
     fuseSeconds,
+    fuseBurnerActive:    false,
     biggestBag:          128.4,
     totalDistributed:    9421.62,
     playerCount:         0,
@@ -147,6 +148,7 @@ export function useGameState(roomId: RoomId = "arena") {
           currentCost:         nextCost,
           roundFeeMultiplier:  nextFeeMult,
           fuseSeconds:         newFuse,
+          fuseBurnerActive:    false,  // reset on every yoink — one use per fuse draw
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),
           playerCooldownUntil: byPlayer
@@ -199,7 +201,9 @@ export function useGameState(roomId: RoomId = "arena") {
         }
         if (prev.isRoundOver) return prev;
 
-        const nextCountdown = +(prev.countdown - GAME_CONFIG.TICK_MS / 1000).toFixed(2);
+        // Apply Fuse Burner multiplier — 2× faster depletion when active
+        const tickSeconds = (GAME_CONFIG.TICK_MS / 1000) * (prev.fuseBurnerActive ? FUSE_CONFIG.BURNER_MULT : 1);
+        const nextCountdown = +(prev.countdown - tickSeconds).toFixed(2);
 
         if (nextCountdown <= 0) {
           const won = +prev.bagAmount.toFixed(3);
@@ -301,5 +305,12 @@ export function useGameState(roomId: RoomId = "arena") {
     return () => clearInterval(id);
   }, []);
 
-  return { state, leaderboard, yoink, playAgain, cooldownLeft };
+  const activateFuseBurner = useCallback(() => {
+    setState((prev) => {
+      if (prev.fuseBurnerActive || prev.isRoundOver || prev.isWaiting) return prev;
+      return { ...prev, fuseBurnerActive: true };
+    });
+  }, []);
+
+  return { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner };
 }

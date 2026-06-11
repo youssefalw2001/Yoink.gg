@@ -72,6 +72,8 @@ export interface ProgressState {
   equippedCardTheme: string;
   displayName: string;
   pumpFakeBalance: number | null;
+  /** Fuse Burner: has been activated this round */
+  fuseBurnerUsedThisRound: boolean;
 }
 
 export const DEFAULT_STATE: ProgressState = {
@@ -86,6 +88,7 @@ export const DEFAULT_STATE: ProgressState = {
   equippedCardTheme: "default",
   displayName: "",
   pumpFakeBalance: null,
+  fuseBurnerUsedThisRound: false,
 };
 
 export function loadProgress(): ProgressState {

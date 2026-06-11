@@ -23,6 +23,7 @@ interface GameScreenProps {
   ownedItems?: string[];
   pumpFakeBalance?: number | null;
   onActivateWalletTracker?: () => void;
+  onActivateFuseBurner?: () => void;
 }
 
 // ── Fuse + Escalating Fee card — replaces CostEscalationCard ──────────────────
@@ -134,6 +135,75 @@ function FuseCard({
   );
 }
 
+// ── Fuse Burner card ──────────────────────────────────────────────────────────
+function FuseBurnerCard({
+  owned,
+  active,
+  isRoundOver,
+  onActivate,
+}: {
+  owned:       boolean;
+  active:      boolean;
+  isRoundOver: boolean;
+  onActivate:  () => void;
+}) {
+  return (
+    <SpotlightCard spotlightColor="rgba(255,34,0,0.10)" radius={220} className="premium-card rounded-[24px]">
+      <div className="flex flex-col gap-3 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Flame className="h-3.5 w-3.5 text-blood" aria-hidden />
+            <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">Fuse Burner</h3>
+          </div>
+          {active && (
+            <motion.span
+              className="rounded-full border border-blood/30 bg-blood/10 px-2 py-0.5 font-mono text-[10px] font-bold text-blood"
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            >
+              BURNING 2×
+            </motion.span>
+          )}
+        </div>
+
+        {active ? (
+          <p className="font-mono text-[11px] text-blood/80">
+            Fuse is depleting 2× faster this round. Everyone can see it.
+          </p>
+        ) : owned ? (
+          <>
+            <p className="font-mono text-[11px] text-slate">
+              Double the fuse speed this round. End it before anyone can react.
+            </p>
+            <motion.button
+              type="button"
+              onClick={onActivate}
+              disabled={isRoundOver}
+              whileTap={{ scale: 0.96 }}
+              transition={{ duration: 0.12 }}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-blood/30 bg-blood/10 py-2.5 font-display text-xs font-bold uppercase tracking-[0.15em] text-blood transition-colors hover:bg-blood/15 disabled:opacity-40"
+              style={{ willChange: "transform" }}
+            >
+              <Flame className="h-3.5 w-3.5" aria-hidden />
+              Activate Fuse Burner
+            </motion.button>
+          </>
+        ) : (
+          <>
+            <p className="font-mono text-[11px] text-slate">
+              2× fuse speed for this round. Use it as king to end fast, or to pressure anyone holding the bag.
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-sm font-bold text-blood">0.02 SOL</span>
+              <span className="font-mono text-[10px] text-dim">Buy in Armory</span>
+            </div>
+          </>
+        )}
+      </div>
+    </SpotlightCard>
+  );
+}
+
 // ── Fee breakdown label ────────────────────────────────────────────────────────
 function FeeBreakdown() {
   return (
@@ -144,7 +214,7 @@ function FeeBreakdown() {
 }
 
 // ── Main GameScreen ────────────────────────────────────────────────────────────
-export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker }: GameScreenProps) {
+export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner }: GameScreenProps) {
   const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
   const walletTrackerActive = ownedItems.includes("wallet_tracker");
 
@@ -242,6 +312,13 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               pumpFakeBalance={pumpFakeBalance}
               active={walletTrackerActive}
               onActivate={onActivateWalletTracker ?? (() => {})}
+            />
+            {/* Fuse Burner — shows when owned/active */}
+            <FuseBurnerCard
+              owned={ownedItems.includes("fuse_burner")}
+              active={state.fuseBurnerActive}
+              isRoundOver={state.isRoundOver}
+              onActivate={onActivateFuseBurner ?? (() => {})}
             />
             <SpotlightCard
               spotlightColor="rgba(68,0,204,0.18)"

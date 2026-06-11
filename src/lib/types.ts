@@ -83,6 +83,8 @@ export interface GameState {
    * Shown post-round in the WinReveal as "The fuse burned for Xs."
    */
   fuseSeconds: number;
+  /** True when a Fuse Burner power-up is active this round */
+  fuseBurnerActive: boolean;
   biggestBag: number;
   totalDistributed: number;
   playerCount: number;
@@ -130,8 +132,8 @@ export const GAME_CONFIG = {
  *   Capped at FEE_MAX_MULT to prevent runaway.
  */
 export const FUSE_CONFIG = {
-  MIN_SECONDS:  25,   // shortest possible round (raised from 20 — felt too fast in testing)
-  MAX_SECONDS:  45,   // longest possible round
+  MIN_SECONDS:  15,   // shortest possible round — fast, aggressive, panic-inducing
+  MAX_SECONDS:  45,   // longest possible round — slow, deceptive, false safety
   FEE_STEP:     0.10, // +10% per yoink in the round
   FEE_MAX_MULT: 2.5,  // default fee multiplier cap (override per room)
   /**
@@ -146,6 +148,12 @@ export const FUSE_CONFIG = {
     arena: 2.5,
     court: 2.0,
   } as Record<string, number>,
+  /**
+   * Fuse Burner power-up multiplier.
+   * When active the countdown ticks down 2× faster.
+   * Capped at 1 activation per round globally — no stacking.
+   */
+  BURNER_MULT: 2,
 } as const;
 
 /**

@@ -35,7 +35,7 @@ export default function App() {
   // Rolling instance manager — runs in background regardless of current page
   const { syncInstance } = useRoomInstances();
 
-  const { state, leaderboard, yoink, playAgain, cooldownLeft } = useGameState(
+  const { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner } = useGameState(
     roomId ?? "arena",
   );
 
@@ -244,6 +244,7 @@ export default function App() {
                       ownedItems={raw.ownedItems}
                       pumpFakeBalance={raw.pumpFakeBalance ?? null}
                       onActivateWalletTracker={() => purchaseItem("wallet_tracker")}
+                      onActivateFuseBurner={() => { activateFuseBurner(); purchaseItem("fuse_burner"); }}
                     />
                   </motion.div>
                 )}
