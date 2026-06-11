@@ -1,246 +1,350 @@
 /**
- * RoomSelectScreen — pick your league before entering the arena.
+ * YOINK.GG — RoomSelectScreen (Rolling Instances)
  *
- * Three room cards: The Pit · The Arena · King's Court
- * Each shows buy-in range, live player count, starting bag, and cost range.
- * Framer Motion stagger entrance. SpotlightCard hover effect.
- * GPU rules: transform + opacity only, no animated box-shadow/blur.
+ * Each room card now shows:
+ *   - Live instance count ("2 active tables")
+ *   - Per-instance chips: index, player count, status badge, live bag
+ *   - Recommended instance highlighted (most players, not full)
+ *   - Total live players across all instances of this room
+ *
+ * Player always enters the recommended instance automatically.
+ * They can expand to see all instances and pick a specific one.
+ *
+ * GPU rules: transform + opacity only, will-change on perpetual anims.
+ * Lucide icons only. Zero emojis.
  */
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Users, TrendingUp, Zap, ArrowRight, Lock } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Users, TrendingUp, Zap, ArrowRight, Lock,
+  ChevronDown, Flame, Circle,
+} from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { AnimatedLogo } from "@/components/ui/AnimatedLogo";
-import { ROOMS, ROOM_ORDER, ROOM_PLAYER_RANGES, type RoomId } from "@/lib/rooms";
+import {
+  ROOMS, ROOM_ORDER,
+  type RoomId, type RoomInstance,
+} from "@/lib/rooms";
+import { useRoomInstances } from "@/hooks/useRoomInstances";
 import { cn } from "@/lib/utils";
 
 interface RoomSelectScreenProps {
-  onSelect: (roomId: RoomId) => void;
+  onSelect: (roomId: RoomId, instanceKey: string) => void;
 }
 
-/** Simulates live player counts that drift over time */
-function useLivePlayerCounts(): Record<RoomId, number> {
-  const [counts, setCounts] = useState<Record<RoomId, number>>({
-    pit:   28,
-    arena: 11,
-    court: 4,
-  });
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setCounts((prev) => {
-        const next = { ...prev } as Record<RoomId, number>;
-        for (const roomId of ROOM_ORDER) {
-          const [min, max] = ROOM_PLAYER_RANGES[roomId];
-          const delta = Math.random() > 0.5 ? 1 : -1;
-          next[roomId] = Math.min(max, Math.max(min, prev[roomId] + delta));
-        }
-        return next;
-      });
-    }, 2200);
-    return () => clearInterval(id);
-  }, []);
-
-  return counts;
+// ── Instance status chip ───────────────────────────────────────────────────────
+function StatusChip({ status, color }: { status: RoomInstance["status"]; color: string }) {
+  const label = status === "open" ? "Open" : status === "filling" ? "Filling" : "Full";
+  const opacity = status === "full" ? 0.5 : 1;
+  return (
+    <span
+      className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.15em]"
+      style={{
+        background: `${color}14`,
+        border: `1px solid ${color}30`,
+        color,
+        opacity,
+      }}
+    >
+      <Circle className="h-1.5 w-1.5 fill-current" aria-hidden />
+      {label}
+    </span>
+  );
 }
 
-const ROOM_DESCRIPTIONS: Record<RoomId, string[]> = {
-  pit: [
-    "No buy-in floor — everyone welcome",
-    "Up to 50 players per match",
-    "Fast, cheap, chaotic",
-    "Best for new players",
-  ],
-  arena: [
-    "0.1–1 SOL wallet range",
-    "Up to 20 players per match",
-    "Balanced cost escalation",
-    "The default competitive tier",
-  ],
-  court: [
-    "1+ SOL wallets only",
-    "Up to 10 players per match",
-    "High cost, high reward",
-    "Whale wars — no weak hands",
-  ],
-};
+// ── Single instance row ────────────────────────────────────────────────────────
+function InstanceRow({
+  inst,
+  room,
+  isRecommended,
+  onJoin,
+}: {
+  inst: RoomInstance;
+  room: typeof ROOMS[RoomId];
+  isRecommended: boolean;
+  onJoin: (key: string) => void;
+}) {
+  const fillPct = inst.playerCount / room.maxPlayers;
+  const isFull  = inst.status === "full";
 
-interface RoomCardProps {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 8 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150",
+        isRecommended ? "outline outline-1" : "opacity-80 hover:opacity-100",
+      )}
+      style={{
+        background:   isRecommended ? `${room.accentRgba}0.07)` : "rgba(255,255,255,0.02)",
+        outlineColor: isRecommended ? `${room.accentRgba}0.4)` : "transparent",
+      }}
+    >
+      {/* Instance label */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span
+          className="font-mono text-[11px] font-bold shrink-0"
+          style={{ color: isRecommended ? room.accentColor : "#8892a4" }}
+        >
+          Table #{inst.index}
+        </span>
+        {isRecommended && (
+          <span
+            className="rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.15em] shrink-0"
+            style={{ background: `${room.accentRgba}0.15)`, color: room.accentColor }}
+          >
+            Recommended
+          </span>
+        )}
+      </div>
+
+      {/* Players + status */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1">
+          <Users className="h-3 w-3 text-dim" aria-hidden />
+          <span className="font-mono text-[11px] tabular-nums text-slate">
+            {inst.playerCount}/{room.maxPlayers}
+          </span>
+        </div>
+
+        {/* Fill bar */}
+        <div className="w-14 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${fillPct * 100}%`,
+              background: isFull
+                ? "#FF2200"
+                : fillPct > 0.5
+                  ? "#FFD700"
+                  : room.accentColor,
+            }}
+          />
+        </div>
+
+        <StatusChip status={inst.status} color={room.accentColor} />
+
+        {/* Join button */}
+        <motion.button
+          type="button"
+          onClick={() => onJoin(inst.key)}
+          disabled={isFull}
+          whileTap={isFull ? {} : { scale: 0.95 }}
+          transition={{ duration: 0.1 }}
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.1em] disabled:cursor-not-allowed disabled:opacity-30"
+          style={{
+            background: isFull ? "rgba(255,255,255,0.04)" : `${room.accentRgba}0.14)`,
+            border: `1px solid ${room.accentRgba}${isFull ? "0.1)" : "0.3)"}`,
+            color: isFull ? "#3a3f4f" : room.accentColor,
+            willChange: "transform",
+          }}
+        >
+          {isFull ? "Full" : "Join"}
+          {!isFull && <ArrowRight className="h-3 w-3" aria-hidden />}
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Room card ─────────────────────────────────────────────────────────────────
+function RoomCard({
+  roomId,
+  instances,
+  onSelect,
+  index: cardIndex,
+}: {
   roomId: RoomId;
-  liveCount: number;
-  onSelect: (id: RoomId) => void;
+  instances: RoomInstance[];
+  onSelect: (roomId: RoomId, instanceKey: string) => void;
   index: number;
-}
+}) {
+  const room       = ROOMS[roomId];
+  const locked     = room.lockReason !== null;
+  const [expanded, setExpanded] = useState(false);
 
-function RoomCard({ roomId, liveCount, onSelect, index }: RoomCardProps) {
-  const room = ROOMS[roomId];
-  const locked = room.lockReason !== null;
-  const [hovered, setHovered] = useState(false);
+  // Find recommended instance (most players but not full)
+  const available    = instances.filter((i) => i.status !== "full");
+  const recommended  = available.sort((a, b) => b.playerCount - a.playerCount)[0]
+    ?? instances[0];
+  const totalPlayers = instances.reduce((s, i) => s + i.playerCount, 0);
+  const allFull      = instances.every((i) => i.status === "full");
+  const liveInstances = instances.length;
 
-  const maxBuyInLabel =
-    room.maxBuyIn === Infinity ? "∞" : `${room.maxBuyIn} SOL`;
-  const minBuyInLabel =
-    room.minBuyIn === 0 ? "Free" : `${room.minBuyIn} SOL`;
+  function handleJoin(key: string) {
+    onSelect(roomId, key);
+  }
 
-  const tierLabel =
-    roomId === "pit"
-      ? "Entry"
-      : roomId === "arena"
-        ? "Standard"
-        : "Elite";
+  function handleQuickJoin() {
+    if (!recommended || locked) return;
+    onSelect(roomId, recommended.key);
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.5,
-        delay: 0.1 + index * 0.1,
-        ease: [0.22, 1, 0.36, 1],
-      }}
+      transition={{ duration: 0.5, delay: 0.1 + cardIndex * 0.1, ease: [0.22, 1, 0.36, 1] }}
       className="w-full"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <SpotlightCard
         spotlightColor={`${room.accentRgba}0.14)`}
         radius={280}
         className={cn(
-          "premium-card w-full rounded-[24px] transition-transform duration-200",
-          hovered && !locked && "scale-[1.015]",
+          "premium-card w-full rounded-[24px]",
           locked && "opacity-60",
         )}
       >
-        {/* top accent bar */}
+        {/* Accent bar */}
         <div
           className="h-[2px] w-full rounded-t-[24px]"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${room.accentColor}, transparent)`,
-            opacity: hovered ? 1 : 0.5,
-            transition: "opacity 0.3s",
-          }}
+          style={{ background: `linear-gradient(90deg, transparent, ${room.accentColor}, transparent)` }}
         />
 
         <div className="flex flex-col gap-5 px-6 py-6">
-          {/* header row */}
+          {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-1">
-              {/* tier badge */}
               <span
                 className="w-fit rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.25em]"
                 style={{
                   background: `${room.accentRgba}0.12)`,
-                  border:     `1px solid ${room.accentRgba}0.3)`,
-                  color:      room.accentColor,
+                  border: `1px solid ${room.accentRgba}0.3)`,
+                  color: room.accentColor,
                 }}
               >
-                {tierLabel}
+                {roomId === "pit" ? "Entry" : roomId === "arena" ? "Standard" : "Elite"}
               </span>
-              <h2
-                className="font-display text-2xl font-black leading-tight tracking-tight"
-                style={{ color: room.accentColor }}
-              >
+              <h2 className="font-display text-2xl font-black leading-tight tracking-tight"
+                style={{ color: room.accentColor }}>
                 {room.name}
               </h2>
               <p className="font-mono text-xs text-slate">{room.tagline}</p>
             </div>
 
-            {/* live player pill */}
-            <div
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5"
-              style={{
-                background: `${room.accentRgba}0.08)`,
-                border:     `1px solid ${room.accentRgba}0.2)`,
-              }}
-            >
-              <motion.span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: room.accentColor }}
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <span
-                className="font-mono text-xs font-bold tabular-nums"
-                style={{ color: room.accentColor }}
+            {/* Live players + instances */}
+            <div className="flex flex-col items-end gap-1.5">
+              <div
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                style={{
+                  background: `${room.accentRgba}0.08)`,
+                  border: `1px solid ${room.accentRgba}0.2)`,
+                }}
               >
-                {liveCount}
+                <motion.span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: room.accentColor }}
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <span className="font-mono text-xs font-bold tabular-nums" style={{ color: room.accentColor }}>
+                  {totalPlayers}
+                </span>
+                <Users className="h-3 w-3 text-slate" aria-hidden />
+              </div>
+              <span className="font-mono text-[9px] text-dim">
+                {liveInstances} table{liveInstances !== 1 ? "s" : ""} running
               </span>
-              <Users className="h-3 w-3 text-slate" aria-hidden />
             </div>
           </div>
 
-          {/* stats grid */}
+          {/* Stats grid */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              {
-                icon:  <TrendingUp className="h-3.5 w-3.5" aria-hidden />,
-                label: "Starting Bag",
-                value: `${room.startingBag} SOL`,
-              },
-              {
-                icon:  <Zap className="h-3.5 w-3.5" aria-hidden />,
-                label: "Base Cost",
-                value: `${room.baseCost} SOL`,
-              },
-              {
-                icon:  <Users className="h-3.5 w-3.5" aria-hidden />,
-                label: "Max Players",
-                value: `${room.maxPlayers}`,
-              },
+              { icon: <TrendingUp className="h-3.5 w-3.5" aria-hidden />, label: "Starting Bag", value: `${room.startingBag} SOL` },
+              { icon: <Zap className="h-3.5 w-3.5" aria-hidden />, label: "Base Cost", value: `${room.baseCost} SOL` },
+              { icon: <Users className="h-3.5 w-3.5" aria-hidden />, label: "Per Table", value: `${room.maxPlayers}` },
             ].map((stat) => (
               <div
                 key={stat.label}
                 className="flex flex-col gap-1 rounded-xl px-3 py-2.5"
                 style={{
                   background: `${room.accentRgba}0.05)`,
-                  border:     `1px solid ${room.accentRgba}0.1)`,
+                  border: `1px solid ${room.accentRgba}0.1)`,
                 }}
               >
-                <span className="text-slate" style={{ color: room.accentColor, opacity: 0.7 }}>
-                  {stat.icon}
-                </span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">
-                  {stat.label}
-                </span>
-                <span
-                  className="font-mono text-sm font-bold tabular-nums"
-                  style={{ color: room.accentColor }}
-                >
+                <span style={{ color: room.accentColor, opacity: 0.7 }}>{stat.icon}</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">{stat.label}</span>
+                <span className="font-mono text-sm font-bold tabular-nums" style={{ color: room.accentColor }}>
                   {stat.value}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* buy-in range */}
-          <div
-            className="flex items-center justify-between rounded-xl px-4 py-3"
-            style={{
-              background: `${room.accentRgba}0.04)`,
-              border:     `1px solid ${room.accentRgba}0.12)`,
-            }}
-          >
-            <span className="font-mono text-xs text-slate">Wallet range</span>
-            <span className="font-mono text-sm font-bold" style={{ color: room.accentColor }}>
-              {minBuyInLabel}
-              {room.maxBuyIn !== Infinity && ` — ${maxBuyInLabel}`}
-              {room.maxBuyIn === Infinity && ` +`}
-            </span>
-          </div>
-
-          {/* feature bullets */}
-          <ul className="flex flex-col gap-1.5">
-            {ROOM_DESCRIPTIONS[roomId].map((line) => (
-              <li key={line} className="flex items-center gap-2 font-mono text-xs text-slate">
-                <span
-                  className="h-1 w-1 rounded-full shrink-0"
-                  style={{ background: room.accentColor, opacity: 0.6 }}
+          {/* Instance list (expandable) */}
+          {!locked && (
+            <>
+              <button
+                type="button"
+                onClick={() => setExpanded((e) => !e)}
+                className="flex items-center justify-between text-left"
+                aria-expanded={expanded}
+              >
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-dim">
+                  Active tables ({liveInstances})
+                </span>
+                <ChevronDown
+                  className="h-3.5 w-3.5 text-dim transition-transform duration-200"
+                  style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", willChange: "transform" }}
+                  aria-hidden
                 />
-                {line}
-              </li>
-            ))}
-          </ul>
+              </button>
+
+              <AnimatePresence>
+                {expanded && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex flex-col gap-1.5 pt-1">
+                      <AnimatePresence initial={false}>
+                        {instances
+                          .sort((a, b) => a.index - b.index)
+                          .map((inst) => (
+                            <InstanceRow
+                              key={inst.key}
+                              inst={inst}
+                              room={room}
+                              isRecommended={inst.key === recommended?.key}
+                              onJoin={handleJoin}
+                            />
+                          ))}
+                      </AnimatePresence>
+
+                      {/* Auto-spawn notice when all full */}
+                      <AnimatePresence>
+                        {allFull && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="flex items-center gap-2 rounded-xl px-3 py-2"
+                            style={{
+                              background: "rgba(255,34,0,0.06)",
+                              border: "1px solid rgba(255,34,0,0.15)",
+                            }}
+                          >
+                            <Flame className="h-3.5 w-3.5 shrink-0 text-blood" aria-hidden />
+                            <p className="font-mono text-[10px] text-blood/80">
+                              All tables full — a new one is being prepared
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
 
           {/* CTA */}
           {locked ? (
@@ -251,18 +355,25 @@ function RoomCard({ roomId, liveCount, onSelect, index }: RoomCardProps) {
           ) : (
             <motion.button
               type="button"
-              onClick={() => onSelect(roomId)}
-              whileTap={{ scale: 0.97 }}
+              onClick={handleQuickJoin}
+              disabled={allFull}
+              whileTap={allFull ? {} : { scale: 0.97 }}
               transition={{ duration: 0.12 }}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-sm font-bold uppercase tracking-[0.15em] transition-opacity duration-200"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-sm font-bold uppercase tracking-[0.15em] transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-40"
               style={{
-                background:  room.accentColor,
-                color:       roomId === "pit" ? "#08080f" : roomId === "arena" ? "#08080f" : "#fff",
+                background: room.accentColor,
+                color: roomId === "court" ? "#fff" : "#08080f",
                 willChange: "transform",
               }}
             >
-              Enter {room.name}
-              <ArrowRight className="h-4 w-4" aria-hidden />
+              {allFull ? (
+                "Tables Full — Spawning New…"
+              ) : (
+                <>
+                  Enter {room.name}
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </>
+              )}
             </motion.button>
           )}
         </div>
@@ -271,13 +382,14 @@ function RoomCard({ roomId, liveCount, onSelect, index }: RoomCardProps) {
   );
 }
 
+// ── Main screen ───────────────────────────────────────────────────────────────
 export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
-  const liveCounts = useLivePlayerCounts();
+  const { getInstancesForRoom, totalPlayers } = useRoomInstances();
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-4 py-12 sm:px-6">
 
-      {/* hero */}
+      {/* Hero */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -285,18 +397,17 @@ export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
         className="flex flex-col items-center gap-4 text-center"
       >
         <AnimatedLogo size={80} />
-
         <div className="flex flex-col gap-2">
           <h1 className="font-display text-3xl font-black leading-tight tracking-tight sm:text-4xl">
             <span className="text-white">Choose Your </span>
             <span className="gold-text-gradient">Arena</span>
           </h1>
           <p className="font-mono text-sm text-slate">
-            Three leagues. Pick your weight class. Every room is a separate bag.
+            Three leagues. Multiple tables per league. Always a fresh bag.
           </p>
         </div>
 
-        {/* total live players chip */}
+        {/* Total live players */}
         <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">
           <motion.span
             className="h-2 w-2 rounded-full bg-emerald"
@@ -304,47 +415,42 @@ export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
             transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
           />
           <span className="font-mono text-xs text-slate">
-            <span className="font-bold text-white">
-              {Object.values(liveCounts).reduce((a, b) => a + b, 0)}
-            </span>{" "}
+            <span className="font-bold text-white">{totalPlayers}</span>{" "}
             players across all arenas
           </span>
         </div>
       </motion.div>
 
-      {/* divider */}
+      {/* Divider */}
       <motion.div
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="h-px w-full max-w-md origin-center"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, rgba(255,215,0,0.3), rgba(112,0,255,0.3), transparent)",
-        }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.3), rgba(112,0,255,0.3), transparent)" }}
       />
 
-      {/* room cards grid */}
+      {/* Room cards */}
       <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-3">
         {ROOM_ORDER.map((roomId, i) => (
           <RoomCard
             key={roomId}
             roomId={roomId}
-            liveCount={liveCounts[roomId]}
+            instances={getInstancesForRoom(roomId)}
             onSelect={onSelect}
             index={i}
           />
         ))}
       </div>
 
-      {/* footer note */}
+      {/* Footer note */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.5 }}
-        className="font-mono text-[11px] text-dim"
+        className="font-mono text-[11px] text-dim text-center"
       >
-        Each arena runs an independent bag · Switch rooms at any time between rounds
+        New tables spawn automatically when one fills up · Switch tables between rounds
       </motion.p>
     </div>
   );

@@ -20,6 +20,10 @@ interface HeaderProps {
   currentRoom?: Room | null;
   /** Called when the player clicks the room badge to go back to room select */
   onLeaveRoom?: () => void;
+  /** Whether the local player is currently the King — enables disconnect guard */
+  isKing?: boolean;
+  /** e.g. "The Pit #2" when player is in a non-primary instance */
+  instanceLabel?: string | null;
 }
 
 // Nav uses animated brand icons — draw on mount, re-draw on active change
@@ -31,7 +35,7 @@ const NAV = [
 ];
 
 // Nav items use brand icons instead of generic lucide icons
-export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom }: HeaderProps) {
+export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, instanceLabel }: HeaderProps) {
   const [muted, setMuted] = useState(() => getVolume() === 0);
 
   function toggleMute() {
@@ -88,7 +92,7 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom }:
                 aria-label={`Leave ${currentRoom.name}`}
               >
                 <ChevronLeft className="h-3 w-3" aria-hidden />
-                {currentRoom.name}
+                {instanceLabel ?? currentRoom.name}
               </motion.button>
             )}
           </AnimatePresence>
