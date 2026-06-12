@@ -27,7 +27,7 @@ import {
 } from "@/lib/sounds";
 
 export default function App() {
-  const { connected }                   = useWallet();
+  const { connected, publicKey }                   = useWallet();
   const [page, setPage]                 = useState<Page>("game");
   const [roomId, setRoomId]             = useState<RoomId | null>(null);
   const [instanceKey, setInstanceKey]   = useState<string | null>(null);
@@ -49,6 +49,11 @@ export default function App() {
     onRoundEnd,
     purchaseItem,
     setCardTheme,
+    canClaimFreeFuse,
+    claimFreeFuse,
+    canClaimLoginVoucher,
+    claimLoginVoucher,
+    generateReferralCode,
   } = usePlayerProgress();
 
   const dangerActive  = state.roundFeeMultiplier > 1.8 && !state.isRoundOver && !state.isWaiting;
@@ -229,7 +234,13 @@ export default function App() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <RoomSelectScreen onSelect={handleRoomSelect} />
+                    <RoomSelectScreen
+                      onSelect={handleRoomSelect}
+                      canClaimFreeFuse={canClaimFreeFuse()}
+                      onClaimFreeFuse={() => { claimFreeFuse(); yoink(); }}
+                      canClaimLoginVoucher={canClaimLoginVoucher()}
+                      onClaimLoginVoucher={claimLoginVoucher}
+                    />
                   </motion.div>
                 )}
 
@@ -297,6 +308,10 @@ export default function App() {
                       progress={progress}
                       ownedItems={raw.ownedItems}
                       onBuy={handleBuy}
+                      referralCode={raw.referralCode}
+                      onGenerateCode={() => generateReferralCode(connected ? (publicKey ?? "anon") : "anon")}
+                      canClaimVoucher={canClaimLoginVoucher()}
+                      onClaimVoucher={claimLoginVoucher}
                     />
                   </motion.div>
                 )}
