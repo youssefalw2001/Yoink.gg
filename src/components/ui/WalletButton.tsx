@@ -58,8 +58,8 @@ export function WalletButton() {
     );
   }
 
-  // ── Connecting ────────────────────────────────────────────────────────────
-  if (connecting) {
+  // ── Connecting (or connected but the address hasn't resolved yet) ──────────
+  if (connecting || (connected && !publicKey)) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 font-mono text-[13px] text-slate">
         <Loader

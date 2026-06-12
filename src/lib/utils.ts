@@ -6,8 +6,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Truncate a wallet address to `xxxx...xxxx`. */
-export function truncateAddress(address: string, head = 4, tail = 4): string {
+/** Truncate a wallet address to `xxxx...xxxx`. Null-safe. */
+export function truncateAddress(address?: string | null, head = 4, tail = 4): string {
+  if (!address || typeof address !== "string") return "";
   if (address.length <= head + tail + 1) return address;
   return `${address.slice(0, head)}...${address.slice(-tail)}`;
 }
