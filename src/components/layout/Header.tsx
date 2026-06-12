@@ -5,8 +5,9 @@ import { ProgressStrip } from "@/components/ui/XPBar";
 import { VoidEyeIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
-import { cn } from "@/lib/utils";
+import { cn, truncateAddress } from "@/lib/utils";
 import { NETWORK_LABEL } from "@/lib/solana";
+import { PurgeAvatar } from "@/components/walletwars/PurgeAvatar";
 import type { PlayerProgress } from "@/lib/progression";
 import type { Room } from "@/lib/rooms";
 import { useState } from "react";
@@ -25,6 +26,10 @@ interface HeaderProps {
   isKing?: boolean;
   /** e.g. "The Pit #2" when player is in a non-primary instance */
   instanceLabel?: string | null;
+  /** Connected wallet address — used as the avatar seed + fallback name */
+  publicKey?: string | null;
+  /** Opens the profile modal */
+  onOpenProfile?: () => void;
 }
 
 // Nav uses animated brand icons — draw on mount, re-draw on active change
@@ -36,7 +41,7 @@ const NAV = [
 ];
 
 // Nav items use brand icons instead of generic lucide icons
-export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, instanceLabel }: HeaderProps) {
+export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, instanceLabel, publicKey, onOpenProfile }: HeaderProps) {
   const [muted, setMuted] = useState(() => getVolume() === 0);
 
   function toggleMute() {
@@ -159,6 +164,24 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, i
             </motion.button>
 
             <WalletButton />
+
+            {/* Identity / profile */}
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] py-1 pl-1 pr-2.5 transition-colors duration-200 hover:bg-white/[0.08]"
+              aria-label="Open profile"
+            >
+              <PurgeAvatar
+                seed={publicKey ?? progress.displayName ?? "You"}
+                size={26}
+                variant={progress.avatarVariant}
+                color={progress.avatarColor}
+              />
+              <span className="hidden max-w-[100px] truncate font-mono text-xs font-bold text-white sm:block">
+                {progress.displayName || (publicKey ? truncateAddress(publicKey, 4, 4) : "Profile")}
+              </span>
+            </button>
           </div>
         </div>
 

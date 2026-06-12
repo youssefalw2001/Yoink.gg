@@ -16,9 +16,16 @@ interface YourStashPanelProps {
   walletBalance: number;
   onOpen: (amount: number) => void;
   onClose: () => void;
+  displayName?: string;
+  avatarSeed?: string;
+  avatarVariant?: number | null;
+  avatarColor?: string | null;
 }
 
-export function YourStashPanel({ you, walletBalance, onOpen, onClose }: YourStashPanelProps) {
+export function YourStashPanel({
+  you, walletBalance, onOpen, onClose,
+  displayName = "", avatarSeed = "You", avatarVariant = null, avatarColor = null,
+}: YourStashPanelProps) {
   // ── Not staked yet → open-a-stash CTA ─────────────────────────────────────
   if (!you) {
     return (
@@ -73,9 +80,9 @@ export function YourStashPanel({ you, walletBalance, onOpen, onClose }: YourStas
       <div className="flex flex-col gap-4 px-5 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <PurgeAvatar seed={you.wallet} size={40} pulse />
+            <PurgeAvatar seed={avatarSeed} size={40} pulse variant={avatarVariant} color={avatarColor} />
             <div>
-              <h3 className="font-display text-sm font-black text-white">Your stash</h3>
+              <h3 className="font-display text-sm font-black text-white">{displayName || "Your stash"}</h3>
               <p className="font-mono text-[10px] text-dim">Live · on the board</p>
             </div>
           </div>

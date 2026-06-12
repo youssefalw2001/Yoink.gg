@@ -39,12 +39,18 @@ export function usePlayerProgress() {
     totalSolWon:      raw.totalSolWon,
     dailyRoundsToday: raw.dailyRoundsToday,
     lastPlayedDate:   raw.lastPlayedDate,
+    displayName:      raw.displayName,
+    equippedCardTheme: raw.equippedCardTheme,
+    avatarVariant:    raw.avatarVariant,
+    avatarColor:      raw.avatarColor,
   };
 
   /** Award XP and check for level-up */
   const awardXP = useCallback((gain: XPGain) => {
     setRaw((prev) => {
-      const newXp    = prev.xp + gain.amount;
+      // Double XP item doubles all gains while active.
+      const mult     = prev.doubleXpRounds > 0 ? 2 : 1;
+      const newXp    = prev.xp + gain.amount * mult;
       const oldLevel = rankForXp(prev.xp).level;
       const newLevel = rankForXp(newXp).level;
 
@@ -98,7 +104,13 @@ export function usePlayerProgress() {
       const isNewDay = p.lastPlayedDate !== today;
       const newCount = isNewDay ? 1 : p.dailyRoundsToday + 1;
       if (newCount === 5) setTimeout(() => awardXP(XP_REWARDS.DAILY_BONUS), 200);
-      return { ...p, dailyRoundsToday: newCount, lastPlayedDate: today };
+      return {
+        ...p,
+        dailyRoundsToday: newCount,
+        lastPlayedDate: today,
+        // Burn down a Double XP charge at the end of each round.
+        doubleXpRounds: Math.max(0, p.doubleXpRounds - 1),
+      };
     });
   }, [awardXP]);
 
@@ -131,6 +143,21 @@ export function usePlayerProgress() {
 
   const setCardTheme = useCallback((theme: string) => {
     setRaw((p) => ({ ...p, equippedCardTheme: theme }));
+  }, []);
+
+  /** Profile: set the Purge-mask avatar (variant index + accent color). */
+  const setAvatar = useCallback((variant: number | null, color: string | null) => {
+    setRaw((p) => ({ ...p, avatarVariant: variant, avatarColor: color }));
+  }, []);
+
+  /** Pump Fake: set the decoy balance others see (null = off). */
+  const setPumpFakeBalance = useCallback((amount: number | null) => {
+    setRaw((p) => ({ ...p, pumpFakeBalance: amount }));
+  }, []);
+
+  /** Double XP: activate 2× XP for the next 3 rounds. */
+  const activateDoubleXp = useCallback(() => {
+    setRaw((p) => ({ ...p, doubleXpRounds: 3 }));
   }, []);
 
   // ── LAYER 1 — First Shot Free ──────────────────────────────────────────────
@@ -206,6 +233,9 @@ export function usePlayerProgress() {
     setDisplayName,
     setFlameColor,
     setCardTheme,
+    setAvatar,
+    setPumpFakeBalance,
+    activateDoubleXp,
     awardXP,
     // Layer 1
     canClaimFirstShot,

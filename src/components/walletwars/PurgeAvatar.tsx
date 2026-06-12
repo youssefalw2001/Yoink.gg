@@ -16,10 +16,16 @@ interface PurgeAvatarProps {
   className?: string;
   /** Subtle neon breathing — use sparingly (e.g. the raid target). */
   pulse?: boolean;
+  /** Explicit mask archetype (0–5) override — for chosen profile avatars. */
+  variant?: number | null;
+  /** Explicit accent color override (hex). */
+  color?: string | null;
 }
 
 // Neon purge palette — toxic green, blood, phantom, gold, cyan, hot magenta.
-const PALETTE = ["#00E676", "#FF2200", "#7000FF", "#FFD700", "#00E5FF", "#FF1FA0"];
+export const PURGE_COLORS = ["#00E676", "#FF2200", "#7000FF", "#FFD700", "#00E5FF", "#FF1FA0"];
+export const PURGE_MASK_COUNT = 6;
+export const PURGE_MASK_NAMES = ["Grin", "Slits", "Cross", "Gas", "Jester", "Horns"];
 
 function hash(str: string): number {
   let h = 2166136261;
@@ -94,11 +100,14 @@ function Features({ variant, c }: { variant: number; c: string }) {
   }
 }
 
-export function PurgeAvatar({ seed, size = 40, className, pulse = false }: PurgeAvatarProps) {
+export function PurgeAvatar({ seed, size = 40, className, pulse = false, variant: variantOverride, color: colorOverride }: PurgeAvatarProps) {
   const { variant, color } = useMemo(() => {
     const h = hash(seed || "anon");
-    return { variant: h % 6, color: PALETTE[(h >> 8) % PALETTE.length] };
-  }, [seed]);
+    return {
+      variant: variantOverride != null ? ((variantOverride % 6) + 6) % 6 : h % 6,
+      color: colorOverride ?? PURGE_COLORS[(h >> 8) % PURGE_COLORS.length],
+    };
+  }, [seed, variantOverride, colorOverride]);
 
   const reduced =
     typeof window !== "undefined" &&

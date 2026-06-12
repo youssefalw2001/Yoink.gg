@@ -11,6 +11,7 @@ import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
 import { WinReveal } from "@/components/reveal/WinReveal";
+import { ProfileModal } from "@/components/profile/ProfileModal";
 import { LevelUpToast } from "@/components/ui/XPBar";
 import { useGameState } from "@/hooks/useGameState";
 import { usePlayerProgress } from "@/hooks/usePlayerProgress";
@@ -33,6 +34,7 @@ export default function App() {
   const [page, setPage]               = useState<Page>("walletwars");
   const [roomId, setRoomId]           = useState<RoomId | null>(null);
   const [instanceKey, setInstanceKey] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // ── Free Yoink System — pending state ─────────────────────────────────────
   /**
@@ -59,6 +61,10 @@ export default function App() {
     onRoundEnd,
     purchaseItem,
     setCardTheme,
+    setDisplayName,
+    setAvatar,
+    setPumpFakeBalance,
+    activateDoubleXp,
     // Layer 1 — First Shot Free
     canClaimFirstShot,
     claimFirstShot,
@@ -182,6 +188,10 @@ export default function App() {
     if (item.id === "theme_blood" || item.id === "theme_phantom" || item.id === "crown_animated") {
       setCardTheme(item.id);
     }
+    // Pump Fake: set a decoy balance others see in the Wallet Tracker.
+    if (item.id === "pump_fake") setPumpFakeBalance(+(5 + Math.random() * 20).toFixed(2));
+    // Double XP: light up 2× XP for the next 3 rounds.
+    if (item.id === "double_xp") activateDoubleXp();
   }
 
   // ── Reset refs on new round ───────────────────────────────────────────────
@@ -305,6 +315,8 @@ export default function App() {
               onLeaveRoom={handleLeaveRoom}
               isKing={state.kingIsYou}
               instanceLabel={instanceLabel}
+              publicKey={publicKey ?? null}
+              onOpenProfile={() => setProfileOpen(true)}
             />
             <LiveTicker
               recentKings={state.recentKings}
@@ -359,6 +371,7 @@ export default function App() {
                       onActivateWalletTracker={() => purchaseItem("wallet_tracker")}
                       onActivateFuseBurner={() => { activateFuseBurner(); purchaseItem("fuse_burner"); }}
                       cardTheme={raw.equippedCardTheme}
+                      displayName={raw.displayName}
                     />
                   </motion.div>
                 )}
@@ -371,7 +384,11 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <WalletWarsScreen />
+                    <WalletWarsScreen
+                      displayName={raw.displayName}
+                      avatarVariant={raw.avatarVariant}
+                      avatarColor={raw.avatarColor}
+                    />
                   </motion.div>
                 )}
 
@@ -435,6 +452,17 @@ export default function App() {
             />
 
             <LevelUpToast events={levelUpEvents} />
+
+            <ProfileModal
+              open={profileOpen}
+              onClose={() => setProfileOpen(false)}
+              progress={progress}
+              ownedItems={raw.ownedItems}
+              publicKey={publicKey ?? null}
+              onSetName={setDisplayName}
+              onSetAvatar={setAvatar}
+              onEquipTheme={setCardTheme}
+            />
           </motion.div>
         )}
       </AnimatePresence>

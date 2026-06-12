@@ -12,6 +12,7 @@ interface KingCardProps {
   heldFor: number;
   critical: boolean;
   theme?: string;  // 'theme_blood' | 'theme_phantom' | 'crown_animated' | 'default'
+  displayName?: string;
 }
 
 const THEME_COLORS: Record<string, { spot: string; border: string; shadow: string; flame: string }> = {
@@ -43,7 +44,7 @@ const FLAMES = [
   { left: "86%", delay: "0.35s", dur: "2.8s" },
 ];
 
-export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical, theme }: KingCardProps) {
+export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical, theme, displayName }: KingCardProps) {
   const key = `${king}-${isYou}`;
 
   // Theme colours — critical (blood) always overrides any cosmetic theme
@@ -142,7 +143,7 @@ export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical,
                 {/* Wallet + hold time */}
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="font-mono text-sm font-bold text-white sm:text-base">
-                    {isYou ? "You" : truncateAddress(king, 4, 4)}
+                    {isYou ? (displayName || "You") : truncateAddress(king, 4, 4)}
                   </span>
                   <span className="font-mono text-[10px] text-slate sm:text-xs">
                     holds the bag · {heldFor}s

@@ -10,11 +10,26 @@ import type { RaidEvent } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { PurgeAvatar } from "./PurgeAvatar";
 
-function name(wallet: string, isYou: boolean) {
-  return isYou ? "You" : truncateAddress(wallet, 4, 4);
+function nameOf(wallet: string, isYou: boolean, playerName: string) {
+  if (isYou) return playerName || "You";
+  return truncateAddress(wallet, 4, 4);
 }
 
-export const WarFeed = memo(function WarFeed({ events }: { events: RaidEvent[] }) {
+interface WarFeedProps {
+  events: RaidEvent[];
+  playerName?: string;
+  playerAvatarSeed?: string;
+  playerAvatarVariant?: number | null;
+  playerAvatarColor?: string | null;
+}
+
+export const WarFeed = memo(function WarFeed({
+  events,
+  playerName = "",
+  playerAvatarSeed = "You",
+  playerAvatarVariant = null,
+  playerAvatarColor = null,
+}: WarFeedProps) {
   return (
     <div className="flex flex-col">
       <div className="mb-2.5 flex items-center gap-2 px-1">
@@ -49,7 +64,12 @@ export const WarFeed = memo(function WarFeed({ events }: { events: RaidEvent[] }
                 }}
               >
                 <span className="relative shrink-0">
-                  <PurgeAvatar seed={e.raider} size={30} />
+                  <PurgeAvatar
+                    seed={e.raiderIsYou ? playerAvatarSeed : e.raider}
+                    size={30}
+                    variant={e.raiderIsYou ? playerAvatarVariant : undefined}
+                    color={e.raiderIsYou ? playerAvatarColor : undefined}
+                  />
                   <span
                     className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0c0a14]"
                     style={{ background: win ? "#FF9900" : "#00E676" }}
@@ -60,11 +80,11 @@ export const WarFeed = memo(function WarFeed({ events }: { events: RaidEvent[] }
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-mono text-[11px]">
                     <span style={{ color: e.raiderIsYou ? "#FFD700" : "#eef1f6", fontWeight: 700 }}>
-                      {name(e.raider, e.raiderIsYou)}
+                      {nameOf(e.raider, e.raiderIsYou, playerName)}
                     </span>
                     <span className="text-slate">{win ? " cracked " : " bounced off "}</span>
                     <span style={{ color: e.targetIsYou ? "#FF2200" : "#8892a4", fontWeight: 700 }}>
-                      {name(e.target, e.targetIsYou)}
+                      {nameOf(e.target, e.targetIsYou, playerName)}
                     </span>
                   </span>
                   <span className="font-mono text-[10px] text-dim">

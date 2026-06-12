@@ -54,6 +54,11 @@ export interface PlayerProgress {
   totalSolWon: number;
   dailyRoundsToday: number;
   lastPlayedDate: string;
+  /** Equipped cosmetics / identity (surfaced for convenience). */
+  displayName: string;
+  equippedCardTheme: string;
+  avatarVariant: number | null;
+  avatarColor: string | null;
 }
 
 const STORAGE_KEY = "yoink_progress_v1";
@@ -71,9 +76,14 @@ export interface ProgressState {
   equippedFlameColor: string;
   equippedCardTheme: string;
   displayName: string;
+  /** Chosen Purge-mask avatar (null = derived from wallet) */
+  avatarVariant: number | null;
+  avatarColor: string | null;
   pumpFakeBalance: number | null;
   /** Fuse Burner: has been activated this round */
   fuseBurnerUsedThisRound: boolean;
+  /** Rounds of 2× XP remaining (Double XP item) */
+  doubleXpRounds: number;
 
   // ── Free Yoink System ────────────────────────────────────────────────────────
   /**
@@ -110,8 +120,11 @@ export const DEFAULT_STATE: ProgressState = {
   equippedFlameColor: "gold",
   equippedCardTheme: "default",
   displayName: "",
+  avatarVariant: null,
+  avatarColor: null,
   pumpFakeBalance: null,
   fuseBurnerUsedThisRound: false,
+  doubleXpRounds: 0,
   // Free Yoink System
   hasClaimedFirstShot: false,
   dailyPitPassClaimedAt: null,
@@ -165,6 +178,10 @@ export function computeProgress(xp: number): PlayerProgress {
     totalSolWon: 0,
     dailyRoundsToday: 0,
     lastPlayedDate: "",
+    displayName: "",
+    equippedCardTheme: "default",
+    avatarVariant: null,
+    avatarColor: null,
   };
 }
 

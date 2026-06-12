@@ -32,10 +32,19 @@ function HeroStat({ icon, label, value, color, accent, border }: {
   );
 }
 
-export function WalletWarsScreen() {
+export function WalletWarsScreen({
+  displayName = "",
+  avatarVariant = null,
+  avatarColor = null,
+}: {
+  displayName?: string;
+  avatarVariant?: number | null;
+  avatarColor?: string | null;
+}) {
   const { state, openStash, closeStash, raid, placeBounty, repeatTaxMult } = useWalletWars();
-  const { walletBalance } = useWallet();
+  const { walletBalance, publicKey } = useWallet();
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
+  const avatarSeed = publicKey ?? displayName ?? "You";
 
   const playerTier = state.you ? tierIndexForAmount(state.you.amount) : null;
   const [selectedTier, setSelectedTier] = useState(0);
@@ -120,6 +129,10 @@ export function WalletWarsScreen() {
             walletBalance={walletBalance}
             onOpen={openStash}
             onClose={closeStash}
+            displayName={displayName}
+            avatarSeed={avatarSeed}
+            avatarVariant={avatarVariant}
+            avatarColor={avatarColor}
           />
 
           {/* prompt to open a stash before raiding */}
@@ -184,7 +197,13 @@ export function WalletWarsScreen() {
         <div className="flex flex-col gap-5">
           <SpotlightCard spotlightColor="rgba(0,230,118,0.1)" radius={280} className="premium-card rounded-[24px]">
             <div className="px-5 py-4">
-              <WarFeed events={state.feed} />
+              <WarFeed
+                events={state.feed}
+                playerName={displayName}
+                playerAvatarSeed={avatarSeed}
+                playerAvatarVariant={avatarVariant}
+                playerAvatarColor={avatarColor}
+              />
             </div>
           </SpotlightCard>
 
