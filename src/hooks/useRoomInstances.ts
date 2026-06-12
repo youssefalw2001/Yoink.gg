@@ -137,18 +137,23 @@ export function useRoomInstances() {
       );
 
       if (shouldSpawn || !instance) {
-        // Spawn immediately in the local state
-        let newKey = `${roomId}-1`;
+        // Build the new instance from the latest snapshot we hold so its key is
+        // known SYNCHRONOUSLY. The previous version assigned the key inside the
+        // setInstances updater and returned before that updater ran, so callers
+        // could receive a stale `${roomId}-1` and two players could be routed to
+        // the same instance when a fresh one should have spawned.
+        const newInst = createInstance(
+          roomId,
+          instances,
+          ROOMS[roomId].startingBag,
+        );
         setInstances((prev) => {
-          const newInst = createInstance(
-            roomId,
-            prev.instances,
-            ROOMS[roomId].startingBag,
-          );
-          newKey = newInst.key;
+          // If state advanced between render and commit and the key already
+          // exists, don't append a duplicate — the caller still joins that key.
+          if (prev.instances.some((i) => i.key === newInst.key)) return prev;
           return { instances: [...prev.instances, newInst] };
         });
-        return newKey;
+        return newInst.key;
       }
 
       return instance.key;

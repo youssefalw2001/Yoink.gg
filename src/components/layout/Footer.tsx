@@ -3,7 +3,7 @@ import { ShieldCheck, ScrollText, BadgeCheck } from "lucide-react";
 const ITEMS = [
   { icon: BadgeCheck, label: "18+ Only" },
   { icon: ShieldCheck, label: "Gamble Responsibly" },
-  { icon: BadgeCheck, label: "Provably Fair" },
+  { icon: BadgeCheck, label: "Provably Fair (devnet)" },
   { icon: ScrollText, label: "Terms" },
 ];
 

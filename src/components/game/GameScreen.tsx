@@ -307,19 +307,20 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               currentCost={state.currentCost}
               yoinkCount={state.yoinkCount}
             />
-            {/* VRF Commitment chip — provable fairness */}
+            {/* Fuse commitment chip — SIMULATION ONLY (not yet on-chain VRF) */}
             <div
               className="flex flex-col gap-2 rounded-2xl px-4 py-3"
               style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
             >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-dim">Fuse Commitment</span>
-                <span className="rounded-full border border-emerald/20 bg-emerald/10 px-2 py-0.5 font-mono text-[9px] font-bold text-emerald">
-                  VRF
+                <span className="rounded-full border border-slate/20 bg-slate/10 px-2 py-0.5 font-mono text-[9px] font-bold text-slate">
+                  SIM
                 </span>
               </div>
               <p className="font-mono text-[10px] leading-relaxed text-dim">
-                The fuse duration was decided before this round started. Verify it in the Win Reveal.
+                Simulation preview — this hash is generated client-side. On-chain
+                VRF (Switchboard) replaces it on devnet before any real SOL is at stake.
               </p>
               <div
                 className="overflow-hidden rounded-lg px-2 py-1.5"

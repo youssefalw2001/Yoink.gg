@@ -152,8 +152,8 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, i
           </div>
         </div>
 
-        {/* ── bottom nav strip — ALWAYS visible, all screen sizes ── */}
-        <div className="border-t border-white/[0.05] bg-[rgba(8,8,15,0.6)]">
+        {/* ── bottom nav strip — mobile only; desktop uses the top-bar nav ── */}
+        <div className="border-t border-white/[0.05] bg-[rgba(8,8,15,0.6)] md:hidden">
           <div className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 py-1.5 no-scrollbar sm:px-6">
             {NAV.map(({ id, label, icon }) => {
               const active = page === id;

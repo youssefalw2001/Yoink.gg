@@ -5,6 +5,7 @@ import {
   loadProgress,
   rankForXp,
   saveProgress,
+  utcDayKey,
   XP_REWARDS,
   type PlayerProgress,
   type ProgressState,
@@ -92,7 +93,8 @@ export function usePlayerProgress() {
   /** Call on round end for daily bonus tracking */
   const onRoundEnd = useCallback(() => {
     setRaw((p) => {
-      const today    = new Date().toDateString();
+      // UTC day key — consistent with the rest of the Free Yoink system.
+      const today    = utcDayKey();
       const isNewDay = p.lastPlayedDate !== today;
       const newCount = isNewDay ? 1 : p.dailyRoundsToday + 1;
       if (newCount === 5) setTimeout(() => awardXP(XP_REWARDS.DAILY_BONUS), 200);

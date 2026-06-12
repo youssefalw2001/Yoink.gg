@@ -314,9 +314,10 @@ export function useGameState(roomId: RoomId = "arena") {
     });
   }, []);
 
-  // ── VRF hash: generate asynchronously after each fuse draw ───────────────
-  // The hash is shown to players as the VRF commitment.
-  // On mainnet: replaced by Switchboard VRF on-chain commitment.
+  // ── Fuse commitment hash: generate asynchronously after each fuse draw ───
+  // SIMULATION ONLY — this hash is computed client-side and is NOT a guarantee
+  // of fairness. On devnet/mainnet it is replaced by a Switchboard VRF on-chain
+  // commitment, which is what actually makes the draw verifiable.
   useEffect(() => {
     let cancelled = false;
     drawFuseSecondsWithHash(room.roundSeconds, state.roundNumber)

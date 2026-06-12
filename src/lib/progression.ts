@@ -179,3 +179,14 @@ function isDifferentDay(isoA: string, isoB: string): boolean {
   );
 }
 export { isDifferentDay };
+
+/**
+ * Stable UTC day key, e.g. "2026-06-12".
+ * Used for daily-bonus tracking so the rollover matches the rest of the
+ * Free Yoink system (all UTC). Avoids the local-vs-UTC mismatch that let a
+ * player in a negative UTC offset double-claim — or miss — the daily bonus
+ * near local midnight.
+ */
+export function utcDayKey(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
