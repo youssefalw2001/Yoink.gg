@@ -20,6 +20,7 @@ interface KingCardShaderProps {
   isYou: boolean;
   critical: boolean;
   kingKey: string;   // changes when king changes — triggers burst
+  theme?: string;    // 'theme_blood' | 'theme_phantom' | 'crown_animated'
   className?: string;
 }
 
@@ -39,6 +40,7 @@ uniform float uTime;
 uniform float uIsYou;
 uniform float uCritical;
 uniform float uBurst;
+uniform float uTheme;
 varying vec2 vUv;
 
 float hash(vec2 p) {
@@ -72,6 +74,14 @@ void main() {
   vec3 primary = mix(phantom, gold, uIsYou);
   primary      = mix(primary, blood, uCritical);
 
+  // Theme cosmetic override — blood=1, phantom=2, crown/gold=3
+  // Critical (blood) state always takes priority over any theme
+  float useTheme = step(0.5, uTheme) * (1.0 - uCritical);
+  vec3 themeCol  = blood;
+  themeCol       = mix(themeCol, phantom, step(1.5, uTheme));
+  themeCol       = mix(themeCol, gold,    step(2.5, uTheme));
+  primary        = mix(primary, themeCol, useTheme);
+
   col += primary * ring * 0.25;
   col += primary * smoothstep(0.5, 0.0, d) * 0.12;
 
@@ -86,7 +96,7 @@ void main() {
 }
 `;
 
-export function KingCardShader({ isYou, critical, kingKey, className }: KingCardShaderProps) {
+export function KingCardShader({ isYou, critical, kingKey, theme, className }: KingCardShaderProps) {
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const rafRef     = useRef(0);
   const burstRef   = useRef(0);
@@ -94,9 +104,13 @@ export function KingCardShader({ isYou, critical, kingKey, className }: KingCard
   const critRef    = useRef(critical ? 1 : 0);
   const prevKey    = useRef(kingKey);
 
+  const THEME_MAP: Record<string, number> = { theme_blood: 1, theme_phantom: 2, crown_animated: 3 };
+  const themeRef   = useRef(THEME_MAP[theme ?? ""] ?? 0);
+
   // Track smooth uniform targets
   useEffect(() => { isYouRef.current = isYou ? 1 : 0; }, [isYou]);
   useEffect(() => { critRef.current = critical ? 1 : 0; }, [critical]);
+  useEffect(() => { themeRef.current = THEME_MAP[theme ?? ""] ?? 0; }, [theme]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (kingKey !== prevKey.current) {
       prevKey.current = kingKey;
@@ -139,6 +153,7 @@ export function KingCardShader({ isYou, critical, kingKey, className }: KingCard
     const uIsYou   = gl.getUniformLocation(prog, "uIsYou");
     const uCritical = gl.getUniformLocation(prog, "uCritical");
     const uBurst   = gl.getUniformLocation(prog, "uBurst");
+    const uTheme   = gl.getUniformLocation(prog, "uTheme");
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -162,6 +177,7 @@ export function KingCardShader({ isYou, critical, kingKey, className }: KingCard
       gl.uniform1f(uIsYou,    iSmooth);
       gl.uniform1f(uCritical, cSmooth);
       gl.uniform1f(uBurst,    bSmooth);
+      gl.uniform1f(uTheme,    themeRef.current);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     rafRef.current = requestAnimationFrame(tick);

@@ -222,7 +222,7 @@ export function WalletTrackerPanel({
             );
           })}
         </div>
-        <p className="font-mono text-[10px] text-dim">Updates every few seconds · expires end of round</p>
+        <p className="font-mono text-[10px] text-dim">Snapshot · refreshes each round</p>
       </div>
     </SpotlightCard>
   );

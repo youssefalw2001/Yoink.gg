@@ -24,6 +24,7 @@ interface GameScreenProps {
   pumpFakeBalance?: number | null;
   onActivateWalletTracker?: () => void;
   onActivateFuseBurner?: () => void;
+  cardTheme?: string;
 }
 
 // ── Fuse + Escalating Fee card — replaces CostEscalationCard ──────────────────
@@ -214,7 +215,7 @@ function FeeBreakdown() {
 }
 
 // ── Main GameScreen ────────────────────────────────────────────────────────────
-export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner }: GameScreenProps) {
+export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner, cardTheme }: GameScreenProps) {
   const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
   const walletTrackerActive = ownedItems.includes("wallet_tracker");
 
@@ -267,6 +268,7 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
                 isYou={state.kingIsYou}
                 heldFor={state.kingHeldFor}
                 critical={critical}
+                theme={cardTheme}
               />
             </div>
 

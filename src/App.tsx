@@ -48,6 +48,7 @@ export default function App() {
     onWin:        xpOnWin,
     onRoundEnd,
     purchaseItem,
+    setCardTheme,
   } = usePlayerProgress();
 
   const dangerActive  = state.roundFeeMultiplier > 1.8 && !state.isRoundOver && !state.isWaiting;
@@ -135,6 +136,10 @@ export default function App() {
   // ── Shop purchase ─────────────────────────────────────────────────────────
   function handleBuy(item: ShopItem) {
     purchaseItem(item.id, item.priceXp);
+    // Auto-equip cosmetic card themes on purchase
+    if (item.id === "theme_blood" || item.id === "theme_phantom" || item.id === "crown_animated") {
+      setCardTheme(item.id);
+    }
   }
 
   // ── Reset refs on new round ───────────────────────────────────────────────
@@ -245,6 +250,7 @@ export default function App() {
                       pumpFakeBalance={raw.pumpFakeBalance ?? null}
                       onActivateWalletTracker={() => purchaseItem("wallet_tracker")}
                       onActivateFuseBurner={() => { activateFuseBurner(); purchaseItem("fuse_burner"); }}
+                      cardTheme={raw.equippedCardTheme}
                     />
                   </motion.div>
                 )}

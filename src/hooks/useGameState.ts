@@ -150,7 +150,6 @@ export function useGameState(roomId: RoomId = "arena") {
           currentCost:         nextCost,
           roundFeeMultiplier:  nextFeeMult,
           fuseSeconds:         newFuse,
-          fuseBurnerActive:    false,
           fuseCommitHash:      "generating…",
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),

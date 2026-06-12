@@ -103,7 +103,7 @@ export interface GameState {
 export const GAME_CONFIG = {
   /** Nominal round seconds (used for bot logic + display fallback only) */
   ROUND_SECONDS: 30,
-  TICK_MS: 100,
+  TICK_MS: 150,
   BASE_COST: 0.1,
   COST_STEP: 0.025,
   MAX_COST: 0.5,
