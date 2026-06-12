@@ -10,7 +10,7 @@ import type { PlayerProgress } from "@/lib/progression";
 import type { Room } from "@/lib/rooms";
 import { useState } from "react";
 
-export type Page = "game" | "bidwars" | "leaderboard" | "shop";
+export type Page = "game" | "walletwars" | "leaderboard" | "shop";
 
 interface HeaderProps {
   page: Page;
@@ -29,7 +29,7 @@ interface HeaderProps {
 // Nav uses animated brand icons — draw on mount, re-draw on active change
 const NAV = [
   { id: "game"        as const, label: "The Bag",      icon: "bag"         as const },
-  { id: "bidwars"     as const, label: "Bid Wars",     icon: "crownDagger" as const },
+  { id: "walletwars"  as const, label: "Wallet Wars",   icon: "crownDagger" as const },
   { id: "leaderboard" as const, label: "Hall of Kings", icon: "throne"      as const },
   { id: "shop"        as const, label: "Armory",        icon: "rake"        as const },
 ];

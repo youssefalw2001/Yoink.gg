@@ -9,7 +9,7 @@ import { GameScreen } from "@/components/game/GameScreen";
 import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
 import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
-import { BidWarsScreen } from "@/components/bidwars/BidWarsScreen";
+import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
 import { WinReveal } from "@/components/reveal/WinReveal";
 import { LevelUpToast } from "@/components/ui/XPBar";
 import { useGameState } from "@/hooks/useGameState";
@@ -363,15 +363,15 @@ export default function App() {
                   </motion.div>
                 )}
 
-                {page === "bidwars" && (
+                {page === "walletwars" && (
                   <motion.div
-                    key="bidwars"
+                    key="walletwars"
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <BidWarsScreen progress={progress} />
+                    <WalletWarsScreen />
                   </motion.div>
                 )}
 

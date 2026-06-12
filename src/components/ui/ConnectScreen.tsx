@@ -16,7 +16,7 @@
  */
 
 import { motion } from "framer-motion";
-import { Wallet, ShieldCheck, Key, Timer, TrendingUp, Lock, Loader } from "lucide-react";
+import { Wallet, ShieldCheck, Key, Timer, TrendingUp, Crosshair, Loader } from "lucide-react";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import { useWallet } from "@/lib/wallet";
 
@@ -48,9 +48,9 @@ const VALUE_PROPS = [
     color:  "#FFD700",
   },
   {
-    icon:  <Lock className="h-5 w-5 text-phantom" aria-hidden />,
-    title: "4 Arenas",
-    desc:  "Pit to King's Court",
+    icon:  <Crosshair className="h-5 w-5 text-phantom" aria-hidden />,
+    title: "Wallet Wars",
+    desc:  "Raid stashes, bank fees",
     border: "rgba(112,0,255,0.18)",
     color:  "#7000FF",
   },

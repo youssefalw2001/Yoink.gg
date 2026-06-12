@@ -24,3 +24,12 @@ export function formatSol(amount: number, decimals = 3): string {
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
+
+/** Deterministic hue (0–360) from a string — for generated avatar colors. */
+export function hueFromString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return hash % 360;
+}

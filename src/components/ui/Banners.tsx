@@ -324,7 +324,7 @@ export function WinShareBanner({
       <text x="740" y="400" textAnchor="end"
         fontFamily="'Space Grotesk', sans-serif" fontWeight="500"
         fontSize="13" fill="#8892a4"
-      >Hold The Bag. Win Everything.</text>
+      >Hold the bag · Raid the wallet</text>
     </svg>
   );
 }
@@ -523,7 +523,7 @@ export function RankShareBanner({
       <text x="740" y="298" textAnchor="end"
         fontFamily="'Space Grotesk', sans-serif" fontWeight="400"
         fontSize="11" fill="#3a3f4f"
-      >Hold The Bag. Win Everything.</text>
+      >Hold the bag · Raid the wallet</text>
     </svg>
   );
 }
