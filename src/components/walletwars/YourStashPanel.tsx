@@ -6,7 +6,7 @@
 import { motion } from "framer-motion";
 import { Vault, Coins, ShieldCheck, Swords, LogOut, Plus } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { OPEN_STAKES, type Stash, stashStrengthPct, tierForAmount } from "@/lib/walletWarsState";
+import { OPEN_STAKES, type Stash, tierForAmount } from "@/lib/walletWarsState";
 import { formatSol } from "@/lib/utils";
 import { playPurchase } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
@@ -73,8 +73,6 @@ export function YourStashPanel({
   }
 
   // ── Staked → live stash dashboard ─────────────────────────────────────────
-  const strength = stashStrengthPct(you.amount);
-
   return (
     <SpotlightCard spotlightColor="rgba(255,215,0,0.16)" radius={280} className="premium-card rounded-[24px]">
       <div className="flex flex-col gap-4 px-5 py-5">
@@ -145,8 +143,8 @@ export function YourStashPanel({
             <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">cracked</span>
           </div>
           <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2">
-            <span className="font-mono text-sm font-bold tabular-nums text-phantom">{strength}%</span>
-            <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">strength</span>
+            <span className="font-mono text-sm font-bold tabular-nums text-phantom">50/50</span>
+            <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">raid odds</span>
           </div>
         </div>
 

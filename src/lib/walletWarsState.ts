@@ -1,28 +1,23 @@
 /**
  * YOINK.GG — Wallet Wars (flagship PvP)
  *
- * Stake a stash → raid stashes in YOUR weight class → snatch a slice on a win,
- * bank the bid on a survive. The house rakes EVERY action.
+ * FAIRNESS MODEL (the make-or-break decision): FIXED ODDS + MATCHED STAKES.
+ *   - Every crack is a flat 50/50 — the SAME for a whale and a broke degen.
+ *     A bigger balance never buys better odds. It only lets you wager more.
+ *   - Matched stakes: you risk a WAGER. Win → you take that wager from them.
+ *     Lose → they take it from you. You can only win what you dared to risk,
+ *     so a small wallet cracking a whale is fair (no free lottery on the rich).
+ *   - The house edge is ENTIRELY the rake on the transferred amount — never a
+ *     whale odds advantage. Symmetric: both sides face the same expected rake.
  *
- * STRUCTURE — tiered boards (weight classes by stash size):
- *   The Pit (0.1–1) · The Grind (1–5) · The Arena (5–20) · King's Court (20+)
- *   You can only raid inside your own tier. Whales physically can't reach minnows.
+ * PROVABLY FAIR: each raid's outcome is derived from a revealed seed
+ *   (roll = hash(seed) ∈ [0,1), win if roll < 0.5). The seed is shown so the
+ *   result is verifiable. This is the honest sim of on-chain randomness;
+ *   TRUE trustless VRF (Switchboard) still requires the deployed program
+ *   (solana/programs/kings-bag — NOT deployed). Not faked.
  *
- * WHALE SAFETY:
- *   - Tiering (above).
- *   - Bid cap: a bid can't push win odds past MAX_WIN_CHANCE — nobody buys certainty.
- *   - Repeat-target tax: each re-raid on the same wallet costs an escalating
- *     house surcharge — kills griefing AND alt-wallet collusion.
- *   - Seize cap (25%) + post-raid shield — no one-shot wipes, no chain-draining.
- *
- * BET LEVERS:
- *   - Variable bid (slider) + ALL-IN.
- *   - Bounties: pledge SOL on a wallet; whoever cracks them takes the pool.
- *
- * THE MONEY MACHINE: house takes HOUSE_RAKE on every seize, every forfeited bid,
- * every bounty payout, plus the full repeat-target surcharge. 100% player-funded.
- *
- * Faithful client-side simulation; on-chain the roll uses Switchboard VRF.
+ * STRUCTURE: tiered boards (weight classes) so fights are same-size.
+ * Whale safety: tiers + matched stakes + post-raid shields + repeat-target tax.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -30,20 +25,13 @@ import { randomPoolWallet } from "@/lib/wallets";
 
 export const WAR_CONFIG = {
   HOUSE_RAKE: 0.15,
-  // Tuned so raiding is near break-even (mild house edge) instead of always
-  // −EV. With these numbers net-seize ≈ 0.30 vs defence 0.35, so attacking is
-  // close to fair + satisfying, and turtling no longer strictly dominates.
-  SEIZE_PCT: 0.35,
-  DEF_FACTOR: 0.35,
-  /** Bids can never push win odds past this — the anti-whale ceiling. */
-  MAX_WIN_CHANCE: 0.8,
+  /** Flat win chance for EVERY raid — identical for all players. */
+  FIXED_WIN_CHANCE: 0.5,
   RAID_COOLDOWN_MS: 3_000,
   SHIELD_MS: 6_000,
   TICK_MS: 1_500,
-  REF_BID: 0.1,
-  /** Bot stashes generated per tier. */
   PER_TIER: 5,
-  /** Repeat-target surcharge: + this × bid per prior raid within the window. */
+  /** Repeat-target surcharge: + this × wager per prior raid within the window. */
   REPEAT_TAX_STEP: 0.3,
   REPEAT_TAX_CAP: 1.2,
   REPEAT_WINDOW_MS: 45_000,
@@ -55,7 +43,7 @@ export interface Tier {
   min: number;
   max: number;
   accent: string;
-  /** Minimum bid (table stakes) in this tier. */
+  /** Minimum wager (table stakes) in this tier. */
   minBet: number;
 }
 
@@ -88,7 +76,6 @@ export interface Stash {
   survived: number;
   cracked: number;
   shieldUntil: number;
-  /** Open bounty pledged on this wallet — whoever cracks it takes the pool. */
   bounty: number;
 }
 
@@ -103,7 +90,6 @@ export interface RaidEvent {
   outcome: RaidOutcome;
   bid: number;
   amount: number;
-  /** True when this raid also claimed a bounty. */
   bounty?: number;
   ts: number;
 }
@@ -111,14 +97,19 @@ export interface RaidEvent {
 export interface RaidResult {
   outcome: RaidOutcome;
   pWin: number;
+  /** The wager you risked. */
   bid: number;
   tax: number;
+  /** Amount won (net of rake) on a win. */
   seized: number;
   bounty: number;
   forfeit: number;
   targetWallet: string;
   targetId: string;
   yourStashAfter: number;
+  /** Provably-fair roll ∈ [0,1) and the seed it came from. */
+  roll: number;
+  seed: string;
 }
 
 export interface WarState {
@@ -134,29 +125,41 @@ let _id = 0;
 const uid = (p = "ww") => `${p}-${Date.now()}-${_id++}`;
 const round = (n: number) => +n.toFixed(4);
 const now = () => Date.now();
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+// ── Provably-fair primitives ──────────────────────────────────────────────────
+
+function randomHex(bytes = 16): string {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    return Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
+      .map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return Math.random().toString(16).slice(2).padEnd(bytes * 2, "0");
+}
+
+/** Deterministic [0,1) from a seed — anyone can recompute it to verify. */
+export function rollFromSeed(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 0xffffffff;
+}
 
 // ── Pure helpers (shared with the UI) ─────────────────────────────────────────
 
-export function defenceOf(stashAmount: number): number {
-  return round(stashAmount * WAR_CONFIG.DEF_FACTOR);
+/** Win chance — FIXED for everyone, regardless of balance or wager. */
+export function winChance(): number {
+  return WAR_CONFIG.FIXED_WIN_CHANCE;
 }
-export function winChance(bid: number, stashAmount: number): number {
-  const def = defenceOf(stashAmount);
-  if (bid <= 0) return 0;
-  return Math.min(WAR_CONFIG.MAX_WIN_CHANCE, Math.max(0.02, bid / (bid + def)));
-}
-export function seizeAmount(stashAmount: number): number {
-  return round(stashAmount * WAR_CONFIG.SEIZE_PCT);
-}
-export function stashStrengthPct(stashAmount: number): number {
-  const def = defenceOf(stashAmount);
-  return Math.round((def / (def + WAR_CONFIG.REF_BID)) * 100);
-}
-/** Largest bid allowed — the one that hits exactly MAX_WIN_CHANCE odds. */
-export function maxBidFor(targetAmount: number): number {
-  const def = defenceOf(targetAmount);
-  const m = WAR_CONFIG.MAX_WIN_CHANCE;
-  return round(def * (m / (1 - m)));
+
+/**
+ * Largest wager allowed: you can't risk more than your stash (leaving room for
+ * the repeat-tax) and you can't take more than the target actually holds.
+ */
+export function maxWagerFor(targetAmount: number, yourStash: number, taxMult = 0): number {
+  return round(Math.max(0, Math.min(targetAmount, yourStash / (1 + taxMult))));
 }
 
 // ── Board generation ──────────────────────────────────────────────────────────
@@ -195,7 +198,7 @@ const INITIAL: WarState = {
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = "yoink_walletwars_v2";
+const STORAGE_KEY = "yoink_walletwars_v3";
 interface PersistedWar { you: Stash | null; totalBanked: number; biggestHeist: number; }
 
 function loadPersisted(): PersistedWar | null {
@@ -223,7 +226,6 @@ export function useWalletWars() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Repeat-target raid log (for the anti-grief surcharge), kept out of render state.
   const raidLog = useRef<Map<string, number[]>>(new Map());
 
   useEffect(() => { savePersisted(state); }, [state.you, state.totalBanked, state.biggestHeist]);
@@ -239,53 +241,51 @@ export function useWalletWars() {
     setState((prev) => prev.you ? { ...prev, you: null } : prev);
   }, []);
 
-  /** Escalating house surcharge for repeatedly hitting the same wallet. */
   const repeatTaxMult = useCallback((targetId: string): number => {
     const ts = raidLog.current.get(targetId) ?? [];
     const recent = ts.filter((t) => now() - t < WAR_CONFIG.REPEAT_WINDOW_MS);
     return Math.min(WAR_CONFIG.REPEAT_TAX_CAP, recent.length * WAR_CONFIG.REPEAT_TAX_STEP);
   }, []);
 
-  // ── Raid ────────────────────────────────────────────────────────────────────
-  const raid = useCallback((targetId: string, bidRaw: number): RaidResult | null => {
+  // ── Raid (fixed 50/50, matched stakes, provably-fair seed) ───────────────────
+  const raid = useCallback((targetId: string, wagerRaw: number): RaidResult | null => {
     const s = stateRef.current;
     if (!s.you) return null;
     if (now() < s.raidCooldownUntil) return null;
 
     const target = s.stashes.find((t) => t.id === targetId);
     if (!target || now() < target.shieldUntil) return null;
-    // Same weight class only.
     if (tierIndexForAmount(target.amount) !== tierIndexForAmount(s.you.amount)) return null;
 
-    // Clamp bid: table-stakes floor, your-stash + odds-cap ceiling.
     const tier   = tierForAmount(s.you.amount);
-    const ceil   = Math.min(maxBidFor(target.amount), s.you.amount);
-    const bid    = round(Math.max(tier.minBet, Math.min(bidRaw, ceil)));
-    if (bid <= 0 || bid > s.you.amount) return null;
+    const taxMult = repeatTaxMult(targetId);
+    const maxW   = maxWagerFor(target.amount, s.you.amount, taxMult);
+    const wager  = round(clamp(wagerRaw, tier.minBet, maxW));
+    const tax    = round(wager * taxMult);
+    if (wager <= 0 || wager + tax > s.you.amount) return null;
 
-    const tax    = round(bid * repeatTaxMult(targetId));
-    if (bid + tax > s.you.amount) return null;
+    // Provably-fair outcome.
+    const seed = randomHex(16);
+    const roll = rollFromSeed(seed);
+    const won  = roll < WAR_CONFIG.FIXED_WIN_CHANCE;
+    const ts   = now();
 
-    const pWin   = winChance(bid, target.amount);
-    const won    = Math.random() < pWin;
-    const seizeG = seizeAmount(target.amount);
-    const ts     = now();
-
-    // Record for the repeat-tax log.
     const log = raidLog.current.get(targetId) ?? [];
     raidLog.current.set(targetId, [...log.filter((t) => ts - t < WAR_CONFIG.REPEAT_WINDOW_MS), ts]);
 
-    const seizeNet  = round(seizeG * (1 - WAR_CONFIG.HOUSE_RAKE));
+    const winNet    = round(wager * (1 - WAR_CONFIG.HOUSE_RAKE));
     const bountyNet = won && target.bounty > 0 ? round(target.bounty * (1 - WAR_CONFIG.HOUSE_RAKE)) : 0;
 
     const result: RaidResult = {
       outcome: won ? "win" : "loss",
-      pWin, bid, tax,
-      seized:  won ? seizeNet : 0,
+      pWin: WAR_CONFIG.FIXED_WIN_CHANCE,
+      bid: wager, tax,
+      seized:  won ? winNet : 0,
       bounty:  bountyNet,
-      forfeit: won ? 0 : round(bid * (1 - WAR_CONFIG.HOUSE_RAKE)),
+      forfeit: won ? 0 : winNet,
       targetWallet: target.wallet, targetId,
       yourStashAfter: 0,
+      roll, seed,
     };
 
     setState((prev) => {
@@ -294,24 +294,22 @@ export function useWalletWars() {
       if (!tgt) return prev;
 
       const youAmt = won
-        ? round(prev.you.amount - tax + seizeNet + bountyNet)        // win: bid returned, +seize +bounty −tax
-        : round(prev.you.amount - tax - bid);                        // loss: −bid −tax
+        ? round(prev.you.amount - tax + winNet + bountyNet) // win: take matched wager (net) + bounty, pay tax
+        : round(prev.you.amount - tax - wager);              // loss: forfeit your wager + tax
       const nextYou = { ...prev.you, amount: youAmt };
       result.yourStashAfter = youAmt;
 
       const stashes = prev.stashes.map((t) => {
         if (t.id !== targetId) return t;
-        if (won) {
-          return { ...t, amount: round(Math.max(t.amount - seizeG, 0.01)), bounty: 0, cracked: t.cracked + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
-        }
-        return { ...t, banked: round(t.banked + bid * (1 - WAR_CONFIG.HOUSE_RAKE)), survived: t.survived + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
+        if (won) return { ...t, amount: round(Math.max(t.amount - wager, 0.01)), bounty: 0, cracked: t.cracked + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
+        return { ...t, banked: round(t.banked + winNet), survived: t.survived + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
       });
 
       const event: RaidEvent = {
         id: uid("raid"), raider: "You", raiderIsYou: true,
         target: tgt.wallet, targetIsYou: false,
-        outcome: won ? "win" : "loss", bid,
-        amount: won ? round(seizeNet + bountyNet) : round(bid),
+        outcome: won ? "win" : "loss", bid: wager,
+        amount: won ? round(winNet + bountyNet) : round(wager),
         bounty: bountyNet || undefined, ts,
       };
 
@@ -320,8 +318,8 @@ export function useWalletWars() {
         you: nextYou,
         stashes,
         feed: [event, ...prev.feed].slice(0, 40),
-        biggestHeist: won ? Math.max(prev.biggestHeist, seizeNet + bountyNet) : prev.biggestHeist,
-        totalBanked: round(prev.totalBanked + (won ? seizeG * WAR_CONFIG.HOUSE_RAKE + (tgt.bounty * WAR_CONFIG.HOUSE_RAKE) : bid * WAR_CONFIG.HOUSE_RAKE) + tax),
+        biggestHeist: won ? Math.max(prev.biggestHeist, winNet + bountyNet) : prev.biggestHeist,
+        totalBanked: round(prev.totalBanked + wager * WAR_CONFIG.HOUSE_RAKE + (won ? tgt.bounty * WAR_CONFIG.HOUSE_RAKE : 0) + tax),
         raidCooldownUntil: ts + WAR_CONFIG.RAID_COOLDOWN_MS,
       };
     });
@@ -354,7 +352,7 @@ export function useWalletWars() {
     return true;
   }, []);
 
-  // ── Bot simulation (raids within tiers + raids on you) ────────────────────────
+  // ── Bot simulation (matched-stakes, same tiers) ───────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       const ts = now();
@@ -370,30 +368,33 @@ export function useWalletWars() {
           const open = stashes.filter((t) => ts >= t.shieldUntil);
           if (open.length < 2) break;
           const raider = open[Math.floor(Math.random() * open.length)];
-          // same-tier targets only
           const ti = tierIndexForAmount(raider.amount);
           const targets = open.filter((t) => t.id !== raider.id && tierIndexForAmount(t.amount) === ti);
           if (targets.length === 0) continue;
           const target = targets[Math.floor(Math.random() * targets.length)];
-          const bid = round(Math.min(maxBidFor(target.amount), tierForAmount(raider.amount).minBet * (2 + Math.random() * 10)));
-          const won = Math.random() < winChance(bid, target.amount);
-          const seizeG = seizeAmount(target.amount);
+          const wager = round(Math.min(maxWagerFor(target.amount, raider.amount), tierForAmount(raider.amount).minBet * (2 + Math.random() * 10)));
+          if (wager <= 0) continue;
+          const won = Math.random() < WAR_CONFIG.FIXED_WIN_CHANCE;
+          const winNet = round(wager * (1 - WAR_CONFIG.HOUSE_RAKE));
+          const bountyNet = won && target.bounty > 0 ? round(target.bounty * (1 - WAR_CONFIG.HOUSE_RAKE)) : 0;
 
           if (won) {
-            const net = round(seizeG * (1 - WAR_CONFIG.HOUSE_RAKE));
-            const bountyNet = target.bounty > 0 ? round(target.bounty * (1 - WAR_CONFIG.HOUSE_RAKE)) : 0;
             stashes = stashes.map((t) => {
-              if (t.id === target.id) return { ...t, amount: round(Math.max(t.amount - seizeG, 0.01)), bounty: 0, cracked: t.cracked + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
-              if (t.id === raider.id) return { ...t, amount: round(t.amount + net + bountyNet) };
+              if (t.id === target.id) return { ...t, amount: round(Math.max(t.amount - wager, 0.01)), bounty: 0, cracked: t.cracked + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
+              if (t.id === raider.id) return { ...t, amount: round(t.amount + winNet + bountyNet) };
               return t;
             });
-            biggestHeist = Math.max(biggestHeist, net + bountyNet);
-            totalBanked = round(totalBanked + seizeG * WAR_CONFIG.HOUSE_RAKE + target.bounty * WAR_CONFIG.HOUSE_RAKE);
-            feed.push({ id: uid("raid"), raider: raider.wallet, raiderIsYou: false, target: target.wallet, targetIsYou: false, outcome: "win", bid, amount: round(net + bountyNet), bounty: bountyNet || undefined, ts });
+            biggestHeist = Math.max(biggestHeist, winNet + bountyNet);
+            totalBanked = round(totalBanked + wager * WAR_CONFIG.HOUSE_RAKE + target.bounty * WAR_CONFIG.HOUSE_RAKE);
+            feed.push({ id: uid("raid"), raider: raider.wallet, raiderIsYou: false, target: target.wallet, targetIsYou: false, outcome: "win", bid: wager, amount: round(winNet + bountyNet), bounty: bountyNet || undefined, ts });
           } else {
-            stashes = stashes.map((t) => t.id === target.id ? { ...t, banked: round(t.banked + bid * (1 - WAR_CONFIG.HOUSE_RAKE)), survived: t.survived + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS } : t);
-            totalBanked = round(totalBanked + bid * WAR_CONFIG.HOUSE_RAKE);
-            feed.push({ id: uid("raid"), raider: raider.wallet, raiderIsYou: false, target: target.wallet, targetIsYou: false, outcome: "loss", bid, amount: round(bid), ts });
+            stashes = stashes.map((t) => {
+              if (t.id === target.id) return { ...t, banked: round(t.banked + winNet), survived: t.survived + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
+              if (t.id === raider.id) return { ...t, amount: round(Math.max(t.amount - wager, 0.01)) };
+              return t;
+            });
+            totalBanked = round(totalBanked + wager * WAR_CONFIG.HOUSE_RAKE);
+            feed.push({ id: uid("raid"), raider: raider.wallet, raiderIsYou: false, target: target.wallet, targetIsYou: false, outcome: "loss", bid: wager, amount: round(wager), ts });
           }
         }
 
@@ -403,22 +404,22 @@ export function useWalletWars() {
           const sameTier = stashes.filter((t) => tierIndexForAmount(t.amount) === ti);
           const attacker = sameTier[Math.floor(Math.random() * sameTier.length)];
           if (attacker) {
-            const bid = round(Math.min(maxBidFor(you.amount), tierForAmount(you.amount).minBet * (2 + Math.random() * 10)));
-            const won = Math.random() < winChance(bid, you.amount);
-            const seizeG = seizeAmount(you.amount);
-            if (won) {
-              you = { ...you, amount: round(Math.max(you.amount - seizeG, 0.01)), cracked: you.cracked + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
-              totalBanked = round(totalBanked + seizeG * WAR_CONFIG.HOUSE_RAKE);
-              feed.push({ id: uid("raid"), raider: attacker.wallet, raiderIsYou: false, target: "You", targetIsYou: true, outcome: "win", bid, amount: round(seizeG * (1 - WAR_CONFIG.HOUSE_RAKE)), ts });
-            } else {
-              you = { ...you, banked: round(you.banked + bid * (1 - WAR_CONFIG.HOUSE_RAKE)), survived: you.survived + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
-              totalBanked = round(totalBanked + bid * WAR_CONFIG.HOUSE_RAKE);
-              feed.push({ id: uid("raid"), raider: attacker.wallet, raiderIsYou: false, target: "You", targetIsYou: true, outcome: "loss", bid, amount: round(bid), ts });
+            const wager = round(Math.min(maxWagerFor(you.amount, attacker.amount), tierForAmount(you.amount).minBet * (2 + Math.random() * 10)));
+            if (wager > 0) {
+              const won = Math.random() < WAR_CONFIG.FIXED_WIN_CHANCE; // attacker wins?
+              const winNet = round(wager * (1 - WAR_CONFIG.HOUSE_RAKE));
+              if (won) {
+                you = { ...you, amount: round(Math.max(you.amount - wager, 0.01)), cracked: you.cracked + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
+                feed.push({ id: uid("raid"), raider: attacker.wallet, raiderIsYou: false, target: "You", targetIsYou: true, outcome: "win", bid: wager, amount: round(wager), ts });
+              } else {
+                you = { ...you, banked: round(you.banked + winNet), survived: you.survived + 1, shieldUntil: ts + WAR_CONFIG.SHIELD_MS };
+                feed.push({ id: uid("raid"), raider: attacker.wallet, raiderIsYou: false, target: "You", targetIsYou: true, outcome: "loss", bid: wager, amount: round(wager), ts });
+              }
+              totalBanked = round(totalBanked + wager * WAR_CONFIG.HOUSE_RAKE);
             }
           }
         }
 
-        // Replenish drained stashes (respect their tier), drop the odd bounty in.
         stashes = stashes.map((t) => (t.amount < Math.max(0.05, tierForAmount(t.amount).min * 0.4) ? makeBotStash(tierForAmount(t.amount)) : t));
         if (Math.random() < 0.08) {
           const t = TIERS[Math.floor(Math.random() * TIERS.length)];

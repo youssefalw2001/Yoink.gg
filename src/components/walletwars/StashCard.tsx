@@ -5,8 +5,8 @@
 
 import { memo, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Crosshair, ShieldHalf, Coins, Lock, Target } from "lucide-react";
-import { type Stash, stashStrengthPct } from "@/lib/walletWarsState";
+import { Crosshair, ShieldCheck, Coins, Lock, Target } from "lucide-react";
+import { type Stash } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { PurgeAvatar } from "./PurgeAvatar";
 
@@ -17,7 +17,6 @@ interface StashCardProps {
 }
 
 export const StashCard = memo(function StashCard({ stash, canRaid, onRaid }: StashCardProps) {
-  const strength = stashStrengthPct(stash.amount);
   const isWhale  = stash.amount >= 5;
 
   // Live shield countdown
@@ -85,19 +84,11 @@ export const StashCard = memo(function StashCard({ stash, canRaid, onRaid }: Sta
             <Coins className="h-3 w-3" aria-hidden />
             {formatSol(stash.banked, 2)} banked
           </span>
-          <span className="flex items-center gap-1 font-mono text-[10px] text-slate">
-            <ShieldHalf className="h-3 w-3" aria-hidden />
-            {strength}% strength
+          <span className="flex items-center gap-1 font-mono text-[10px] text-emerald">
+            <ShieldCheck className="h-3 w-3" aria-hidden />
+            50/50 odds
           </span>
         </div>
-      </div>
-
-      {/* strength bar */}
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${strength}%`, background: `linear-gradient(90deg, #00E676, ${accent})` }}
-        />
       </div>
 
       {/* raid button */}

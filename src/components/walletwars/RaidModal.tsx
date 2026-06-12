@@ -1,19 +1,19 @@
 /**
  * RaidModal — the heist flow with the "Crack the Vault" reveal.
- *   1. Pick muscle (slider + ALL-IN) → live win % (odds-capped), snatch + bounty
- *   2. Optionally pledge a bounty on the target
- *   3. CRACK → pick 1 of 3 vaults → it opens → WIN (snatch) or BOUNCE
+ *   1. Pick your wager (slider + ALL-IN). Odds are FIXED 50/50 for everyone.
+ *   2. Optionally pledge a bounty on the target.
+ *   3. CRACK → pick 1 of 3 vaults → WIN (take your matched wager) or BOUNCE.
  *
- * IMPORTANT: the vault pick is PURE CEREMONY over the VRF-decided outcome.
- * The result is computed from the bid odds the instant you commit; which vault
- * you tap only changes the animation, never the math. (Quick Raid skips it.)
+ * FAIR: win odds are a flat 50% regardless of balance (matched stakes — you
+ * win exactly what you risk). The vault pick is ceremony over a provably-fair
+ * VRF roll; the seed is revealed so the result can be verified.
  */
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock, Vault, Zap } from "lucide-react";
+import { X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock, Vault, Zap, ShieldCheck } from "lucide-react";
 import {
-  WAR_CONFIG, winChance, seizeAmount, maxBidFor, tierForAmount,
+  WAR_CONFIG, maxWagerFor, tierForAmount,
   type Stash, type RaidResult,
 } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress, clamp } from "@/lib/utils";
@@ -24,7 +24,7 @@ interface RaidModalProps {
   target: Stash;
   yourStash: number;
   taxMult: number;
-  onCommit: (bid: number) => RaidResult | null;
+  onCommit: (wager: number) => RaidResult | null;
   onPlaceBounty: (amount: number) => boolean;
   onClose: () => void;
 }
@@ -35,7 +35,7 @@ const QR_KEY = "yoink_ww_quickraid";
 export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty, onClose }: RaidModalProps) {
   const tier   = tierForAmount(yourStash);
   const minBid = tier.minBet;
-  const maxBid = Math.max(minBid, +Math.min(maxBidFor(target.amount), yourStash / (1 + taxMult)).toFixed(3));
+  const maxBid = Math.max(minBid, maxWagerFor(target.amount, yourStash, taxMult));
 
   const [bid, setBid]       = useState(() => clamp(+((minBid + maxBid) / 2).toFixed(3), minBid, maxBid));
   const [phase, setPhase]   = useState<Phase>("select");
@@ -46,10 +46,10 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
     try { return localStorage.getItem(QR_KEY) === "1"; } catch { return false; }
   });
 
-  const pWin      = winChance(bid, target.amount);
-  const seizeNet  = seizeAmount(target.amount) * (1 - WAR_CONFIG.HOUSE_RAKE);
+  const pWin      = WAR_CONFIG.FIXED_WIN_CHANCE;
+  const winNet    = bid * (1 - WAR_CONFIG.HOUSE_RAKE);
   const bountyNet = target.bounty > 0 ? target.bounty * (1 - WAR_CONFIG.HOUSE_RAKE) : 0;
-  const reward    = seizeNet + bountyNet;
+  const reward    = winNet + bountyNet;
   const tax       = +(bid * taxMult).toFixed(3);
 
   const bountyPresets = [tier.minBet * 3, tier.minBet * 6, tier.minBet * 12]
@@ -80,8 +80,6 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
   function pickVault(i: number) {
     if (picked !== null || !result) return;
     setPicked(i);
-    // The "loaded" vault: your pick on a win, a random other vault on a loss
-    // (so a loss shows the loot you *just* missed — the near-miss sting).
     const others = [0, 1, 2].filter((x) => x !== i);
     setLoaded(result.outcome === "win" ? i : others[Math.floor(Math.random() * others.length)]);
     playTick(true);
@@ -129,12 +127,12 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate">Your muscle (bid)</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate">Your wager</span>
                   <span className="font-mono text-sm font-black tabular-nums text-white">{formatSol(bid, 3)}</span>
                 </div>
                 <input
                   type="range" min={minBid} max={maxBid} step={Math.max(0.001, +((maxBid - minBid) / 40).toFixed(3))}
-                  value={bid} onChange={(e) => setBid(+e.target.value)} className="w-full accent-[#FFD700]" aria-label="Bid amount"
+                  value={bid} onChange={(e) => setBid(+e.target.value)} className="w-full accent-[#FFD700]" aria-label="Wager amount"
                 />
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[9px] text-dim">min {formatSol(minBid, 2)}</span>
@@ -160,6 +158,10 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   <Flame className="h-3 w-3" aria-hidden /> Repeat-target tax: +{formatSol(tax, 3)} SOL to the house
                 </p>
               )}
+              <p className="flex items-center justify-center gap-1.5 text-center font-mono text-[10px] text-dim">
+                <ShieldCheck className="h-3 w-3 text-emerald" aria-hidden />
+                Even 50/50 — same odds for everyone · matched stakes · house rakes {Math.round(WAR_CONFIG.HOUSE_RAKE * 100)}%
+              </p>
 
               <motion.button
                 type="button" onClick={commit}
@@ -205,7 +207,6 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   const revealed = picked !== null;
                   const isLoot   = loaded === i;
                   const win      = result?.outcome === "win";
-                  // Colors: picked+win → gold, picked+loss → blood, the missed loot → faint gold, others → dim
                   const accent = !revealed ? "#8892a4"
                     : isPicked ? (win ? "#FFD700" : "#FF2200")
                     : isLoot ? "#FFD700" : "#3a3f4f";
@@ -233,7 +234,7 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   );
                 })}
               </div>
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">{Math.round(pWin * 100)}% odds · outcome already sealed by VRF</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">50/50 · outcome already sealed by the seed</span>
             </motion.div>
           )}
 
@@ -268,13 +269,22 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   <span className="font-display text-3xl font-black uppercase tracking-[0.1em] text-slate">Bounced</span>
                   <span className="font-mono text-sm text-slate">{truncateAddress(result.targetWallet, 4, 4)} held the vault</span>
                   <span className="font-display text-3xl font-black tabular-nums text-blood">−{formatSol(result.bid + result.tax, 3)}</span>
-                  <span className="font-mono text-[11px] text-dim">Your bid funded their stash</span>
+                  <span className="font-mono text-[11px] text-dim">Your wager funded their stash</span>
                 </>
               )}
 
+              {/* provably-fair reveal */}
+              <div className="w-full rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-emerald">Provably fair</span>
+                  <span className="font-mono text-[10px] tabular-nums text-slate">roll {result.roll.toFixed(4)} {result.roll < result.pWin ? "<" : "≥"} {result.pWin.toFixed(2)}</span>
+                </div>
+                <p className="truncate font-mono text-[9px] text-dim">seed {result.seed}</p>
+              </div>
+
               <motion.button type="button" onClick={onClose}
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.14 }}
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3 font-display text-sm font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/[0.1]"
+                className="mt-1 w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3 font-display text-sm font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/[0.1]"
                 style={{ willChange: "transform" }}
               >
                 Back to the board
