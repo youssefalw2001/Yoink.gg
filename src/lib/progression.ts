@@ -74,6 +74,29 @@ export interface ProgressState {
   pumpFakeBalance: number | null;
   /** Fuse Burner: has been activated this round */
   fuseBurnerUsedThisRound: boolean;
+
+  // ── Free Yoink System ────────────────────────────────────────────────────────
+  /**
+   * LAYER 1 — First Shot Free
+   * True once the player has ever claimed their one-time free yoink.
+   * Lifetime — never resets. Pit only.
+   */
+  hasClaimedFirstShot: boolean;
+
+  /**
+   * LAYER 2 — Daily Pit Pass (Rank 2+ only)
+   * ISO timestamp of last daily Pit pass claim. Resets each UTC day.
+   * Gate: player must be Rank 2 (500 XP) or higher.
+   */
+  dailyPitPassClaimedAt: string | null;
+
+  /** Daily Login Voucher — ISO timestamp of last claim (+50 XP) */
+  loginVoucherClaimedAt: string | null;
+
+  /** Affiliate referral code (null = not generated yet) */
+  referralCode: string | null;
+  /** Number of wallets referred via this player's code */
+  referralCount: number;
 }
 
 export const DEFAULT_STATE: ProgressState = {
@@ -89,6 +112,13 @@ export const DEFAULT_STATE: ProgressState = {
   displayName: "",
   pumpFakeBalance: null,
   fuseBurnerUsedThisRound: false,
+  // Free Yoink System
+  hasClaimedFirstShot: false,
+  dailyPitPassClaimedAt: null,
+  // Other
+  loginVoucherClaimedAt: null,
+  referralCode: null,
+  referralCount: 0,
 };
 
 export function loadProgress(): ProgressState {
@@ -137,3 +167,15 @@ export function computeProgress(xp: number): PlayerProgress {
     lastPlayedDate: "",
   };
 }
+
+/** True if two ISO timestamps fall on different UTC calendar days. */
+function isDifferentDay(isoA: string, isoB: string): boolean {
+  const a = new Date(isoA);
+  const b = new Date(isoB);
+  return (
+    a.getUTCFullYear() !== b.getUTCFullYear() ||
+    a.getUTCMonth()    !== b.getUTCMonth()    ||
+    a.getUTCDate()     !== b.getUTCDate()
+  );
+}
+export { isDifferentDay };

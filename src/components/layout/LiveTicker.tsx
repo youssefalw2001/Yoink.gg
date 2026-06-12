@@ -1,17 +1,20 @@
 import { useRef, useEffect, useState } from "react";
-import { Swords } from "lucide-react";
+import { Swords, Flame, Clock } from "lucide-react";
 import type { King } from "@/lib/types";
+import type { FreeRoundState } from "@/hooks/useFreeRound";
 import { truncateAddress } from "@/lib/utils";
 
 interface LiveTickerProps {
   recentKings: King[];
   currentKing: string;
+  freeRound: FreeRoundState;
 }
 
 interface TickerItem {
   wallet: string;
   label: string;
   uid: string;
+  type: "yoink" | "freeRoundLive" | "freeRoundSoon";
 }
 
 const MIN_ITEMS = 8;
@@ -19,37 +22,72 @@ const MIN_ITEMS = 8;
 /**
  * LiveTicker — glitch-free CSS scrolling bar.
  *
+ * Injects free round announcements into the ticker stream:
+ *   - When active:    "FREE ROUND LIVE — The Pit · Xm remaining"
+ *   - When upcoming:  "FREE ROUND IN Xm — The Pit"
+ *
  * Fix 1: Items are ONLY appended when a new king arrives — never rebuilt.
- *         The animation never resets mid-scroll.
  * Fix 2: Row components are stable — defined outside render.
  * Fix 3: Track duplication is exact 50/50 so translateX(-50%) loops perfectly.
  * Fix 4: New items slide in on the right without interrupting ongoing scroll.
  */
-export function LiveTicker({ recentKings, currentKing }: LiveTickerProps) {
-  // Stable item list — we append, never rebuild
+export function LiveTicker({ recentKings, currentKing, freeRound }: LiveTickerProps) {
   const [items, setItems] = useState<TickerItem[]>(() =>
     buildInitial(currentKing, recentKings),
   );
 
-  const prevKingRef = useRef(currentKing);
+  const prevKingRef      = useRef(currentKing);
+  const prevFreeActive   = useRef(freeRound.isActive);
+  const prevFreeUpcoming = useRef(freeRound.isUpcoming);
 
-  // Only append when the king actually changes — not on every render
+  // Append on king change
   useEffect(() => {
     if (currentKing !== prevKingRef.current) {
       prevKingRef.current = currentKing;
       setItems((prev) => {
         const next: TickerItem = {
           wallet: currentKing,
-          label: "YOINKED the bag",
-          uid:   `k-${Date.now()}`,
+          label:  "YOINKED the bag",
+          uid:    `k-${Date.now()}`,
+          type:   "yoink",
         };
-        // Keep a rolling window of 20 so the list doesn't grow forever
         return [...prev, next].slice(-20);
       });
     }
   }, [currentKing]);
 
-  // Pad to minimum so the track fills the viewport even with few items
+  // Inject free round announcement when it goes live
+  useEffect(() => {
+    if (freeRound.isActive && !prevFreeActive.current) {
+      setItems((prev) => {
+        const item: TickerItem = {
+          wallet: "",
+          label:  `FREE ROUND LIVE — The Pit · ${freeRound.minutesLeft}m remaining`,
+          uid:    `fr-live-${Date.now()}`,
+          type:   "freeRoundLive",
+        };
+        return [...prev, item, item].slice(-22); // double it so it shows often
+      });
+    }
+    prevFreeActive.current = freeRound.isActive;
+  }, [freeRound.isActive, freeRound.minutesLeft]);
+
+  // Inject upcoming announcement when it enters the 30-min window
+  useEffect(() => {
+    if (freeRound.isUpcoming && !prevFreeUpcoming.current) {
+      setItems((prev) => {
+        const item: TickerItem = {
+          wallet: "",
+          label:  `FREE ROUND IN ${freeRound.minutesUntilNext}m — The Pit`,
+          uid:    `fr-soon-${Date.now()}`,
+          type:   "freeRoundSoon",
+        };
+        return [...prev, item].slice(-20);
+      });
+    }
+    prevFreeUpcoming.current = freeRound.isUpcoming;
+  }, [freeRound.isUpcoming, freeRound.minutesUntilNext]);
+
   const padded = padItems(items);
 
   return (
@@ -57,14 +95,12 @@ export function LiveTicker({ recentKings, currentKing }: LiveTickerProps) {
       className="ticker-mask relative z-30 overflow-hidden border-b border-white/[0.06] bg-[rgba(13,13,24,0.6)] py-2 backdrop-blur-md"
       aria-label="Live yoink activity"
     >
-      {/* Two identical halves — seamless translateX(-50%) loop */}
       <div className="ticker-track flex min-w-max items-center">
         {padded.map((it, i) => (
-          <TickerItem key={`a-${it.uid}-${i}`} item={it} />
+          <TickerRow key={`a-${it.uid}-${i}`} item={it} />
         ))}
-        {/* Exact duplicate — same count, same content */}
         {padded.map((it, i) => (
-          <TickerItem key={`b-${it.uid}-${i}`} item={it} aria-hidden />
+          <TickerRow key={`b-${it.uid}-${i}`} item={it} aria-hidden />
         ))}
       </div>
 
@@ -83,14 +119,42 @@ export function LiveTicker({ recentKings, currentKing }: LiveTickerProps) {
   );
 }
 
-// ── Stable item component — defined outside render, no re-mount ──────────────
+// ── Stable row component ──────────────────────────────────────────────────────
 
-interface TickerItemProps {
+interface TickerRowProps {
   item: TickerItem;
   "aria-hidden"?: boolean;
 }
 
-function TickerItem({ item, ...props }: TickerItemProps) {
+function TickerRow({ item, ...props }: TickerRowProps) {
+  if (item.type === "freeRoundLive") {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center gap-2 px-5 text-xs"
+        {...props}
+      >
+        <Flame className="h-3 w-3 shrink-0 text-blood" aria-hidden />
+        <span className="font-mono font-bold" style={{ color: "#FF2200" }}>
+          {item.label}
+        </span>
+        <span className="text-dim opacity-40">·</span>
+      </span>
+    );
+  }
+
+  if (item.type === "freeRoundSoon") {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center gap-2 px-5 text-xs"
+        {...props}
+      >
+        <Clock className="h-3 w-3 shrink-0 text-gold" aria-hidden />
+        <span className="font-mono font-bold text-gold">{item.label}</span>
+        <span className="text-dim opacity-40">·</span>
+      </span>
+    );
+  }
+
   const isYou = item.wallet === "You";
   return (
     <span
@@ -102,10 +166,7 @@ function TickerItem({ item, ...props }: TickerItemProps) {
         style={{ color: isYou ? "#FFD700" : "#7000FF" }}
         aria-hidden
       />
-      <span
-        className="font-mono"
-        style={{ color: isYou ? "#FFE566" : "#8892a4" }}
-      >
+      <span className="font-mono" style={{ color: isYou ? "#FFE566" : "#8892a4" }}>
         {isYou ? "You" : truncateAddress(item.wallet)}
       </span>
       <span className="text-slate">{item.label}</span>
@@ -118,31 +179,22 @@ function TickerItem({ item, ...props }: TickerItemProps) {
 
 function buildInitial(currentKing: string, recentKings: King[]): TickerItem[] {
   const items: TickerItem[] = [
-    {
-      wallet: currentKing,
-      label:  "holds the bag",
-      uid:    "init-current",
-    },
+    { wallet: currentKing, label: "holds the bag", uid: "init-current", type: "yoink" },
     ...recentKings.slice(0, 9).map((k, i) => ({
       wallet: k.wallet,
       label:  `held ${k.heldFor}s`,
       uid:    `init-${i}`,
+      type:   "yoink" as const,
     })),
   ];
   return padItems(items);
 }
 
-/** Pad items to MIN_ITEMS so the track always fills the viewport. */
 function padItems(items: TickerItem[]): TickerItem[] {
   if (items.length >= MIN_ITEMS) return items;
   const out = [...items];
   while (out.length < MIN_ITEMS) {
-    out.push(
-      ...items.map((it, i) => ({
-        ...it,
-        uid: `pad-${it.uid}-${i}-${out.length}`,
-      })),
-    );
+    out.push(...items.map((it, i) => ({ ...it, uid: `pad-${it.uid}-${i}-${out.length}` })));
   }
   return out.slice(0, Math.max(MIN_ITEMS, items.length));
 }

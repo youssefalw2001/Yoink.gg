@@ -15,6 +15,7 @@ import { LevelUpToast } from "@/components/ui/XPBar";
 import { useGameState } from "@/hooks/useGameState";
 import { usePlayerProgress } from "@/hooks/usePlayerProgress";
 import { useRoomInstances } from "@/hooks/useRoomInstances";
+import { useFreeRound } from "@/hooks/useFreeRound";
 import { useWallet } from "@/lib/wallet";
 import { ROOMS, type RoomId } from "@/lib/rooms";
 import type { ShopItem } from "@/lib/shopItems";
@@ -27,13 +28,21 @@ import {
 } from "@/lib/sounds";
 
 export default function App() {
-  const { connected, publicKey }                   = useWallet();
-  const [page, setPage]                 = useState<Page>("game");
-  const [roomId, setRoomId]             = useState<RoomId | null>(null);
-  const [instanceKey, setInstanceKey]   = useState<string | null>(null);
+  const { connected, publicKey }      = useWallet();
+  const [page, setPage]               = useState<Page>("game");
+  const [roomId, setRoomId]           = useState<RoomId | null>(null);
+  const [instanceKey, setInstanceKey] = useState<string | null>(null);
+
+  // ── Free Yoink System — pending state ─────────────────────────────────────
+  /**
+   * When true, the next time The Pit game goes live (isWaiting → false)
+   * we auto-fire a free YOINK on the player's behalf.
+   * Set when the player claims any of the three free-yoink layers.
+   */
+  const [pendingFreeYoink, setPendingFreeYoink] = useState(false);
 
   // Rolling instance manager — runs in background regardless of current page
-  const { syncInstance } = useRoomInstances();
+  const { syncInstance, getInstancesForRoom } = useRoomInstances();
 
   const { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner } = useGameState(
     roomId ?? "arena",
@@ -49,12 +58,20 @@ export default function App() {
     onRoundEnd,
     purchaseItem,
     setCardTheme,
-    canClaimFreeFuse,
-    claimFreeFuse,
+    // Layer 1 — First Shot Free
+    canClaimFirstShot,
+    claimFirstShot,
+    // Layer 2 — Daily Pit Pass
+    canClaimDailyPitPass,
+    claimDailyPitPass,
+    // Daily voucher + referral
     canClaimLoginVoucher,
     claimLoginVoucher,
     generateReferralCode,
   } = usePlayerProgress();
+
+  // Layer 3 — Free Round schedule
+  const freeRound = useFreeRound();
 
   const dangerActive  = state.roundFeeMultiplier > 1.8 && !state.isRoundOver && !state.isWaiting;
   const prevKingRef   = useRef(state.currentKing);
@@ -72,6 +89,28 @@ export default function App() {
       playerCount: state.playerCount,
     });
   }, [instanceKey, state.bagAmount, state.roundNumber, state.playerCount, syncInstance]);
+
+  // ── Free Yoink: fire when Pit game goes live ───────────────────────────────
+  /**
+   * All three layers set pendingFreeYoink = true before entering The Pit.
+   * This effect watches for the exact moment the game starts (isWaiting
+   * flips to false) and fires the free yoink then.
+   *
+   * Pit-only guard: if somehow pendingFreeYoink is set but the player
+   * ends up in another room, the pending state is silently cleared when
+   * they leave, via handleLeaveRoom.
+   */
+  useEffect(() => {
+    if (
+      pendingFreeYoink &&
+      roomId === "pit" &&
+      !state.isWaiting &&
+      !state.isRoundOver
+    ) {
+      setPendingFreeYoink(false);
+      yoink();
+    }
+  }, [pendingFreeYoink, roomId, state.isWaiting, state.isRoundOver, yoink]);
 
   // ── Sound: YOINK whenever king changes ────────────────────────────────────
   useEffect(() => {
@@ -101,18 +140,14 @@ export default function App() {
 
   // ── Sound + XP: cooldown block ────────────────────────────────────────────
   useEffect(() => {
-    if (cooldownLeft > 0 && prevCdRef.current === 0) {
-      playCooldownBlock();
-    }
+    if (cooldownLeft > 0 && prevCdRef.current === 0) playCooldownBlock();
     prevCdRef.current = cooldownLeft;
   }, [cooldownLeft]);
 
   // ── XP: hold-second callbacks ─────────────────────────────────────────────
   useEffect(() => {
     if (!state.kingIsYou || state.isWaiting || state.isRoundOver) return;
-    if (state.kingHeldFor > prevHeldRef.current) {
-      xpOnHold(state.kingHeldFor);
-    }
+    if (state.kingHeldFor > prevHeldRef.current) xpOnHold(state.kingHeldFor);
     prevHeldRef.current = state.kingHeldFor;
   }, [state.kingHeldFor, state.kingIsYou, state.isWaiting, state.isRoundOver, xpOnHold]);
 
@@ -120,10 +155,7 @@ export default function App() {
   useEffect(() => {
     if (state.isRoundOver && !wasRoundOver.current) {
       wasRoundOver.current = true;
-      if (state.winnerIsYou) {
-        playWin();
-        xpOnWin(state.bagAmount);
-      }
+      if (state.winnerIsYou) { playWin(); xpOnWin(state.bagAmount); }
       onRoundEnd();
     }
     if (!state.isRoundOver) wasRoundOver.current = false;
@@ -141,7 +173,6 @@ export default function App() {
   // ── Shop purchase ─────────────────────────────────────────────────────────
   function handleBuy(item: ShopItem) {
     purchaseItem(item.id, item.priceXp);
-    // Auto-equip cosmetic card themes on purchase
     if (item.id === "theme_blood" || item.id === "theme_phantom" || item.id === "crown_animated") {
       setCardTheme(item.id);
     }
@@ -162,6 +193,7 @@ export default function App() {
     if (p !== "game") {
       setRoomId(null);
       setInstanceKey(null);
+      setPendingFreeYoink(false); // clear pending if player navigates away
     }
   }
 
@@ -173,13 +205,60 @@ export default function App() {
   function handleLeaveRoom() {
     setRoomId(null);
     setInstanceKey(null);
+    setPendingFreeYoink(false); // clear pending if they leave before game starts
+  }
+
+  // ── Free Yoink entry points ────────────────────────────────────────────────
+
+  /** Shared helper: pick the best available Pit instance. */
+  function getBestPitInstance(): string | null {
+    const instances = getInstancesForRoom("pit");
+    return (
+      instances.find((i) => i.status !== "full")?.key ??
+      instances[0]?.key ??
+      null
+    );
+  }
+
+  /**
+   * LAYER 1 — First Shot Free.
+   * Called from RoomSelectScreen when new player clicks "Claim First Shot".
+   * Marks claim consumed immediately, routes to Pit, queues free yoink.
+   */
+  function handleClaimFirstShot() {
+    claimFirstShot();
+    const key = getBestPitInstance();
+    if (key) {
+      setPendingFreeYoink(true);
+      handleRoomSelect("pit", key);
+    }
+  }
+
+  /**
+   * LAYER 2 — Daily Pit Pass (Rank 2+).
+   * Called from RoomSelectScreen when eligible player enters The Pit.
+   * Marks today's pass as used, routes to Pit, queues free yoink.
+   */
+  function handleClaimDailyPitPass(pitInstanceKey: string) {
+    claimDailyPitPass();
+    setPendingFreeYoink(true);
+    handleRoomSelect("pit", pitInstanceKey);
+  }
+
+  /**
+   * LAYER 3 — Free Round Event.
+   * No individual claim to mark — the round is open to all.
+   * Just queues the free yoink on entry.
+   */
+  function handleEnterFreeRound(pitInstanceKey: string) {
+    setPendingFreeYoink(true);
+    handleRoomSelect("pit", pitInstanceKey);
   }
 
   const showRoomSelect = page === "game" && roomId === null;
   const showGame       = page === "game" && roomId !== null;
   const currentRoom    = roomId ? ROOMS[roomId] : null;
 
-  // Instance badge for header: "The Pit #2" if player is in a non-#1 instance
   const currentInstanceIndex = instanceKey
     ? parseInt(instanceKey.split("-")[1] ?? "1", 10)
     : 1;
@@ -221,7 +300,11 @@ export default function App() {
               isKing={state.kingIsYou}
               instanceLabel={instanceLabel}
             />
-            <LiveTicker recentKings={state.recentKings} currentKing={state.currentKing} />
+            <LiveTicker
+              recentKings={state.recentKings}
+              currentKing={state.currentKing}
+              freeRound={freeRound}
+            />
 
             <main className="relative z-10 flex flex-1 flex-col">
               <AnimatePresence mode="wait">
@@ -236,8 +319,16 @@ export default function App() {
                   >
                     <RoomSelectScreen
                       onSelect={handleRoomSelect}
-                      canClaimFreeFuse={canClaimFreeFuse()}
-                      onClaimFreeFuse={() => { claimFreeFuse(); yoink(); }}
+                      // Layer 1
+                      isFirstTimePlayer={canClaimFirstShot()}
+                      onClaimFirstShot={handleClaimFirstShot}
+                      // Layer 2
+                      canClaimDailyPitPass={canClaimDailyPitPass()}
+                      onClaimDailyPitPass={handleClaimDailyPitPass}
+                      // Layer 3
+                      freeRound={freeRound}
+                      onEnterFreeRound={handleEnterFreeRound}
+                      // Daily voucher
                       canClaimLoginVoucher={canClaimLoginVoucher()}
                       onClaimLoginVoucher={claimLoginVoucher}
                     />
