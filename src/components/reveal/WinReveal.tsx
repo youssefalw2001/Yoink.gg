@@ -35,6 +35,7 @@ import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { AnimatedWinArt, AnimatedWinCrown } from "@/components/ui/AnimatedWinArt";
 import { WinShareBanner } from "@/components/ui/Banners";
 import { formatSol, truncateAddress } from "@/lib/utils";
+import { verifyCommit } from "@/lib/vrf";
 import type { King, JackpotResult } from "@/lib/types";
 import { type PayoutEntry, tierLabel, playerPayout } from "@/lib/payouts";
 
@@ -54,6 +55,8 @@ interface WinRevealProps {
   fuseSeconds?: number;
   /** VRF commitment hash — revealed post-round to prove fairness */
   fuseCommitHash?: string;
+  /** Revealed commit preimage — lets the player verify the commitment */
+  fusePreimage?: string;
   /** Full payout split for the round (King + runner-up + podium + held pool) */
   payouts?: PayoutEntry[];
   /** Jackpot drop result, if the progressive jackpot popped this round */
@@ -221,6 +224,7 @@ interface SurvivorBoardProps {
   fuseSeconds: number;
   yoinkCount: number;
   fuseCommitHash?: string;
+  fusePreimage?: string;
 }
 
 function SurvivorBoard({
@@ -231,8 +235,21 @@ function SurvivorBoard({
   fuseSeconds,
   yoinkCount,
   fuseCommitHash,
+  fusePreimage,
 }: SurvivorBoardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [verified, setVerified] = useState<boolean | null>(null);
+
+  // Recompute the commitment from the revealed preimage — true verification.
+  useEffect(() => {
+    let active = true;
+    if (fuseCommitHash && fusePreimage) {
+      verifyCommit(fusePreimage, fuseCommitHash).then((ok) => { if (active) setVerified(ok); });
+    } else {
+      setVerified(null);
+    }
+    return () => { active = false; };
+  }, [fuseCommitHash, fusePreimage]);
 
   // Build sorted survivor list
   // Winner is always #1, then fallen kings sorted by holdFor desc
@@ -276,23 +293,37 @@ function SurvivorBoard({
         </span>
       </div>
 
-      {/* VRF reveal — proves the fuse was pre-committed */}
+      {/* Commit–reveal verification — recomputes the hash from the revealed preimage */}
       {fuseCommitHash && fuseCommitHash !== "pending…" && fuseCommitHash !== "generating…" && (
         <div
           className="flex flex-col gap-1.5 rounded-xl px-3 py-2.5"
-          style={{ background: "rgba(0,230,118,0.05)", border: "1px solid rgba(0,230,118,0.15)" }}
+          style={{
+            background: verified ? "rgba(0,230,118,0.05)" : "rgba(136,146,164,0.05)",
+            border: `1px solid ${verified ? "rgba(0,230,118,0.15)" : "rgba(136,146,164,0.15)"}`,
+          }}
         >
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] text-emerald">Fuse Commitment Revealed</span>
-            <span className="rounded-full border border-emerald/25 bg-emerald/10 px-2 py-0.5 font-mono text-[9px] font-bold text-emerald">
-              VRF ✓
+            <span className="font-mono text-[10px] text-slate">Fuse commitment · Devnet</span>
+            <span
+              className="rounded-full px-2 py-0.5 font-mono text-[9px] font-bold"
+              style={{
+                border: `1px solid ${verified ? "rgba(0,230,118,0.25)" : "rgba(136,146,164,0.25)"}`,
+                background: verified ? "rgba(0,230,118,0.1)" : "rgba(136,146,164,0.1)",
+                color: verified ? "#00E676" : "#8892a4",
+              }}
+            >
+              {verified === null ? "checking…" : verified ? "Verified ✓" : "mismatch"}
             </span>
           </div>
           <p className="font-mono text-[10px] text-slate">
-            This hash was committed before the round started. The fuse ({fuseSeconds}s) was decided before any yoinks happened.
+            Commit–reveal: recompute SHA-256 of the revealed preimage to confirm the {fuseSeconds}s fuse
+            wasn't altered. Trustless VRF (Switchboard) arrives with the on-chain program.
           </p>
           <div className="overflow-hidden rounded-lg bg-black/30 px-2 py-1.5">
-            <p className="truncate font-mono text-[10px] text-emerald">{fuseCommitHash}</p>
+            <p className="truncate font-mono text-[10px] text-slate">commit {fuseCommitHash}</p>
+            {fusePreimage && (
+              <p className="mt-1 truncate font-mono text-[10px] text-dim">reveal {fusePreimage}</p>
+            )}
           </div>
         </div>
       )}
@@ -515,6 +546,7 @@ export function WinReveal({
   fallenKings = [],
   fuseSeconds = 30,
   fuseCommitHash,
+  fusePreimage,
   payouts = [],
   jackpot = null,
   onPlayAgain,
@@ -741,6 +773,7 @@ export function WinReveal({
                       fuseSeconds={fuseSeconds}
                       yoinkCount={fallenKings.length + 1}
                       fuseCommitHash={fuseCommitHash}
+                      fusePreimage={fusePreimage}
                     />
                   </motion.div>
                 )}

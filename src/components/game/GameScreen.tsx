@@ -354,12 +354,12 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-dim">Fuse Commitment</span>
                 <span className="rounded-full border border-slate/20 bg-slate/10 px-2 py-0.5 font-mono text-[9px] font-bold text-slate">
-                  SIM
+                  COMMIT
                 </span>
               </div>
               <p className="font-mono text-[10px] leading-relaxed text-dim">
-                Simulation preview — this hash is generated client-side. On-chain
-                VRF (Switchboard) replaces it on devnet before any real SOL is at stake.
+                Commit–reveal (devnet): this hash is published before the fuse and verified at
+                round end. Trustless Switchboard VRF lands with the on-chain program.
               </p>
               <div
                 className="overflow-hidden rounded-lg px-2 py-1.5"

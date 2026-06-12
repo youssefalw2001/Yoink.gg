@@ -428,6 +428,7 @@ export default function App() {
               fallenKings={state.roundKings}
               fuseSeconds={state.fuseSeconds}
               fuseCommitHash={state.fuseCommitHash}
+              fusePreimage={state.fusePreimage}
               payouts={state.payouts}
               jackpot={state.jackpotResult}
               onPlayAgain={playAgain}

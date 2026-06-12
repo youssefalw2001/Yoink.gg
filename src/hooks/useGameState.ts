@@ -5,7 +5,6 @@ import {
   bagAddFor,
   drainFor,
   drawFuseSeconds,
-  drawFuseSecondsWithHash,
   computeYoinkCost,
   type GameState,
   type King,
@@ -14,6 +13,7 @@ import {
 } from "@/lib/types";
 import { ROOMS, type RoomId } from "@/lib/rooms";
 import { randomPoolWallet } from "@/lib/wallets";
+import { commitFuse } from "@/lib/vrf";
 import { computePayouts } from "@/lib/payouts";
 import {
   loadJackpot,
@@ -71,6 +71,7 @@ function makeInitial(roomId: RoomId): GameState {
     fuseSeconds,
     fuseBurnerActive:    false,
     fuseCommitHash:      "pending…",
+    fusePreimage:        "",
     biggestBag:          128.4,
     totalDistributed:    9421.62,
     playerCount:         0,
@@ -169,6 +170,7 @@ export function useGameState(roomId: RoomId = "arena") {
           roundFeeMultiplier:  nextFeeMult,
           fuseSeconds:         newFuse,
           fuseCommitHash:      "generating…",
+          fusePreimage:        "",
           jackpotAmount:       +(prev.jackpotAmount + jackpotAdd).toFixed(6),
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),
@@ -392,24 +394,22 @@ export function useGameState(roomId: RoomId = "arena") {
     });
   }, []);
 
-  // ── Fuse commitment hash: generate asynchronously after each fuse draw ───
-  // SIMULATION ONLY — this hash is computed client-side and is NOT a guarantee
-  // of fairness. On devnet/mainnet it is replaced by a Switchboard VRF on-chain
-  // commitment, which is what actually makes the draw verifiable.
+  // ── Fuse commitment (commit–reveal) ──────────────────────────────────────
+  // Publish a SHA-256 commitment of the ACTUAL current fuse whenever it is
+  // (re)drawn — round start and every yoink. The preimage is revealed at round
+  // end so the commit can be verified (see lib/vrf.ts). This is an honest
+  // commit–reveal, NOT trustless VRF — that requires the on-chain program.
   useEffect(() => {
     let cancelled = false;
-    drawFuseSecondsWithHash(room.roundSeconds, state.roundNumber)
-      .then(({ commitHash }) => {
+    commitFuse(stateRef.current.roundNumber, state.fuseSeconds)
+      .then(({ commitHash, preimage }) => {
         if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            fuseCommitHash: commitHash,
-          }));
+          setState((prev) => ({ ...prev, fuseCommitHash: commitHash, fusePreimage: preimage }));
         }
       })
-      .catch(() => {/* non-critical — hash stays as "generating…" */});
+      .catch(() => {/* non-critical */});
     return () => { cancelled = true; };
-  }, [state.roundNumber, room.roundSeconds]);
+  }, [state.fuseSeconds, state.roundNumber]);
 
   return { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner };
 }
