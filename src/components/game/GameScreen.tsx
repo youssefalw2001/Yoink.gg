@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Flame, DollarSign } from "lucide-react";
+import { Flame, DollarSign, Sparkles } from "lucide-react";
 import type { GameState } from "@/lib/types";
 import { FUSE_CONFIG } from "@/lib/types";
 import { type RoomId } from "@/lib/rooms";
@@ -196,6 +196,36 @@ const FuseBurnerControl = memo(function FuseBurnerControl({
   );
 });
 
+// ── Live progressive jackpot ticker — its own memo so the 150ms tick that
+//    bumps the number only re-renders this tiny pill, not the whole sidebar ────
+const JackpotTicker = memo(function JackpotTicker({ amount }: { amount: number }) {
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-[20px] px-4 py-3"
+      style={{
+        background: "linear-gradient(90deg, rgba(112,0,255,0.12), rgba(255,215,0,0.10))",
+        border:     "1px solid rgba(112,0,255,0.28)",
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <motion.span
+          animate={{ rotate: [0, -10, 10, 0] }}
+          transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 2 }}
+          style={{ willChange: "transform" }}
+        >
+          <Sparkles className="h-4 w-4 text-phantom" aria-hidden />
+        </motion.span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate">
+          Progressive Jackpot
+        </span>
+      </div>
+      <span className="font-mono text-base font-black tabular-nums gold-text-gradient">
+        {formatSol(amount, 2)}
+      </span>
+    </div>
+  );
+});
+
 // ── Fee breakdown label ────────────────────────────────────────────────────────
 function FeeBreakdown() {
   return (
@@ -304,6 +334,7 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
 
           {/* ── sidebar ── */}
           <div className="flex flex-col gap-4">
+            <JackpotTicker amount={state.jackpotAmount} />
             <StatsSidebar
               roundNumber={state.roundNumber}
               biggestBag={state.biggestBag}

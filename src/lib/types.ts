@@ -19,6 +19,8 @@
  *     always set to 1 and not used by any logic
  */
 
+import type { PayoutEntry } from "@/lib/payouts";
+
 export interface King {
   wallet: string;
   heldFor: number;
@@ -43,6 +45,13 @@ export interface LeaderboardEntry {
   dateWon: string;
   round: number;
   isYou: boolean;
+}
+
+/** Result of a jackpot drop at round end (null when it didn't drop). */
+export interface JackpotResult {
+  amount: number;
+  winner: string;
+  winnerIsYou: boolean;
 }
 
 export interface GameState {
@@ -98,6 +107,14 @@ export interface GameState {
   isWaiting: boolean;
   totalDrained: number;
   roundDrained: number;
+  /** Kings who held + lost THIS round (most-recent first). Resets each round. */
+  roundKings: King[];
+  /** Live progressive jackpot pool (shared, persisted). */
+  jackpotAmount: number;
+  /** Set at round end if the jackpot dropped this round. */
+  jackpotResult: JackpotResult | null;
+  /** Full payout split for the finished round (King + podium + held pool). */
+  payouts: PayoutEntry[];
 }
 
 export const GAME_CONFIG = {

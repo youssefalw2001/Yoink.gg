@@ -18,6 +18,7 @@ import { useRoomInstances } from "@/hooks/useRoomInstances";
 import { useFreeRound } from "@/hooks/useFreeRound";
 import { useWallet } from "@/lib/wallet";
 import { ROOMS, type RoomId } from "@/lib/rooms";
+import { playerPayout } from "@/lib/payouts";
 import type { ShopItem } from "@/lib/shopItems";
 import {
   playYoink,
@@ -155,11 +156,16 @@ export default function App() {
   useEffect(() => {
     if (state.isRoundOver && !wasRoundOver.current) {
       wasRoundOver.current = true;
-      if (state.winnerIsYou) { playWin(); xpOnWin(state.bagAmount); }
+      const kingCut    = state.payouts[0]?.amount ?? state.bagAmount;
+      const myTake     = playerPayout(state.payouts);
+      const wonJackpot = state.jackpotResult?.winnerIsYou ?? false;
+      // Celebrate if the player took home anything: King, podium, held pool, or jackpot
+      if (state.winnerIsYou || myTake > 0 || wonJackpot) playWin();
+      if (state.winnerIsYou) xpOnWin(kingCut);
       onRoundEnd();
     }
     if (!state.isRoundOver) wasRoundOver.current = false;
-  }, [state.isRoundOver, state.winnerIsYou, state.bagAmount, xpOnWin, onRoundEnd]);
+  }, [state.isRoundOver, state.winnerIsYou, state.bagAmount, state.payouts, state.jackpotResult, xpOnWin, onRoundEnd]);
 
   // ── XP: award on each YOINK ───────────────────────────────────────────────
   const prevYoinkCount = useRef(state.yoinkCount);
@@ -416,12 +422,14 @@ export default function App() {
               open={state.isRoundOver}
               winner={state.winner}
               isYou={state.winnerIsYou}
-              amount={state.bagAmount}
+              amount={state.payouts[0]?.amount ?? state.bagAmount}
               round={state.roundNumber}
               winnerHeldFor={state.kingHeldFor}
-              fallenKings={state.recentKings}
+              fallenKings={state.roundKings}
               fuseSeconds={state.fuseSeconds}
               fuseCommitHash={state.fuseCommitHash}
+              payouts={state.payouts}
+              jackpot={state.jackpotResult}
               onPlayAgain={playAgain}
             />
 

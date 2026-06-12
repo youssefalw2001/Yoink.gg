@@ -14,6 +14,15 @@ import {
 } from "@/lib/types";
 import { ROOMS, type RoomId } from "@/lib/rooms";
 import { randomPoolWallet } from "@/lib/wallets";
+import { computePayouts } from "@/lib/payouts";
+import {
+  loadJackpot,
+  saveJackpot,
+  rollJackpotDrop,
+  reseedJackpot,
+  pickJackpotWinner,
+  type JackpotParticipant,
+} from "@/lib/jackpot";
 
 let kingCounter = 0;
 const nextId = () => `king-${Date.now()}-${kingCounter++}`;
@@ -69,6 +78,10 @@ function makeInitial(roomId: RoomId): GameState {
     isWaiting:           true,
     totalDrained:        0,
     roundDrained:        0,
+    roundKings:          [],
+    jackpotAmount:       loadJackpot(),
+    jackpotResult:       null,
+    payouts:             [],
   };
 }
 
@@ -137,6 +150,10 @@ export function useGameState(roomId: RoomId = "arena") {
           ts:          now,
         };
 
+        // 5% of every yoink feeds the shared progressive jackpot (the same
+        // JACKPOT_BPS reserve that was always carved off — now it's a live prize)
+        const jackpotAdd = +(cost * (GAME_CONFIG.JACKPOT_BPS / 10_000)).toFixed(6);
+
         return {
           ...prev,
           bagAmount:           netBag,
@@ -145,12 +162,14 @@ export function useGameState(roomId: RoomId = "arena") {
           kingIsYou:           byPlayer,
           kingHeldFor:         0,
           recentKings:         [fallen, ...prev.recentKings].slice(0, 10),
+          roundKings:          [fallen, ...prev.roundKings].slice(0, 40),
           yoinkHistory:        [event, ...prev.yoinkHistory].slice(0, 50),
           yoinkCount:          nextCount,
           currentCost:         nextCost,
           roundFeeMultiplier:  nextFeeMult,
           fuseSeconds:         newFuse,
           fuseCommitHash:      "generating…",
+          jackpotAmount:       +(prev.jackpotAmount + jackpotAdd).toFixed(6),
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),
           playerCooldownUntil: byPlayer
@@ -209,10 +228,46 @@ export function useGameState(roomId: RoomId = "arena") {
 
         if (nextCountdown <= 0) {
           const won = +prev.bagAmount.toFixed(3);
+          const winnerWallet = prev.kingIsYou ? "You" : prev.currentKing;
+
+          // ── Payout split — King + runner-up + podium + held-time pool ──────
+          const payouts = computePayouts(
+            won,
+            { wallet: winnerWallet, isYou: prev.kingIsYou, heldFor: prev.kingHeldFor },
+            prev.roundKings,
+            roomId,
+          );
+          const kingCut = payouts[0]?.amount ?? won;
+
+          // ── Progressive jackpot — roll for a drop, weighted by activity ────
+          const counts = new Map<string, { isYou: boolean; weight: number }>();
+          prev.yoinkHistory.forEach((e) => {
+            const c = counts.get(e.wallet) ?? { isYou: e.isYou, weight: 0 };
+            c.weight += 1;
+            counts.set(e.wallet, c);
+          });
+          const participants: JackpotParticipant[] = Array.from(counts.entries())
+            .map(([wallet, v]) => ({ wallet, isYou: v.isYou, weight: v.weight }));
+
+          let jackpotResult = null as GameState["jackpotResult"];
+          let nextJackpot = prev.jackpotAmount;
+          if (rollJackpotDrop(prev.jackpotAmount)) {
+            const jpWinner = pickJackpotWinner(participants);
+            if (jpWinner) {
+              jackpotResult = {
+                amount:      +prev.jackpotAmount.toFixed(3),
+                winner:      jpWinner.wallet,
+                winnerIsYou: jpWinner.isYou,
+              };
+              nextJackpot = reseedJackpot();
+            }
+          }
+          saveJackpot(nextJackpot);
+
           const entry: LeaderboardEntry = {
             rank:    0,
-            wallet:  prev.kingIsYou ? "You" : prev.currentKing,
-            solWon:  won,
+            wallet:  winnerWallet,
+            solWon:  kingCut,
             dateWon: new Date().toISOString(),
             round:   prev.roundNumber,
             isYou:   prev.kingIsYou,
@@ -225,10 +280,13 @@ export function useGameState(roomId: RoomId = "arena") {
             ...prev,
             countdown:        0,
             isRoundOver:      true,
-            winner:           prev.kingIsYou ? "You" : prev.currentKing,
+            winner:           winnerWallet,
             winnerIsYou:      prev.kingIsYou,
             biggestBag:       Math.max(prev.biggestBag, won),
             totalDistributed: +(prev.totalDistributed + won).toFixed(2),
+            payouts,
+            jackpotResult,
+            jackpotAmount:    +nextJackpot.toFixed(6),
           };
         }
 
@@ -243,7 +301,17 @@ export function useGameState(roomId: RoomId = "arena") {
         if (drift > 0.94) players = Math.min(players + 1, room.maxPlayers);
         else if (drift < 0.04 && players > GAME_CONFIG.MIN_PLAYERS + 2) players -= 1;
 
-        return { ...prev, countdown: nextCountdown, kingHeldFor: heldFor, playerCount: players };
+        // Passive jackpot drift — simulates global yoink activity across all
+        // rooms so the headline number is always climbing (the dopamine hook).
+        const jackpotDrift = +(Math.random() * 0.025).toFixed(4);
+
+        return {
+          ...prev,
+          countdown:     nextCountdown,
+          kingHeldFor:   heldFor,
+          playerCount:   players,
+          jackpotAmount: +(prev.jackpotAmount + jackpotDrift).toFixed(4),
+        };
       });
 
       // ── Bot logic ──────────────────────────────────────────────────────────
@@ -305,6 +373,16 @@ export function useGameState(roomId: RoomId = "arena") {
       setCooldownLeft(Math.max(0, stateRef.current.playerCooldownUntil - Date.now()));
     }, 250);
     return () => clearInterval(id);
+  }, []);
+
+  // ── Persist the progressive jackpot periodically + on unmount, so the
+  //    pool survives room switches and reloads (the always-climbing number).
+  useEffect(() => {
+    const id = setInterval(() => saveJackpot(stateRef.current.jackpotAmount), 4_000);
+    return () => {
+      clearInterval(id);
+      saveJackpot(stateRef.current.jackpotAmount);
+    };
   }, []);
 
   const activateFuseBurner = useCallback(() => {

@@ -29,13 +29,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import gsap from "gsap";
 import {
   Twitter, RotateCcw, X, Crown, Clock,
-  Trophy, ChevronUp, Swords,
+  Trophy, ChevronUp, Swords, Coins, Sparkles,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { AnimatedWinArt, AnimatedWinCrown } from "@/components/ui/AnimatedWinArt";
 import { WinShareBanner } from "@/components/ui/Banners";
 import { formatSol, truncateAddress } from "@/lib/utils";
-import type { King } from "@/lib/types";
+import type { King, JackpotResult } from "@/lib/types";
+import { type PayoutEntry, tierLabel, playerPayout } from "@/lib/payouts";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ interface WinRevealProps {
   fuseSeconds?: number;
   /** VRF commitment hash — revealed post-round to prove fairness */
   fuseCommitHash?: string;
+  /** Full payout split for the round (King + runner-up + podium + held pool) */
+  payouts?: PayoutEntry[];
+  /** Jackpot drop result, if the progressive jackpot popped this round */
+  jackpot?: JackpotResult | null;
   onPlayAgain: () => void;
 }
 
@@ -357,6 +362,147 @@ function SurvivorBoard({
   );
 }
 
+// ─── Payout Split panel ───────────────────────────────────────────────────────
+
+const TIER_COLOR: Record<PayoutEntry["tier"], string> = {
+  king:     "#FFD700",
+  runnerup: "#C0C8D4",
+  podium:   "#FF9900",
+  held:     "#8892A4",
+};
+
+function PayoutSplit({ payouts }: { payouts: PayoutEntry[] }) {
+  if (payouts.length === 0) return null;
+
+  const yourCut   = playerPayout(payouts);
+  const winnerCount = payouts.length;
+  // Show King + up to 5 more, collapse the long held-pool tail into a summary
+  const named     = payouts.slice(0, 6);
+  const restCount = payouts.length - named.length;
+  const restTotal = payouts.slice(6).reduce((s, e) => s + e.amount, 0);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Coins className="h-3.5 w-3.5 text-gold" aria-hidden />
+          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">
+            Payout split · {winnerCount} winner{winnerCount > 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* YOUR CUT — only when the local player earned something */}
+      {yourCut > 0 && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="flex items-center justify-between rounded-xl px-3 py-2.5"
+          style={{ background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.22)" }}
+        >
+          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.15em] text-emerald">
+            Your cut
+          </span>
+          <span className="font-mono text-sm font-black tabular-nums text-emerald">
+            +{formatSol(yourCut, 3)} SOL
+          </span>
+        </motion.div>
+      )}
+
+      <div className="flex flex-col divide-y divide-white/[0.04]">
+        {named.map((e, i) => {
+          const color = TIER_COLOR[e.tier];
+          return (
+            <motion.div
+              key={`${e.wallet}-${e.place}-${i}`}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.28, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+              className="flex items-center justify-between gap-2 py-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                {e.tier === "king" ? (
+                  <Crown className="h-3.5 w-3.5 shrink-0" style={{ color }} aria-hidden />
+                ) : (
+                  <span
+                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[9px] font-bold"
+                    style={{ background: `${color}22`, color }}
+                  >
+                    {e.place}
+                  </span>
+                )}
+                <span
+                  className="truncate font-mono text-xs font-bold"
+                  style={{ color: e.isYou ? "#00E676" : "#eef1f6" }}
+                >
+                  {e.isYou ? "You" : truncateAddress(e.wallet, 4, 4)}
+                </span>
+                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-dim">
+                  {tierLabel(e)}
+                </span>
+              </div>
+              <span className="shrink-0 font-mono text-xs font-bold tabular-nums" style={{ color }}>
+                {formatSol(e.amount, 3)}
+              </span>
+            </motion.div>
+          );
+        })}
+
+        {restCount > 0 && (
+          <div className="flex items-center justify-between gap-2 py-2">
+            <span className="font-mono text-[11px] text-slate">
+              + {restCount} more from the held-time pool
+            </span>
+            <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-slate">
+              {formatSol(restTotal, 3)}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Jackpot Drop banner ──────────────────────────────────────────────────────
+
+function JackpotDropBanner({ jackpot }: { jackpot: JackpotResult }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 320, damping: 22 }}
+      className="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3"
+      style={{
+        background: "linear-gradient(90deg, rgba(112,0,255,0.14), rgba(255,215,0,0.12))",
+        border:     "1px solid rgba(112,0,255,0.35)",
+        willChange: "transform",
+      }}
+    >
+      <div className="flex items-center gap-2.5">
+        <motion.span
+          animate={{ rotate: [0, -12, 12, 0] }}
+          transition={{ duration: 0.7, repeat: Infinity, repeatDelay: 1.2 }}
+          style={{ willChange: "transform" }}
+        >
+          <Sparkles className="h-5 w-5 text-phantom" aria-hidden />
+        </motion.span>
+        <div className="flex flex-col">
+          <span className="font-display text-xs font-black uppercase tracking-[0.15em] text-phantom">
+            Jackpot dropped
+          </span>
+          <span className="font-mono text-[10px] text-slate">
+            {jackpot.winnerIsYou ? "You hit the progressive jackpot!" : `${truncateAddress(jackpot.winner, 4, 4)} hit it`}
+          </span>
+        </div>
+      </div>
+      <span className="shrink-0 font-mono text-lg font-black tabular-nums gold-text-gradient">
+        +{formatSol(jackpot.amount, 2)}
+      </span>
+    </motion.div>
+  );
+}
+
 // ─── Main WinReveal ───────────────────────────────────────────────────────────
 
 export function WinReveal({
@@ -369,6 +515,8 @@ export function WinReveal({
   fallenKings = [],
   fuseSeconds = 30,
   fuseCommitHash,
+  payouts = [],
+  jackpot = null,
   onPlayAgain,
 }: WinRevealProps) {
   const coinLayer   = useRef<HTMLDivElement>(null);
@@ -550,6 +698,11 @@ export function WinReveal({
                 <span className="font-display text-xl font-bold text-gold/70">SOL</span>
               </div>
 
+              {/* Jackpot drop — shown immediately, it's the headline moment */}
+              {jackpot && (
+                <JackpotDropBanner jackpot={jackpot} />
+              )}
+
               {/* ── Survivor Board — slides in after 2.4s ── */}
               <AnimatePresence>
                 {showBoard && (
@@ -561,6 +714,13 @@ export function WinReveal({
                     transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                     className="w-full"
                   >
+                    {/* Payout split — real SOL to many winners */}
+                    {payouts.length > 0 && (
+                      <div className="mb-4">
+                        <PayoutSplit payouts={payouts} />
+                      </div>
+                    )}
+
                     {/* Divider with label */}
                     <div className="mb-3 flex items-center gap-3">
                       <div className="h-px flex-1 bg-white/[0.06]" />
