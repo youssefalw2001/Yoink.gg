@@ -7,7 +7,10 @@ import path from "path";
 // GitHub Pages serves the site at https://<user>.github.io/<repo>/
 // The base must match the repo name exactly.
 export default defineConfig({
-  base: "/Yoink.gg/",
+  // Relative base so the build loads from ANY host/path — GitHub Pages
+  // sub-path, Cloudflare Pages root, custom domains, and the Phantom in-app
+  // browser alike. Absolute "/Yoink.gg/" 404'd assets off GitHub Pages → blank.
+  base: "./",
   plugins: [
     react(),
     tailwindcss(),

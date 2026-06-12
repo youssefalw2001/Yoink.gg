@@ -30,8 +30,11 @@ import { randomPoolWallet } from "@/lib/wallets";
 
 export const WAR_CONFIG = {
   HOUSE_RAKE: 0.15,
-  SEIZE_PCT: 0.25,
-  DEF_FACTOR: 0.5,
+  // Tuned so raiding is near break-even (mild house edge) instead of always
+  // −EV. With these numbers net-seize ≈ 0.30 vs defence 0.35, so attacking is
+  // close to fair + satisfying, and turtling no longer strictly dominates.
+  SEIZE_PCT: 0.35,
+  DEF_FACTOR: 0.35,
   /** Bids can never push win odds past this — the anti-whale ceiling. */
   MAX_WIN_CHANCE: 0.8,
   RAID_COOLDOWN_MS: 3_000,
