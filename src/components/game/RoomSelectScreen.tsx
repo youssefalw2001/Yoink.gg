@@ -33,6 +33,10 @@ import { cn } from "@/lib/utils";
 
 interface RoomSelectScreenProps {
   onSelect: (roomId: RoomId, instanceKey: string) => void;
+  canClaimFreeFuse?: boolean;
+  onClaimFreeFuse?: () => void;
+  canClaimLoginVoucher?: boolean;
+  onClaimLoginVoucher?: () => void;
 }
 
 // ── Instance status chip ───────────────────────────────────────────────────────
@@ -456,7 +460,13 @@ function RoomCard({
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
-export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
+export function RoomSelectScreen({
+  onSelect,
+  canClaimFreeFuse = false,
+  onClaimFreeFuse,
+  canClaimLoginVoucher = false,
+  onClaimLoginVoucher,
+}: RoomSelectScreenProps) {
   const { getInstancesForRoom, totalPlayers } = useRoomInstances();
   const { walletBalance } = useWallet();
 
@@ -503,6 +513,60 @@ export function RoomSelectScreen({ onSelect }: RoomSelectScreenProps) {
         className="h-px w-full max-w-md origin-center"
         style={{ background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.3), rgba(112,0,255,0.3), transparent)" }}
       />
+
+      {/* Daily Free Fuse + Login Voucher banners */}
+      {(canClaimFreeFuse || canClaimLoginVoucher) && (
+        <div className="flex w-full flex-col gap-3 sm:flex-row">
+          {canClaimFreeFuse && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-1 items-center justify-between gap-4 rounded-2xl px-5 py-4"
+              style={{ background: "rgba(0,230,118,0.07)", border: "1px solid rgba(0,230,118,0.22)" }}
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="font-display text-sm font-black text-white">Daily Free Fuse</span>
+                <span className="font-mono text-[11px] text-slate">One free YOINK in The Pit. Resets daily.</span>
+              </div>
+              <motion.button
+                type="button"
+                onClick={onClaimFreeFuse}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.12 }}
+                className="shrink-0 rounded-xl border border-emerald/30 bg-emerald/15 px-4 py-2.5 font-display text-xs font-black uppercase tracking-[0.12em] text-emerald transition-colors hover:bg-emerald/20"
+                style={{ willChange: "transform" }}
+              >
+                Claim Free Yoink
+              </motion.button>
+            </motion.div>
+          )}
+          {canClaimLoginVoucher && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-1 items-center justify-between gap-4 rounded-2xl px-5 py-4"
+              style={{ background: "rgba(255,215,0,0.06)", border: "1px solid rgba(255,215,0,0.2)" }}
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="font-display text-sm font-black text-white">Daily Voucher</span>
+                <span className="font-mono text-[11px] text-slate">+50 XP · discounted Fuse Burner (0.01 SOL)</span>
+              </div>
+              <motion.button
+                type="button"
+                onClick={onClaimLoginVoucher}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.12 }}
+                className="shrink-0 rounded-xl border border-gold/30 bg-gold/10 px-4 py-2.5 font-display text-xs font-black uppercase tracking-[0.12em] text-gold transition-colors hover:bg-gold/15"
+                style={{ willChange: "transform" }}
+              >
+                Claim Voucher
+              </motion.button>
+            </motion.div>
+          )}
+        </div>
+      )}
 
       {/* Room cards */}
       <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-3">

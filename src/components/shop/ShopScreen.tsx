@@ -22,6 +22,7 @@ import {
   ShoppingBag, Check, Lock,
   Pencil, Droplets, Ghost, Crown, Wallet, Shuffle, Zap,
   Package, Sparkles, ChevronDown, ChevronUp, Star,
+  Copy, Link, Users, Gift,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { RankBadge } from "@/components/ui/RankBadge";
@@ -512,14 +513,26 @@ function CategoryTab({
 // ─── Main ShopScreen ──────────────────────────────────────────────────────────
 
 interface ShopScreenProps {
-  progress:   PlayerProgress;
-  ownedItems: string[];
-  onBuy:      (item: ShopItem) => void;
+  progress:        PlayerProgress;
+  ownedItems:      string[];
+  onBuy:           (item: ShopItem) => void;
+  referralCode?:   string | null;
+  onGenerateCode?: () => string;
+  canClaimVoucher?: boolean;
+  onClaimVoucher?: () => void;
 }
 
 const CATEGORIES: ShopCategory[] = ["cosmetics", "intel"];
 
-export function ShopScreen({ progress, ownedItems, onBuy }: ShopScreenProps) {
+export function ShopScreen({
+  progress,
+  ownedItems,
+  onBuy,
+  referralCode = null,
+  onGenerateCode,
+  canClaimVoucher = false,
+  onClaimVoucher,
+}: ShopScreenProps) {
   const [activeTab, setActiveTab] = useState<ShopCategory>("cosmetics");
 
   const items = SHOP_ITEMS.filter((i) => i.category === activeTab);
@@ -673,6 +686,111 @@ export function ShopScreen({ progress, ownedItems, onBuy }: ShopScreenProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Daily Login Voucher ──────────────────────────────────────────── */}
+      {canClaimVoucher && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          <SpotlightCard spotlightColor="rgba(255,215,0,0.10)" radius={260} className="premium-card rounded-[20px]">
+            <div className="flex items-center justify-between gap-4 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/25 bg-gold/10">
+                  <Gift className="h-5 w-5 text-gold" aria-hidden />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-display text-sm font-black text-white">Daily Login Voucher</span>
+                  <span className="font-mono text-[11px] text-slate">+50 XP · Fuse Burner discounted to 0.01 SOL today</span>
+                </div>
+              </div>
+              <motion.button
+                type="button"
+                onClick={onClaimVoucher}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.12 }}
+                className="shrink-0 rounded-xl border border-gold/30 bg-gold/10 px-4 py-2.5 font-display text-xs font-black uppercase tracking-[0.12em] text-gold transition-colors hover:bg-gold/15"
+                style={{ willChange: "transform" }}
+              >
+                Claim
+              </motion.button>
+            </div>
+          </SpotlightCard>
+        </motion.div>
+      )}
+
+      {/* ── Affiliate / Creator Program ─────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+      >
+        <SpotlightCard spotlightColor="rgba(112,0,255,0.10)" radius={260} className="premium-card rounded-[20px]">
+          <div className="flex flex-col gap-4 px-5 py-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-phantom/25 bg-phantom/10">
+                <Users className="h-5 w-5 text-phantom" aria-hidden />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-black text-white">Creator Affiliate Program</h3>
+                <p className="font-mono text-[11px] text-slate">Earn 25% of rake from every wallet you refer. For creators only.</p>
+              </div>
+            </div>
+
+            {referralCode ? (
+              <>
+                <div
+                  className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+                  style={{ background: "rgba(112,0,255,0.08)", border: "1px solid rgba(112,0,255,0.2)" }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Link className="h-3.5 w-3.5 text-phantom" aria-hidden />
+                    <span className="font-mono text-sm font-bold text-white">{referralCode}</span>
+                  </div>
+                  <motion.button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(`yoink.gg?ref=${referralCode}`).catch(() => {})}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.1 }}
+                    className="flex items-center gap-1.5 rounded-lg border border-phantom/25 bg-phantom/10 px-3 py-1.5 font-mono text-[10px] text-phantom transition-colors hover:bg-phantom/15"
+                    style={{ willChange: "transform" }}
+                  >
+                    <Copy className="h-3 w-3" aria-hidden />
+                    Copy Link
+                  </motion.button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-0.5 rounded-xl px-3 py-2" style={{ background: "rgba(112,0,255,0.05)", border: "1px solid rgba(112,0,255,0.1)" }}>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Referred</span>
+                    <span className="font-mono text-sm font-bold text-phantom">0 wallets</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5 rounded-xl px-3 py-2" style={{ background: "rgba(112,0,255,0.05)", border: "1px solid rgba(112,0,255,0.1)" }}>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Earned</span>
+                    <span className="font-mono text-sm font-bold text-phantom">0 SOL</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <motion.button
+                type="button"
+                onClick={() => onGenerateCode?.()}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.12 }}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-phantom/30 bg-phantom/10 py-3 font-display text-xs font-black uppercase tracking-[0.15em] text-phantom transition-colors hover:bg-phantom/15"
+                style={{ willChange: "transform" }}
+              >
+                <Link className="h-3.5 w-3.5" aria-hidden />
+                Generate My Referral Code
+              </motion.button>
+            )}
+
+            <p className="font-mono text-[10px] text-dim">
+              Restricted to content creators. 25% of rake from referred players paid weekly on mainnet.
+            </p>
+          </div>
+        </SpotlightCard>
+      </motion.div>
 
     </div>
   );
