@@ -34,27 +34,24 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 const VALUE_PROPS = [
   {
-    icon:  <Timer className="h-4 w-4 text-blood" aria-hidden />,
+    icon:  <Timer className="h-5 w-5 text-blood" aria-hidden />,
     title: "Hidden Fuse",
-    desc:  "Nobody knows when the round ends. Every second counts.",
-    accent: "rgba(255,34,0,0.07)",
-    border: "rgba(255,34,0,0.16)",
+    desc:  "Nobody knows when it blows",
+    border: "rgba(255,34,0,0.18)",
     color:  "#FF2200",
   },
   {
-    icon:  <TrendingUp className="h-4 w-4 text-gold" aria-hidden />,
+    icon:  <TrendingUp className="h-5 w-5 text-gold" aria-hidden />,
     title: "Real SOL",
-    desc:  "Sub-second Solana finality. Self-custody always.",
-    accent: "rgba(255,215,0,0.07)",
-    border: "rgba(255,215,0,0.16)",
+    desc:  "Sub-second finality",
+    border: "rgba(255,215,0,0.18)",
     color:  "#FFD700",
   },
   {
-    icon:  <Lock className="h-4 w-4 text-phantom" aria-hidden />,
+    icon:  <Lock className="h-5 w-5 text-phantom" aria-hidden />,
     title: "4 Arenas",
-    desc:  "The Pit to King's Court. Pick your weight class.",
-    accent: "rgba(112,0,255,0.07)",
-    border: "rgba(112,0,255,0.16)",
+    desc:  "Pit to King's Court",
+    border: "rgba(112,0,255,0.18)",
     color:  "#7000FF",
   },
 ] as const;
@@ -128,27 +125,45 @@ export function ConnectScreen() {
           aria-hidden
         />
 
-        {/* Honest value props — no fake stats */}
+        {/* Honest value props — 3-up icon grid (no fake stats) */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: D.props, ease: EASE }}
-          className="flex w-full flex-col gap-2.5"
+          className="grid w-full grid-cols-3 gap-2.5"
         >
-          {VALUE_PROPS.map((p) => (
-            <div
+          {VALUE_PROPS.map((p, i) => (
+            <motion.div
               key={p.title}
-              className="flex items-start gap-3 rounded-2xl px-4 py-3"
-              style={{ background: p.accent, border: `1px solid ${p.border}` }}
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.42, delay: D.props + i * 0.09, ease: EASE }}
+              whileHover={{ y: -4 }}
+              className="group flex flex-col items-center gap-2.5 rounded-2xl px-2 py-4 text-center"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                border: `1px solid ${p.border}`,
+                willChange: "transform",
+              }}
             >
-              <div className="mt-0.5 shrink-0">{p.icon}</div>
-              <div className="flex flex-col gap-0.5">
-                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.15em]" style={{ color: p.color }}>
-                  {p.title}
-                </span>
-                <span className="font-mono text-[11px] text-slate">{p.desc}</span>
-              </div>
-            </div>
+              <span
+                className="flex h-11 w-11 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110"
+                style={{
+                  background: `${p.color}14`,
+                  border: `1px solid ${p.color}33`,
+                  willChange: "transform",
+                }}
+              >
+                {p.icon}
+              </span>
+              <span
+                className="font-mono text-[10px] font-bold uppercase leading-none tracking-[0.1em]"
+                style={{ color: p.color }}
+              >
+                {p.title}
+              </span>
+              <span className="font-mono text-[10px] leading-snug text-slate">{p.desc}</span>
+            </motion.div>
           ))}
         </motion.div>
 

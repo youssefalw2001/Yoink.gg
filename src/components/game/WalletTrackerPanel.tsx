@@ -14,7 +14,7 @@
  * GPU rules: transform + opacity only, will-change on perpetual anims.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, TrendingUp, TrendingDown, Minus, EyeOff, Eye } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
@@ -48,7 +48,7 @@ function seedBalance(wallet: string): number {
   return +(20 + ((r - 0.9) / 0.1) * 60).toFixed(3);
 }
 
-export function WalletTrackerPanel({
+export const WalletTrackerPanel = memo(function WalletTrackerPanel({
   wallets,
   currentKing,
   pumpFakeBalance,
@@ -226,4 +226,4 @@ export function WalletTrackerPanel({
       </div>
     </SpotlightCard>
   );
-}
+});

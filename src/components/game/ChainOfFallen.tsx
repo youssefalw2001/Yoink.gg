@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Flame } from "lucide-react";
 import type { King } from "@/lib/types";
@@ -7,7 +8,7 @@ interface ChainOfFallenProps {
   kings: King[];
 }
 
-export function ChainOfFallen({ kings }: ChainOfFallenProps) {
+export const ChainOfFallen = memo(function ChainOfFallen({ kings }: ChainOfFallenProps) {
   return (
     <div className="w-full">
       <div className="mb-3 flex items-center gap-2 px-1">
@@ -47,4 +48,4 @@ export function ChainOfFallen({ kings }: ChainOfFallenProps) {
       </div>
     </div>
   );
-}
+});

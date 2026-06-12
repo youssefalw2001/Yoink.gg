@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Swords, TrendingUp } from "lucide-react";
 import type { YoinkEvent } from "@/lib/types";
@@ -19,7 +20,7 @@ function timeAgo(ts: number): string {
  * New entries slide in from the top with spring physics.
  * Shows wallet, cost paid, bag size after, and a relative timestamp.
  */
-export function ActivityFeed({ events }: ActivityFeedProps) {
+export const ActivityFeed = memo(function ActivityFeed({ events }: ActivityFeedProps) {
   if (events.length === 0) {
     return (
       <div className="w-full">
@@ -98,7 +99,7 @@ export function ActivityFeed({ events }: ActivityFeedProps) {
       </div>
     </div>
   );
-}
+});
 
 function FeedHeader({ count }: { count?: number }) {
   return (

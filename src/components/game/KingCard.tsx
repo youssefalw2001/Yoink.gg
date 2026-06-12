@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
@@ -42,7 +43,7 @@ const FLAMES = [
   { left: "86%", delay: "0.35s", dur: "2.8s" },
 ];
 
-export function KingCard({ king, isYou, heldFor, critical, theme }: KingCardProps) {
+export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical, theme }: KingCardProps) {
   const key = `${king}-${isYou}`;
 
   // Theme colours — critical (blood) always overrides any cosmetic theme
@@ -176,4 +177,4 @@ export function KingCard({ king, isYou, heldFor, critical, theme }: KingCardProp
       </AnimatePresence>
     </div>
   );
-}
+});

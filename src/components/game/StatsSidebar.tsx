@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { motion } from "framer-motion";
 import { Hash, Crown, Coins, Users } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
@@ -42,7 +43,7 @@ function StatRow({
   );
 }
 
-export function StatsSidebar({
+export const StatsSidebar = memo(function StatsSidebar({
   roundNumber,
   biggestBag,
   totalDistributed,
@@ -93,4 +94,4 @@ export function StatsSidebar({
       </SpotlightCard>
     </motion.div>
   );
-}
+});

@@ -159,6 +159,7 @@ export function KingCardShader({ isYou, critical, kingKey, theme, className }: K
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     let iSmooth = 0, cSmooth = 0, bSmooth = 0;
+    let lastW = 0, lastH = 0;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const tick = (t: number) => {
@@ -169,9 +170,18 @@ export function KingCardShader({ isYou, critical, kingKey, theme, className }: K
       bSmooth += (burstRef.current - bSmooth) * 0.12;
       burstRef.current *= 0.92; // decay burst
 
-      canvas.width  = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      // Only resize/reallocate the drawing buffer when the element actually
+      // changed size. Doing this every frame forced a layout reflow + GPU
+      // buffer realloc 60×/sec — the main source of Arena jank.
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+      if (w !== lastW || h !== lastH) {
+        lastW = w;
+        lastH = h;
+        canvas.width  = w;
+        canvas.height = h;
+        gl.viewport(0, 0, w, h);
+      }
 
       gl.uniform1f(uTime,     t * 0.001);
       gl.uniform1f(uIsYou,    iSmooth);
