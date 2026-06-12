@@ -144,6 +144,32 @@ const INITIAL: WarState = {
   raidCooldownUntil: 0,
 };
 
+// ── Persistence — your stash + stats survive navigation/reload ────────────────
+const STORAGE_KEY = "yoink_walletwars_v1";
+
+interface PersistedWar {
+  you: Stash | null;
+  totalBanked: number;
+  biggestHeist: number;
+}
+
+function loadPersisted(): PersistedWar | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as PersistedWar;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function savePersisted(s: WarState): void {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ you: s.you, totalBanked: s.totalBanked, biggestHeist: s.biggestHeist }),
+    );
+  } catch { /* ignore */ }
+}
+
 // ── Pure helpers (also used by the UI) ────────────────────────────────────────
 
 /** Defence value of a stash. */
@@ -172,9 +198,19 @@ export function stashStrengthPct(stashAmount: number): number {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useWalletWars() {
-  const [state, setState] = useState<WarState>(INITIAL);
+  const [state, setState] = useState<WarState>(() => {
+    const p = loadPersisted();
+    return p
+      ? { ...INITIAL, you: p.you ?? null, totalBanked: p.totalBanked ?? INITIAL.totalBanked, biggestHeist: p.biggestHeist ?? INITIAL.biggestHeist }
+      : INITIAL;
+  });
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Persist your stash + stats whenever they change.
+  useEffect(() => {
+    savePersisted(state);
+  }, [state.you, state.totalBanked, state.biggestHeist]);
 
   // ── Open a stash ─────────────────────────────────────────────────────────
   const openStash = useCallback((amount: number) => {

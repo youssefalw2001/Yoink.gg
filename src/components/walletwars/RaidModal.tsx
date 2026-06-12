@@ -14,6 +14,7 @@ import {
 } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { playYoink, playWin, playCooldownBlock } from "@/lib/sounds";
+import { PurgeAvatar } from "./PurgeAvatar";
 
 interface RaidModalProps {
   target: Stash;
@@ -85,7 +86,10 @@ export function RaidModal({ target, yourStash, onCommit, onClose }: RaidModalPro
                 <span className="flex items-center gap-2 rounded-full border border-blood/30 bg-blood/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-blood">
                   <Crosshair className="h-3 w-3" aria-hidden /> Raiding
                 </span>
-                <span className="mt-1 font-mono text-sm font-bold text-white">{truncateAddress(target.wallet, 4, 4)}</span>
+                <div className="my-1">
+                  <PurgeAvatar seed={target.wallet} size={64} pulse />
+                </div>
+                <span className="font-mono text-sm font-bold text-white">{truncateAddress(target.wallet, 4, 4)}</span>
                 <span className="font-display text-3xl font-black tabular-nums gold-text-gradient">
                   {formatSol(target.amount, 2)} <span className="text-base text-slate">SOL</span>
                 </span>

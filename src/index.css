@@ -567,3 +567,10 @@ select {
     animation: none !important;
   }
 }
+
+
+/* Wallet Wars — Purge mask avatar breathing glow */
+@keyframes purge-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}

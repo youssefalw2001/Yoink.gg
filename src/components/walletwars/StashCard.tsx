@@ -7,28 +7,13 @@ import { memo, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Crosshair, ShieldHalf, Coins, Lock } from "lucide-react";
 import { type Stash, stashStrengthPct } from "@/lib/walletWarsState";
-import { formatSol, truncateAddress, hueFromString } from "@/lib/utils";
+import { formatSol, truncateAddress } from "@/lib/utils";
+import { PurgeAvatar } from "./PurgeAvatar";
 
 interface StashCardProps {
   stash: Stash;
   canRaid: boolean;
   onRaid: (id: string) => void;
-}
-
-function StashAvatar({ wallet }: { wallet: string }) {
-  const hue = hueFromString(wallet);
-  return (
-    <span
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-mono text-[11px] font-black text-white"
-      style={{
-        background: `linear-gradient(135deg, hsl(${hue},70%,45%), hsl(${(hue + 50) % 360},70%,35%))`,
-        border: "1px solid rgba(255,255,255,0.12)",
-      }}
-      aria-hidden
-    >
-      {wallet.slice(0, 2).toUpperCase()}
-    </span>
-  );
 }
 
 export const StashCard = memo(function StashCard({ stash, canRaid, onRaid }: StashCardProps) {
@@ -54,11 +39,14 @@ export const StashCard = memo(function StashCard({ stash, canRaid, onRaid }: Sta
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className="premium-card flex flex-col gap-3 rounded-[20px] px-4 py-3.5"
-      style={{ border: `1px solid ${isWhale ? "rgba(255,215,0,0.22)" : "rgba(255,255,255,0.06)"}` }}
+      style={{
+        border: `1px solid ${isWhale ? "rgba(255,215,0,0.28)" : "rgba(255,255,255,0.06)"}`,
+        boxShadow: isWhale ? "0 0 24px rgba(255,215,0,0.12), inset 0 0 20px rgba(255,215,0,0.04)" : undefined,
+      }}
     >
       {/* header: avatar + wallet + whale tag */}
       <div className="flex items-center gap-2.5">
-        <StashAvatar wallet={stash.wallet} />
+        <PurgeAvatar seed={stash.wallet} size={40} />
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-mono text-xs font-bold text-white">
             {truncateAddress(stash.wallet, 4, 4)}

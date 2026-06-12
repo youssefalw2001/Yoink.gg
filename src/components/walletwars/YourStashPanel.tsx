@@ -9,6 +9,7 @@ import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { WAR_CONFIG, type Stash, stashStrengthPct } from "@/lib/walletWarsState";
 import { formatSol } from "@/lib/utils";
 import { playPurchase } from "@/lib/sounds";
+import { PurgeAvatar } from "./PurgeAvatar";
 
 interface YourStashPanelProps {
   you: Stash | null;
@@ -73,9 +74,7 @@ export function YourStashPanel({ you, walletBalance, onOpen, onClose }: YourStas
       <div className="flex flex-col gap-4 px-5 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/30 bg-gold/10">
-              <Vault className="h-5 w-5 text-gold" aria-hidden />
-            </div>
+            <PurgeAvatar seed={you.wallet} size={40} pulse />
             <div>
               <h3 className="font-display text-sm font-black text-white">Your stash</h3>
               <p className="font-mono text-[10px] text-dim">Live · on the board</p>

@@ -30,7 +30,7 @@ import {
 
 export default function App() {
   const { connected, publicKey }      = useWallet();
-  const [page, setPage]               = useState<Page>("game");
+  const [page, setPage]               = useState<Page>("walletwars");
   const [roomId, setRoomId]           = useState<RoomId | null>(null);
   const [instanceKey, setInstanceKey] = useState<string | null>(null);
 

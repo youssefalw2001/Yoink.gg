@@ -5,9 +5,10 @@
 
 import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crosshair, ShieldCheck, Radio } from "lucide-react";
+import { Radio } from "lucide-react";
 import type { RaidEvent } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
+import { PurgeAvatar } from "./PurgeAvatar";
 
 function name(wallet: string, isYou: boolean) {
   return isYou ? "You" : truncateAddress(wallet, 4, 4);
@@ -47,16 +48,13 @@ export const WarFeed = memo(function WarFeed({ events }: { events: RaidEvent[] }
                   border: `1px solid ${involvesYou ? "rgba(255,215,0,0.16)" : "rgba(255,255,255,0.04)"}`,
                 }}
               >
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                  style={{
-                    background: win ? "rgba(255,153,0,0.14)" : "rgba(136,146,164,0.12)",
-                    border: `1px solid ${win ? "rgba(255,153,0,0.3)" : "rgba(136,146,164,0.2)"}`,
-                  }}
-                >
-                  {win
-                    ? <Crosshair className="h-3.5 w-3.5 text-[#FF9900]" aria-hidden />
-                    : <ShieldCheck className="h-3.5 w-3.5 text-slate" aria-hidden />}
+                <span className="relative shrink-0">
+                  <PurgeAvatar seed={e.raider} size={30} />
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0c0a14]"
+                    style={{ background: win ? "#FF9900" : "#00E676" }}
+                    aria-hidden
+                  />
                 </span>
 
                 <div className="flex min-w-0 flex-1 flex-col">
