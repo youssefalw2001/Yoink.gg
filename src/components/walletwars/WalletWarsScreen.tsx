@@ -5,12 +5,12 @@
  * Replaces Bid Wars. Treated as a primary, hero-grade mode.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crosshair, Vault, Flame, Coins, Trophy } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
-import { useWalletWars } from "@/lib/walletWarsState";
+import { useWalletWars, TIERS, tierIndexForAmount } from "@/lib/walletWarsState";
 import { useWallet } from "@/lib/wallet";
 import { formatSol } from "@/lib/utils";
 import { StashCard } from "./StashCard";
@@ -33,19 +33,33 @@ function HeroStat({ icon, label, value, color, accent, border }: {
 }
 
 export function WalletWarsScreen() {
-  const { state, openStash, closeStash, raid } = useWalletWars();
+  const { state, openStash, closeStash, raid, placeBounty, repeatTaxMult } = useWalletWars();
   const { walletBalance } = useWallet();
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
+
+  const playerTier = state.you ? tierIndexForAmount(state.you.amount) : null;
+  const [selectedTier, setSelectedTier] = useState(0);
+
+  // Follow the player into their weight class when they stake / move tiers.
+  useEffect(() => {
+    if (playerTier !== null) setSelectedTier(playerTier);
+  }, [playerTier]);
+
+  const boardForTier = useMemo(
+    () => state.stashes.filter((s) => tierIndexForAmount(s.amount) === selectedTier),
+    [state.stashes, selectedTier],
+  );
 
   const target = useMemo(
     () => state.stashes.find((s) => s.id === raidTargetId) ?? null,
     [state.stashes, raidTargetId],
   );
 
-  const canRaid = !!state.you;
+  // You can only raid inside your own weight class.
+  const canRaidTier = !!state.you && playerTier === selectedTier;
 
   function handleRaidClick(id: string) {
-    if (!state.you) return;
+    if (!canRaidTier) return;
     setRaidTargetId(id);
   }
 
@@ -113,23 +127,54 @@ export function WalletWarsScreen() {
             <div className="flex items-center gap-2 rounded-xl border border-phantom/15 bg-phantom/[0.06] px-4 py-3">
               <Flame className="h-4 w-4 shrink-0 text-phantom" aria-hidden />
               <p className="font-mono text-[11px] text-slate">
-                Open a stash above to start raiding — you must be in the game to hunt.
+                Open a stash above to start raiding — you can only hunt inside your own weight class.
               </p>
             </div>
           )}
 
+          {/* tier bar — weight classes */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {TIERS.map((t, i) => {
+              const isYours = playerTier === i;
+              const active  = selectedTier === i;
+              const count   = state.stashes.filter((s) => tierIndexForAmount(s.amount) === i).length;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedTier(i)}
+                  className="flex flex-col gap-0.5 rounded-2xl border px-3 py-2.5 text-left transition-colors"
+                  style={{
+                    background: active ? `${t.accent}14` : "rgba(255,255,255,0.02)",
+                    borderColor: active ? `${t.accent}55` : "rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="font-display text-xs font-black" style={{ color: active ? t.accent : "#eef1f6" }}>{t.label}</span>
+                    {isYours && <span className="rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.1em]" style={{ background: `${t.accent}22`, color: t.accent }}>You</span>}
+                  </span>
+                  <span className="font-mono text-[9px] text-dim">
+                    {t.max === Infinity ? `${t.min}+ SOL` : `${t.min}–${t.max} SOL`} · {count} live
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <Crosshair className="h-4 w-4 text-blood" aria-hidden />
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-slate">The board · pick a target</h2>
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-slate">
+                {TIERS[selectedTier].label} · {canRaidTier ? "pick a target" : state.you ? "spectating (not your class)" : "preview"}
+              </h2>
             </div>
-            <span className="font-mono text-[10px] text-dim">{state.stashes.length} stashes</span>
+            <span className="font-mono text-[10px] text-dim">{boardForTier.length} stashes</span>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <AnimatePresence mode="popLayout">
-              {state.stashes.map((s) => (
-                <StashCard key={s.id} stash={s} canRaid={canRaid} onRaid={handleRaidClick} />
+              {boardForTier.map((s) => (
+                <StashCard key={s.id} stash={s} canRaid={canRaidTier} onRaid={handleRaidClick} />
               ))}
             </AnimatePresence>
           </div>
@@ -161,11 +206,13 @@ export function WalletWarsScreen() {
 
       {/* ── RAID MODAL ── */}
       <AnimatePresence>
-        {target && state.you && (
+        {target && state.you && canRaidTier && (
           <RaidModal
             target={target}
             yourStash={state.you.amount}
+            taxMult={repeatTaxMult(target.id)}
             onCommit={(bid) => raid(target.id, bid)}
+            onPlaceBounty={(amt) => placeBounty(target.id, amt)}
             onClose={() => setRaidTargetId(null)}
           />
         )}

@@ -6,7 +6,7 @@
 import { motion } from "framer-motion";
 import { Vault, Coins, ShieldCheck, Swords, LogOut, Plus } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { WAR_CONFIG, type Stash, stashStrengthPct } from "@/lib/walletWarsState";
+import { OPEN_STAKES, type Stash, stashStrengthPct, tierForAmount } from "@/lib/walletWarsState";
 import { formatSol } from "@/lib/utils";
 import { playPurchase } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
@@ -21,7 +21,6 @@ interface YourStashPanelProps {
 export function YourStashPanel({ you, walletBalance, onOpen, onClose }: YourStashPanelProps) {
   // ── Not staked yet → open-a-stash CTA ─────────────────────────────────────
   if (!you) {
-    const tiers = WAR_CONFIG.STASH_TIERS;
     return (
       <SpotlightCard spotlightColor="rgba(112,0,255,0.16)" radius={280} className="premium-card rounded-[24px]">
         <div className="flex flex-col gap-4 px-5 py-5">
@@ -37,29 +36,29 @@ export function YourStashPanel({ you, walletBalance, onOpen, onClose }: YourStas
 
           <p className="font-mono text-[11px] leading-relaxed text-slate">
             Lock SOL to become a target. Every failed raid on you banks fees — even if
-            someone eventually cracks it, you can out-earn the risk. You must hold a stash to raid.
+            someone eventually cracks it, you can out-earn the risk. Your stake sets your
+            weight class; you can only raid stashes in the same tier.
           </p>
 
           <div className="grid grid-cols-4 gap-2">
-            {tiers.map((t) => {
-              const afford = t <= walletBalance + 1e-9;
+            {OPEN_STAKES.map((amt) => {
+              const tier = tierForAmount(amt);
               return (
                 <button
-                  key={t}
+                  key={amt}
                   type="button"
-                  disabled={!afford}
-                  onClick={() => { playPurchase(); onOpen(t); }}
-                  className="flex flex-col items-center gap-0.5 rounded-xl border py-2.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-30"
-                  style={{ background: "rgba(112,0,255,0.07)", borderColor: "rgba(112,0,255,0.25)" }}
+                  onClick={() => { playPurchase(); onOpen(amt); }}
+                  className="flex flex-col items-center gap-0.5 rounded-xl border py-2.5 font-mono transition-colors hover:bg-white/[0.04]"
+                  style={{ background: `${tier.accent}0d`, borderColor: `${tier.accent}40` }}
                 >
-                  <span className="text-sm font-black tabular-nums text-white">{t}</span>
-                  <span className="text-[8px] uppercase tracking-[0.1em] text-phantom">SOL</span>
+                  <span className="text-sm font-black tabular-nums text-white">{amt}</span>
+                  <span className="text-[8px] uppercase tracking-[0.08em]" style={{ color: tier.accent }}>{tier.label.replace("The ", "")}</span>
                 </button>
               );
             })}
           </div>
           <p className="text-center font-mono text-[10px] text-dim">
-            Wallet balance: {formatSol(walletBalance, 2)} SOL
+            Real balance: {formatSol(walletBalance, 2)} SOL · stakes are simulated (devnet)
           </p>
         </div>
       </SpotlightCard>
