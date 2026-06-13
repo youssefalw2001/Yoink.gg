@@ -58,6 +58,13 @@ export default defineConfig({
     },
   },
 
+  // keepNames preserves function/component names through minification so
+  // error stacks + React component stacks are readable in production
+  // (instead of cryptic single-letter names like "c.slice").
+  esbuild: {
+    keepNames: true,
+  },
+
   build: {
     chunkSizeWarningLimit: 900,
     rollupOptions: {
