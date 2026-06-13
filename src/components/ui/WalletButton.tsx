@@ -15,7 +15,7 @@ import { truncateAddress } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 
 export function WalletButton() {
-  const { connected, publicKey, connecting, connect, disconnect, previewMode } = useWallet();
+  const { connected, publicKey, connecting, connect, disconnect } = useWallet();
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [copied,    setCopied]    = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,25 +53,6 @@ export function WalletButton() {
       >
         <Wallet className="h-3.5 w-3.5" aria-hidden />
         <span className="hidden sm:inline">Connect Wallet</span>
-        <span className="sm:hidden">Connect</span>
-      </motion.button>
-    );
-  }
-
-  // ── Preview mode (no wallet connected — show connect prompt) ───────────────
-  if (previewMode && !publicKey) {
-    return (
-      <motion.button
-        type="button"
-        onClick={connect}
-        whileTap={{ scale: 0.96 }}
-        transition={{ duration: 0.14 }}
-        className="flex items-center gap-2 rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2 font-mono text-[13px] font-bold text-gold transition-colors duration-150 hover:bg-gold/15"
-        style={{ willChange: "transform" }}
-        aria-label="Connect wallet"
-      >
-        <Wallet className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Connect</span>
         <span className="sm:hidden">Connect</span>
       </motion.button>
     );

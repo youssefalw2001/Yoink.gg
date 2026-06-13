@@ -122,9 +122,9 @@ function WalletBridge({ children }: { children: ReactNode }) {
 
   const value: WalletState = {
     connected: connected || previewMode,
-    publicKey: pkStr,
+    publicKey: pkStr ?? (previewMode ? "PREViEW00000000000000000000000000000000000" : null),
     connecting,
-    walletBalance,
+    walletBalance: previewMode && !pkStr ? 0 : walletBalance,
     previewMode,
     connect,
     disconnect,
