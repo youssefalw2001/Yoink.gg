@@ -246,9 +246,9 @@ export function WinShareBanner({
   isYou = false,
   className,
 }: WinShareBannerProps) {
-  const display = wallet.length > 8
+  const display = wallet && wallet.length > 8
     ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
-    : wallet;
+    : (wallet || "Anon");
 
   return (
     <svg
@@ -423,9 +423,9 @@ export function RankShareBanner({
   className,
 }: RankShareBannerProps) {
   const rank    = RANKS[Math.min(level - 1, RANKS.length - 1)];
-  const display = wallet.length > 8
+  const display = wallet && wallet.length > 8
     ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
-    : wallet;
+    : (wallet || "Anon");
 
   return (
     <svg

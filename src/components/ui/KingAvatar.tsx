@@ -76,7 +76,7 @@ export function KingAvatar({
       height={size}
       fill="none"
       className={className}
-      aria-label={`King avatar for ${wallet.slice(0,8)}`}
+      aria-label={`King avatar for ${w.slice(0,8)}`}
     >
       <defs>
         <radialGradient id={`ag_${w.slice(0,4)}`} cx="40%" cy="35%" r="65%">
