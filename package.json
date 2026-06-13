@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "npm run build && wrangler dev",
+    "preview": "npm run build && vite preview",
     "lint": "tsc --noEmit",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy:cf": "tsc -b && vite build && wrangler deploy"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",

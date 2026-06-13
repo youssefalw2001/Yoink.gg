@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/yoink.svg" />
+    <link rel="icon" type="image/svg+xml" href="./yoink.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#08080f" />
     <meta
@@ -10,15 +10,80 @@
       content="YOINK.GG — The King's Bag. Hold the bag, win the bounty. The most dangerous 30 seconds in crypto."
     />
     <title>YOINK.GG · The King's Bag</title>
+
+    <!-- Preload critical font (Orbitron for display headings — first thing users read) -->
+    <link
+      rel="preload"
+      href="https://fonts.gstatic.com/s/orbitron/v31/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1ny_CmeoQ.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@700;900&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Inline critical loading styles — shows skeleton BEFORE any JS executes -->
+    <style>
+      html, body { margin: 0; padding: 0; background: #08080f; }
+      #loading-skeleton {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #08080f;
+        font-family: 'Orbitron', sans-serif;
+        transition: opacity 0.3s ease;
+      }
+      #loading-skeleton.fade-out { opacity: 0; pointer-events: none; }
+      .sk-logo {
+        width: 48px; height: 48px;
+        border: 2px solid rgba(255,215,0,0.3);
+        border-top-color: #ffd700;
+        border-radius: 50%;
+        animation: sk-spin 0.8s linear infinite;
+      }
+      .sk-text {
+        margin-top: 16px;
+        color: rgba(255,215,0,0.7);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+      @keyframes sk-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .sk-logo { animation: none; border-color: #ffd700; }
+      }
+    </style>
   </head>
   <body>
+    <!-- Instant loading skeleton — removed by React after hydration -->
+    <div id="loading-skeleton">
+      <div class="sk-logo"></div>
+      <div class="sk-text">YOINK.GG</div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Remove skeleton once React mounts (failsafe: 8s timeout) -->
+    <script>
+      (function() {
+        var el = document.getElementById('loading-skeleton');
+        if (!el) return;
+        var observer = new MutationObserver(function() {
+          if (document.getElementById('root').children.length > 0) {
+            el.classList.add('fade-out');
+            setTimeout(function() { el.remove(); }, 350);
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.getElementById('root'), { childList: true });
+        // Failsafe: remove after 8s no matter what
+        setTimeout(function() { if (el.parentNode) { el.classList.add('fade-out'); setTimeout(function() { el.remove(); }, 350); } }, 8000);
+      })();
+    </script>
   </body>
 </html>
