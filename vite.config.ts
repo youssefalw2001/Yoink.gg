@@ -4,6 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import path from "path";
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // GitHub Pages serves the site at https://<user>.github.io/<repo>/
 // The base must match the repo name exactly.
 export default defineConfig({
@@ -19,6 +21,7 @@ export default defineConfig({
     nodePolyfills({
       globals: { Buffer: true, global: true, process: true },
     }),
+    cloudflare()
   ],
   resolve: {
     alias: {
