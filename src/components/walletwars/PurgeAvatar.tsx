@@ -103,11 +103,26 @@ function Features({ variant, c }: { variant: number; c: string }) {
 export function PurgeAvatar({ seed, size = 40, className, pulse = false, variant: variantOverride, color: colorOverride }: PurgeAvatarProps) {
   const { variant, color } = useMemo(() => {
     const h = hash(seed || "anon");
+    // Bulletproof color resolution — NEVER allow `color` to be undefined.
+    // (A nullish/empty colorOverride falls back to the palette; the palette
+    // lookup itself is guarded, and there's a final hard-coded fallback.)
+    const palette = Array.isArray(PURGE_COLORS) && PURGE_COLORS.length > 0
+      ? PURGE_COLORS
+      : ["#7000FF"];
+    const fromPalette = palette[(h >>> 8) % palette.length] || "#7000FF";
+    const resolved =
+      typeof colorOverride === "string" && colorOverride.length > 0
+        ? colorOverride
+        : fromPalette;
     return {
       variant: variantOverride != null ? ((variantOverride % 6) + 6) % 6 : h % 6,
-      color: colorOverride ?? PURGE_COLORS[(h >> 8) % PURGE_COLORS.length],
+      color: resolved || "#7000FF",
     };
   }, [seed, variantOverride, colorOverride]);
+
+  // Final guard: a valid hex string with a leading '#' so `.slice(1)` is safe.
+  const safeColor = typeof color === "string" && color.length > 0 ? color : "#7000FF";
+  const colorId = safeColor.replace(/[^a-zA-Z0-9]/g, "");
 
   const reduced =
     typeof window !== "undefined" &&
@@ -125,22 +140,22 @@ export function PurgeAvatar({ seed, size = 40, className, pulse = false, variant
         width={size}
         height={size}
         style={{
-          filter: `drop-shadow(0 0 ${animate ? 7 : 4}px ${color}aa)`,
+          filter: `drop-shadow(0 0 ${animate ? 7 : 4}px ${safeColor}aa)`,
           willChange: animate ? "transform" : undefined,
           ...(animate ? { animation: "purge-pulse 1.6s ease-in-out infinite" } : {}),
         }}
       >
         <defs>
-          <radialGradient id={`pg-${variant}-${color.slice(1)}`} cx="50%" cy="40%" r="65%">
-            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <radialGradient id={`pg-${variant}-${colorId}`} cx="50%" cy="40%" r="65%">
+            <stop offset="0%" stopColor={safeColor} stopOpacity="0.18" />
             <stop offset="60%" stopColor="#0c0a14" stopOpacity="1" />
             <stop offset="100%" stopColor="#08080f" stopOpacity="1" />
           </radialGradient>
         </defs>
         {/* mask base */}
-        <path d={MASK_PATH} fill={`url(#pg-${variant}-${color.slice(1)})`} stroke={color} strokeOpacity="0.35" strokeWidth="1.5" />
+        <path d={MASK_PATH} fill={`url(#pg-${variant}-${colorId})`} stroke={safeColor} strokeOpacity="0.35" strokeWidth="1.5" />
         {/* neon features */}
-        <Features variant={variant} c={color} />
+        <Features variant={variant} c={safeColor} />
       </svg>
     </span>
   );
