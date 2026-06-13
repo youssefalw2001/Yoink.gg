@@ -87,6 +87,12 @@ function WalletBridge({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     if (connected) return;
+    // Mark intent to connect FIRST, so the effect above completes the
+    // connection once a wallet is selected — whether that happens via our
+    // direct pick OR via the user choosing one in the wallet-adapter modal.
+    // (Previously the modal path never set this flag, so picking Phantom in
+    // the modal selected it but never actually connected → stuck on connect.)
+    wantConnect.current = true;
     if (wallet) {
       try { await adapterConnect(); } catch { setVisible(true); }
       return;
@@ -95,7 +101,6 @@ function WalletBridge({ children }: { children: ReactNode }) {
     const anyReady = wallets.find((w) => isReady(w.readyState));
     const pick = phantom ?? anyReady;
     if (pick) {
-      wantConnect.current = true;
       select(pick.adapter.name);
     } else {
       setVisible(true);
