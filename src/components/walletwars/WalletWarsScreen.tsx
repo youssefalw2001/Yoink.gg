@@ -1,22 +1,39 @@
 /**
  * YOINK.GG — Wallet Wars Screen (flagship PvP mode)
  *
- * Open lobby. Stake a stash, hunt other stashes, bank fees off failed raids.
- * Replaces Bid Wars. Treated as a primary, hero-grade mode.
+ * Redesigned layout (top → bottom):
+ *   1. YOUR POSITION   — staked, shield, banked, W/L, open/manage (home base)
+ *   2. STATUS BAR      — your last action, always visible
+ *   3. TIER SELECTOR   — weight classes with live counts + empty states
+ *   4. TARGET CARDS    — scannable raid targets in the selected tier
+ *   5. BOUNTY BOARD    — promoted phantom-accent targeting
+ *   6. WAR FEED        — live raid stream (social proof / FOMO)
+ *
+ * Game logic is UNCHANGED: fixed 50/50 odds, matched stakes, 15% rake, tier
+ * thresholds, and all devnet simulation live in lib/walletWarsState.ts.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crosshair, Vault, Flame, Coins, Trophy } from "lucide-react";
+import { Crosshair, Vault, Coins, Trophy } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
-import { useWalletWars, TIERS, tierIndexForAmount } from "@/lib/walletWarsState";
+import {
+  useWalletWars, TIERS, tierIndexForAmount,
+  type RaidResult, type Stash,
+} from "@/lib/walletWarsState";
 import { useWallet } from "@/lib/wallet";
-import { formatSol } from "@/lib/utils";
+import { formatSol, truncateAddress } from "@/lib/utils";
 import { StashCard } from "./StashCard";
 import { YourStashPanel } from "./YourStashPanel";
 import { RaidModal } from "./RaidModal";
 import { WarFeed } from "./WarFeed";
+import {
+  ProvablyFairBadge, StatusBar, BountyBoard, FeeToast, WarOnboarding,
+  type FeeToastData,
+} from "./WalletWarsExtras";
+
+const ONBOARD_KEY = "yoink_ww_onboarded";
 
 function HeroStat({ icon, label, value, color, accent, border }: {
   icon: React.ReactNode; label: string; value: string; color: string; accent: string; border: string;
@@ -43,16 +60,51 @@ export function WalletWarsScreen({
 }) {
   const { state, openStash, closeStash, raid, placeBounty, repeatTaxMult } = useWalletWars();
   const { walletBalance, publicKey } = useWallet();
+
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
-  const avatarSeed = publicKey ?? displayName ?? "You";
+  const [selectedTier, setSelectedTier] = useState(0);
+  const [raidRecord, setRaidRecord]     = useState({ wins: 0, losses: 0 });
+  const [lastAction, setLastAction]     = useState<string | null>(null);
+  const [feeToast, setFeeToast]         = useState<FeeToastData | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  const avatarSeed = publicKey ?? (displayName || "You");
 
   const playerTier = state.you ? tierIndexForAmount(state.you.amount) : null;
-  const [selectedTier, setSelectedTier] = useState(0);
+
+  // First-run onboarding — show once per browser.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(ONBOARD_KEY) !== "1") setShowOnboarding(true);
+    } catch { /* private mode — skip */ }
+  }, []);
+
+  function dismissOnboarding() {
+    setShowOnboarding(false);
+    try { localStorage.setItem(ONBOARD_KEY, "1"); } catch { /* ignore */ }
+  }
 
   // Follow the player into their weight class when they stake / move tiers.
   useEffect(() => {
     if (playerTier !== null) setSelectedTier(playerTier);
   }, [playerTier]);
+
+  // ── Fee feedback: when YOUR stash survives a raid, bank + toast in real time.
+  // A feed event with targetIsYou + outcome "loss" means a raider hit you and
+  // failed — you just banked their wager.
+  const lastFeeTsRef = useRef<number>(Date.now());
+  useEffect(() => {
+    const banked = state.feed.find(
+      (e) => e.targetIsYou && e.outcome === "loss" && e.ts > lastFeeTsRef.current,
+    );
+    if (banked) {
+      lastFeeTsRef.current = banked.ts;
+      setFeeToast({ id: banked.ts, amount: banked.amount, from: banked.raider });
+      setLastAction(`Stash survived — banked +${formatSol(banked.amount, 3)} SOL from ${truncateAddress(banked.raider, 4, 4)}`);
+      const t = window.setTimeout(() => setFeeToast(null), 3200);
+      return () => clearTimeout(t);
+    }
+  }, [state.feed]);
 
   const boardForTier = useMemo(
     () => state.stashes.filter((s) => tierIndexForAmount(s.amount) === selectedTier),
@@ -64,178 +116,210 @@ export function WalletWarsScreen({
     [state.stashes, raidTargetId],
   );
 
-  // You can only raid inside your own weight class.
+  // You can raid a stash only inside your own weight class, when unshielded.
+  function canRaidStash(s: Stash): boolean {
+    if (!state.you) return false;
+    if (tierIndexForAmount(s.amount) !== tierIndexForAmount(state.you.amount)) return false;
+    return Date.now() >= s.shieldUntil;
+  }
+
   const canRaidTier = !!state.you && playerTier === selectedTier;
+  const targetRaidable = !!target && !!state.you && canRaidStash(target);
 
   function handleRaidClick(id: string) {
-    if (!canRaidTier) return;
+    const s = state.stashes.find((x) => x.id === id);
+    if (!s || !canRaidStash(s)) return;
     setRaidTargetId(id);
   }
 
-  return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+  // Wrap the raid commit so we can update the W/L record + status bar.
+  function handleRaidCommit(bid: number): RaidResult | null {
+    if (!target) return null;
+    const r = raid(target.id, bid);
+    if (r) {
+      setRaidRecord((rec) =>
+        r.outcome === "win"
+          ? { ...rec, wins: rec.wins + 1 }
+          : { ...rec, losses: rec.losses + 1 },
+      );
+      setLastAction(
+        r.outcome === "win"
+          ? `Last raid: Won +${formatSol(r.seized + r.bounty, 3)} SOL against ${truncateAddress(r.targetWallet, 4, 4)}`
+          : `Last raid: Stash hit — lost ${formatSol(r.bid + r.tax, 3)} SOL on ${truncateAddress(r.targetWallet, 4, 4)}`,
+      );
+    }
+    return r;
+  }
 
-      {/* ── HERO ── */}
+  // Default status text when nothing has happened yet.
+  const statusText =
+    lastAction ??
+    (state.you ? "Stash open — pick a target in your tier to raid" : "No raids yet — open a stash to start earning");
+
+  return (
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+
+      {/* First-run tutorial */}
+      <AnimatePresence>
+        {showOnboarding && <WarOnboarding onDone={dismissOnboarding} />}
+      </AnimatePresence>
+
+      {/* ── Compact hero + provably-fair badge ── */}
       <div
-        className="relative mb-6 overflow-hidden rounded-[28px]"
+        className="relative mb-5 overflow-hidden rounded-[24px]"
         style={{ background: "linear-gradient(150deg, #120a1f 0%, #08080f 55%, #1a0810 100%)" }}
       >
-        {/* aurora pools */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute" style={{ top: "-20%", left: "-5%", width: "50%", height: "100%", background: "radial-gradient(ellipse, rgba(112,0,255,0.28), transparent 70%)", willChange: "transform", animation: "aurora-breathe 20s cubic-bezier(0.22,1,0.36,1) infinite" }} />
-          <div className="absolute" style={{ bottom: "-20%", right: "-5%", width: "45%", height: "90%", background: "radial-gradient(ellipse, rgba(255,34,0,0.18), transparent 70%)", willChange: "transform", animation: "aurora-drift 26s ease-in-out infinite" }} />
+          <div className="absolute" style={{ top: "-20%", left: "-5%", width: "50%", height: "100%", background: "radial-gradient(ellipse, rgba(112,0,255,0.22), transparent 70%)", willChange: "transform", animation: "aurora-breathe 20s cubic-bezier(0.22,1,0.36,1) infinite" }} />
+          <div className="absolute" style={{ bottom: "-20%", right: "-5%", width: "45%", height: "90%", background: "radial-gradient(ellipse, rgba(255,34,0,0.16), transparent 70%)", willChange: "transform", animation: "aurora-drift 26s ease-in-out infinite" }} />
         </div>
         <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #7000FF 30%, #FFD700 50%, #FF2200 70%, transparent)" }} />
 
-        <div className="relative z-10 flex flex-col items-center gap-5 px-6 py-9 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-10">
-          <div className="flex items-center gap-4">
+        <div className="relative z-10 flex flex-col items-center gap-4 px-6 py-7">
+          <div className="flex items-center gap-3">
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              style={{ filter: "drop-shadow(0 0 28px rgba(112,0,255,0.35))" }}
+              style={{ filter: "drop-shadow(0 0 24px rgba(112,0,255,0.35))" }}
             >
-              <SnatchIcon size={72} variant="gold" pulse />
+              <SnatchIcon size={52} variant="gold" pulse />
             </motion.div>
-            <div className="flex flex-col gap-1.5">
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-phantom/30 bg-phantom/10 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.25em] text-phantom">
-                <Crosshair className="h-3 w-3" aria-hidden /> PvP · Open Lobby
-              </span>
-              <h1 className="font-display font-black leading-none tracking-tight" style={{ fontSize: "clamp(2.2rem, 6vw, 3.6rem)" }}>
-                <span className="text-white">WALLET </span>
-                <span style={{ color: "#FF2200" }}>WARS</span>
-              </h1>
-              <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate">
-                Stake a stash. Yoink theirs. Bank the fees.
-              </p>
-            </div>
+            <h1 className="font-display font-black leading-none tracking-tight" style={{ fontSize: "clamp(1.9rem, 6vw, 2.8rem)" }}>
+              <span className="text-white">WALLET </span>
+              <span style={{ color: "#FF2200" }}>WARS</span>
+            </h1>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-3 sm:justify-end">
+          <div className="flex flex-wrap justify-center gap-2.5">
             <HeroStat icon={<Trophy className="h-3.5 w-3.5 text-gold" aria-hidden />} label="Biggest Heist" value={`${formatSol(state.biggestHeist, 2)} SOL`} color="#FFD700" accent="rgba(255,215,0,0.1)" border="rgba(255,215,0,0.22)" />
             <HeroStat icon={<Coins className="h-3.5 w-3.5 text-emerald" aria-hidden />} label="Total Banked" value={`${formatSol(state.totalBanked, 0)} SOL`} color="#00E676" accent="rgba(0,230,118,0.08)" border="rgba(0,230,118,0.2)" />
             <HeroStat icon={<Vault className="h-3.5 w-3.5 text-phantom" aria-hidden />} label="Stashes Live" value={`${state.stashes.length}`} color="#7000FF" accent="rgba(112,0,255,0.08)" border="rgba(112,0,255,0.2)" />
           </div>
+
+          <ProvablyFairBadge />
         </div>
       </div>
 
-      {/* ── MAIN GRID ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="flex flex-col gap-5">
 
-        {/* LEFT — your stash + the board */}
-        <div className="flex flex-col gap-5">
-          <YourStashPanel
-            you={state.you}
-            walletBalance={walletBalance}
-            onOpen={openStash}
-            onClose={closeStash}
-            displayName={displayName}
-            avatarSeed={avatarSeed}
-            avatarVariant={avatarVariant}
-            avatarColor={avatarColor}
-          />
+        {/* 1 — YOUR POSITION */}
+        <YourStashPanel
+          you={state.you}
+          walletBalance={walletBalance}
+          onOpen={openStash}
+          onClose={closeStash}
+          displayName={displayName}
+          avatarSeed={avatarSeed}
+          avatarVariant={avatarVariant}
+          avatarColor={avatarColor}
+          raidRecord={raidRecord}
+        />
 
-          {/* prompt to open a stash before raiding */}
-          {!state.you && (
-            <div className="flex items-center gap-2 rounded-xl border border-phantom/15 bg-phantom/[0.06] px-4 py-3">
-              <Flame className="h-4 w-4 shrink-0 text-phantom" aria-hidden />
-              <p className="font-mono text-[11px] text-slate">
-                Open a stash above to start raiding — you can only hunt inside your own weight class.
-              </p>
-            </div>
-          )}
+        {/* 2 — STATUS BAR */}
+        <StatusBar text={statusText} />
 
-          {/* tier bar — weight classes */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {TIERS.map((t, i) => {
-              const isYours = playerTier === i;
-              const active  = selectedTier === i;
-              const count   = state.stashes.filter((s) => tierIndexForAmount(s.amount) === i).length;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setSelectedTier(i)}
-                  className="flex flex-col gap-0.5 rounded-2xl border px-3 py-2.5 text-left transition-colors"
-                  style={{
-                    background: active ? `${t.accent}14` : "rgba(255,255,255,0.02)",
-                    borderColor: active ? `${t.accent}55` : "rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <span className="flex items-center justify-between">
-                    <span className="font-display text-xs font-black" style={{ color: active ? t.accent : "#eef1f6" }}>{t.label}</span>
-                    {isYours && <span className="rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.1em]" style={{ background: `${t.accent}22`, color: t.accent }}>You</span>}
-                  </span>
-                  <span className="font-mono text-[9px] text-dim">
-                    {t.max === Infinity ? `${t.min}+ SOL` : `${t.min}–${t.max} SOL`} · {count} live
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {/* 3 — TIER SELECTOR */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {TIERS.map((t, i) => {
+            const isYours = playerTier === i;
+            const active  = selectedTier === i;
+            const count   = state.stashes.filter((s) => tierIndexForAmount(s.amount) === i).length;
+            const empty   = count === 0;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectedTier(i)}
+                className="flex flex-col gap-0.5 rounded-2xl border px-3 py-2.5 text-left transition-colors"
+                style={{
+                  background: active ? `${t.accent}14` : "rgba(255,255,255,0.02)",
+                  borderColor: active ? `${t.accent}55` : "rgba(255,255,255,0.06)",
+                  opacity: empty && !active ? 0.5 : 1,
+                }}
+              >
+                <span className="flex items-center justify-between">
+                  <span className="font-display text-xs font-black" style={{ color: active ? t.accent : "#eef1f6" }}>{t.label}</span>
+                  {isYours && <span className="rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.1em]" style={{ background: `${t.accent}22`, color: t.accent }}>You</span>}
+                </span>
+                <span className="font-mono text-[9px] text-dim">
+                  {empty
+                    ? "No targets — be first"
+                    : `${t.max === Infinity ? `${t.min}+` : `${t.min}–${t.max}`} SOL · ${count} active`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
+        {/* 4 — TARGET CARDS */}
+        <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <Crosshair className="h-4 w-4 text-blood" aria-hidden />
               <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-slate">
-                {TIERS[selectedTier].label} · {canRaidTier ? "pick a target" : state.you ? "spectating (not your class)" : "preview"}
+                {TIERS[selectedTier]?.label ?? "Targets"} · {canRaidTier ? "pick a target" : state.you ? "spectating (not your class)" : "preview"}
               </h2>
             </div>
             <span className="font-mono text-[10px] text-dim">{boardForTier.length} stashes</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <AnimatePresence mode="popLayout">
-              {boardForTier.map((s) => (
-                <StashCard key={s.id} stash={s} canRaid={canRaidTier} onRaid={handleRaidClick} />
-              ))}
-            </AnimatePresence>
+          {boardForTier.length === 0 ? (
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-6 text-center font-mono text-[11px] text-slate">
+              No active stashes in {TIERS[selectedTier]?.label ?? "this tier"} right now — be the first to open one.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <AnimatePresence mode="popLayout">
+                {boardForTier.map((s) => (
+                  <StashCard key={s.id} stash={s} canRaid={canRaidTier} onRaid={handleRaidClick} />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* 5 — BOUNTY BOARD */}
+        <BountyBoard
+          stashes={state.stashes}
+          canRaid={canRaidStash}
+          onCrack={(id) => {
+            const s = state.stashes.find((x) => x.id === id);
+            if (s) setSelectedTier(tierIndexForAmount(s.amount));
+            handleRaidClick(id);
+          }}
+        />
+
+        {/* 6 — LIVE WAR FEED */}
+        <SpotlightCard spotlightColor="rgba(0,230,118,0.1)" radius={280} className="premium-card rounded-[24px]">
+          <div className="px-5 py-4">
+            <WarFeed
+              events={state.feed}
+              playerName={displayName}
+              playerAvatarSeed={avatarSeed}
+              playerAvatarVariant={avatarVariant}
+              playerAvatarColor={avatarColor}
+            />
           </div>
-        </div>
-
-        {/* RIGHT — live feed */}
-        <div className="flex flex-col gap-5">
-          <SpotlightCard spotlightColor="rgba(0,230,118,0.1)" radius={280} className="premium-card rounded-[24px]">
-            <div className="px-5 py-4">
-              <WarFeed
-                events={state.feed}
-                playerName={displayName}
-                playerAvatarSeed={avatarSeed}
-                playerAvatarVariant={avatarVariant}
-                playerAvatarColor={avatarColor}
-              />
-            </div>
-          </SpotlightCard>
-
-          {/* how it works */}
-          <SpotlightCard spotlightColor="rgba(112,0,255,0.14)" radius={240} className="premium-card hidden rounded-[24px] lg:block">
-            <div className="flex flex-col gap-2 px-5 py-4">
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">How it works</h3>
-              <ol className="flex flex-col gap-2 text-xs text-slate">
-                <li><span className="font-mono text-phantom">01</span> Open a stash — it's your war chest and the prize.</li>
-                <li><span className="font-mono text-phantom">02</span> Raid a target. Bigger bid = better odds.</li>
-                <li><span className="font-mono text-blood">03</span> Win → snatch 25% of their stash (capped).</li>
-                <li><span className="font-mono text-emerald">04</span> Survive a raid → you bank their forfeited bid.</li>
-                <li><span className="font-mono text-gold">05</span> Cash out anytime — stash + banked fees.</li>
-              </ol>
-            </div>
-          </SpotlightCard>
-        </div>
+        </SpotlightCard>
       </div>
 
       {/* ── RAID MODAL ── */}
       <AnimatePresence>
-        {target && state.you && canRaidTier && (
+        {target && state.you && targetRaidable && (
           <RaidModal
             target={target}
             yourStash={state.you.amount}
             taxMult={repeatTaxMult(target.id)}
-            onCommit={(bid) => raid(target.id, bid)}
+            onCommit={handleRaidCommit}
             onPlaceBounty={(amt) => placeBounty(target.id, amt)}
             onClose={() => setRaidTargetId(null)}
           />
         )}
       </AnimatePresence>
+
+      {/* ── FEE-BANKED TOAST ── */}
+      <FeeToast toast={feeToast} />
     </div>
   );
 }

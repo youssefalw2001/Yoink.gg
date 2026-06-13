@@ -3,8 +3,9 @@
  * This is the "be the house" side of Wallet Wars.
  */
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Vault, Coins, ShieldCheck, Swords, LogOut, Plus } from "lucide-react";
+import { Vault, Coins, ShieldCheck, Swords, LogOut, Plus, ShieldOff, Trophy } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { OPEN_STAKES, type Stash, tierForAmount } from "@/lib/walletWarsState";
 import { formatSol } from "@/lib/utils";
@@ -20,12 +21,26 @@ interface YourStashPanelProps {
   avatarSeed?: string;
   avatarVariant?: number | null;
   avatarColor?: string | null;
+  /** The player's raid win/loss record (raids they initiated). */
+  raidRecord?: { wins: number; losses: number };
 }
 
 export function YourStashPanel({
   you, walletBalance, onOpen, onClose,
   displayName = "", avatarSeed = "You", avatarVariant = null, avatarColor = null,
+  raidRecord = { wins: 0, losses: 0 },
 }: YourStashPanelProps) {
+  // Live shield countdown — ticks every 250ms while a shield is active.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+  const shieldLeftMs = you ? Math.max(0, you.shieldUntil - now) : 0;
+  const shielded = shieldLeftMs > 0;
+  const shieldLabel = shielded
+    ? `${Math.floor(shieldLeftMs / 60000)}m ${Math.floor((shieldLeftMs % 60000) / 1000)}s`
+    : null;
   // ── Not staked yet → open-a-stash CTA ─────────────────────────────────────
   if (!you) {
     return (
@@ -130,8 +145,34 @@ export function YourStashPanel({
           </motion.span>
         </div>
 
-        {/* stats row */}
+        {/* shield status */}
+        <div
+          className="flex items-center justify-between rounded-xl px-3 py-2.5"
+          style={{
+            background: shielded ? "rgba(0,230,118,0.06)" : "rgba(136,146,164,0.06)",
+            border: `1px solid ${shielded ? "rgba(0,230,118,0.16)" : "rgba(136,146,164,0.16)"}`,
+          }}
+        >
+          <span className="flex items-center gap-2 font-mono text-[11px] text-slate">
+            {shielded
+              ? <ShieldCheck className="h-3.5 w-3.5 text-emerald" aria-hidden />
+              : <ShieldOff className="h-3.5 w-3.5 text-slate" aria-hidden />}
+            {shielded ? "Shield active" : "No shield — you're raidable"}
+          </span>
+          <span className="font-mono text-sm font-bold tabular-nums" style={{ color: shielded ? "#00E676" : "#8892a4" }}>
+            {shielded ? shieldLabel : "OPEN"}
+          </span>
+        </div>
+
+        {/* stats row — raid W/L + defense + odds */}
         <div className="grid grid-cols-3 gap-2">
+          <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2">
+            <Trophy className="h-3.5 w-3.5 text-gold" aria-hidden />
+            <span className="font-mono text-sm font-bold tabular-nums text-white">
+              {raidRecord.wins}<span className="text-dim">/</span>{raidRecord.losses}
+            </span>
+            <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">raid W/L</span>
+          </div>
           <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald" aria-hidden />
             <span className="font-mono text-sm font-bold tabular-nums text-white">{you.survived}</span>
@@ -141,10 +182,6 @@ export function YourStashPanel({
             <Swords className="h-3.5 w-3.5 text-blood" aria-hidden />
             <span className="font-mono text-sm font-bold tabular-nums text-white">{you.cracked}</span>
             <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">cracked</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2">
-            <span className="font-mono text-sm font-bold tabular-nums text-phantom">50/50</span>
-            <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">raid odds</span>
           </div>
         </div>
 

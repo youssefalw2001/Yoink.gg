@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock, Vault, Zap, ShieldCheck } from "lucide-react";
+import { X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock, Vault, Zap, ShieldCheck, Share2 } from "lucide-react";
 import {
   WAR_CONFIG, maxWagerFor, tierForAmount,
   type Stash, type RaidResult,
@@ -259,6 +259,16 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                     <span className="flex items-center gap-1 font-mono text-[11px] text-gold"><Target className="h-3 w-3" aria-hidden /> incl. {formatSol(result.bounty, 3)} bounty</span>
                   )}
                   <span className="font-mono text-[11px] text-dim">Stash now {formatSol(result.yourStashAfter, 3)} SOL</span>
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                      `I just cracked ${truncateAddress(result.targetWallet, 4, 4)} for ${formatSol(result.seized + result.bounty, 3)} SOL on YOINK.GG Wallet Wars. yoink.gg`,
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gold/30 bg-gold/10 py-2.5 font-display text-xs font-bold uppercase tracking-[0.12em] text-gold transition-colors hover:bg-gold/20"
+                  >
+                    <Share2 className="h-3.5 w-3.5" aria-hidden /> Share this heist
+                  </a>
                 </>
               ) : (
                 <>
