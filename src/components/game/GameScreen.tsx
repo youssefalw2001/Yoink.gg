@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Flame, DollarSign, Sparkles } from "lucide-react";
 import type { GameState } from "@/lib/types";
@@ -6,6 +6,10 @@ import { FUSE_CONFIG } from "@/lib/types";
 import { type RoomId } from "@/lib/rooms";
 import { formatSol } from "@/lib/utils";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { ProvablyFairBadge } from "@/components/walletwars/WalletWarsExtras";
+import {
+  YourPositionPanel, HowPayoutsWorks, BagOnboarding, WarsFunnelNudge,
+} from "./BagExtras";
 import { BagAmount } from "./BagAmount";
 import { CountdownRing } from "./CountdownRing";
 import { KingCard } from "./KingCard";
@@ -27,6 +31,10 @@ interface GameScreenProps {
   onActivateFuseBurner?: () => void;
   cardTheme?: string;
   displayName?: string;
+  /** Navigate to Wallet Wars (post-first-win funnel). */
+  onGoToWalletWars?: () => void;
+  /** Player's lifetime wins — drives the one-time Wallet Wars nudge. */
+  totalWins?: number;
 }
 
 // ── Fuse + Escalating Fee card — replaces CostEscalationCard ──────────────────
@@ -227,17 +235,8 @@ const JackpotTicker = memo(function JackpotTicker({ amount }: { amount: number }
   );
 });
 
-// ── Fee breakdown label ────────────────────────────────────────────────────────
-function FeeBreakdown() {
-  return (
-    <p className="mt-3 text-center font-mono text-[11px] text-dim">
-      83% to bag · 10% rake · 5% jackpot · 1–3% bag drain
-    </p>
-  );
-}
-
 // ── Main GameScreen ────────────────────────────────────────────────────────────
-export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner, cardTheme, displayName }: GameScreenProps) {
+export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner, cardTheme, displayName, onGoToWalletWars, totalWins = 0 }: GameScreenProps) {
   const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
   const walletTrackerActive = ownedItems.includes("wallet_tracker");
   const ownsFuseBurner = ownedItems.includes("fuse_burner");
@@ -248,8 +247,35 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
     [state.recentKings],
   );
 
+  // First-run onboarding — show once per browser.
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("yoink_bag_onboarded") !== "1") setShowOnboarding(true);
+    } catch { /* private mode */ }
+  }, []);
+  function dismissOnboarding() {
+    setShowOnboarding(false);
+    try { localStorage.setItem("yoink_bag_onboarded", "1"); } catch { /* ignore */ }
+  }
+
+  // Post-first-win → Wallet Wars nudge (one-time, dismissible).
+  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
+    try { return localStorage.getItem("yoink_wars_nudge") === "1"; } catch { return false; }
+  });
+  function dismissNudge() {
+    setNudgeDismissed(true);
+    try { localStorage.setItem("yoink_wars_nudge", "1"); } catch { /* ignore */ }
+  }
+  const showNudge = totalWins > 0 && !nudgeDismissed && !!onGoToWalletWars;
+
   return (
-    <AnimatePresence mode="wait">
+    <>
+      <AnimatePresence>
+        {showOnboarding && <BagOnboarding onDone={dismissOnboarding} />}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
       {state.isWaiting ? (
         <motion.div
           key="lobby"
@@ -277,6 +303,17 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
           {/* ── main column ── */}
           <div className="flex flex-col items-center gap-4 sm:gap-6">
 
+            {showNudge && (
+              <div className="w-full max-w-md">
+                <WarsFunnelNudge
+                  onGo={() => { dismissNudge(); onGoToWalletWars?.(); }}
+                  onDismiss={dismissNudge}
+                />
+              </div>
+            )}
+
+            <ProvablyFairBadge />
+
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -302,6 +339,12 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               />
             </div>
 
+            {/* YOUR POSITION — personalized, always visible */}
+            <div className="flex w-full max-w-sm flex-col items-center gap-2">
+              <YourPositionPanel state={state} roomId={roomId} />
+              <HowPayoutsWorks />
+            </div>
+
             <div className="hidden w-full max-w-sm sm:block">
               <div className="flex items-center gap-2.5">
                 <div className="min-w-0 flex-1">
@@ -323,7 +366,6 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
                   onActivate={activateFuseBurner}
                 />
               </div>
-              <FeeBreakdown />
             </div>
 
             <div className="w-full space-y-4 sm:space-y-6">
@@ -434,6 +476,7 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 }

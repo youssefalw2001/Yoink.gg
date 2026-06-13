@@ -372,6 +372,8 @@ export default function App() {
                       onActivateFuseBurner={() => { activateFuseBurner(); purchaseItem("fuse_burner"); }}
                       cardTheme={raw.equippedCardTheme}
                       displayName={raw.displayName}
+                      onGoToWalletWars={() => handleNavigate("walletwars")}
+                      totalWins={progress.totalWins}
                     />
                   </motion.div>
                 )}
