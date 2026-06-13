@@ -1,21 +1,18 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Header, type Page } from "@/components/layout/Header";
 import { LiveTicker } from "@/components/layout/LiveTicker";
 import { Footer } from "@/components/layout/Footer";
 import { SceneBackground } from "@/components/ui/SceneBackground";
 import { ConnectScreen } from "@/components/ui/ConnectScreen";
+import { GameScreen } from "@/components/game/GameScreen";
+import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
+import { Leaderboard } from "@/components/leaderboard/Leaderboard";
+import { ShopScreen } from "@/components/shop/ShopScreen";
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
+import { WinReveal } from "@/components/reveal/WinReveal";
+import { ProfileModal } from "@/components/profile/ProfileModal";
 import { LevelUpToast } from "@/components/ui/XPBar";
-
-// ── Lazy-loaded screens (code-split into separate chunks) ───────────────────
-// These load on-demand when the user navigates, keeping the initial bundle lean.
-const GameScreen = lazy(() => import("@/components/game/GameScreen").then(m => ({ default: m.GameScreen })));
-const RoomSelectScreen = lazy(() => import("@/components/game/RoomSelectScreen").then(m => ({ default: m.RoomSelectScreen })));
-const Leaderboard = lazy(() => import("@/components/leaderboard/Leaderboard").then(m => ({ default: m.Leaderboard })));
-const ShopScreen = lazy(() => import("@/components/shop/ShopScreen").then(m => ({ default: m.ShopScreen })));
-const WinReveal = lazy(() => import("@/components/reveal/WinReveal").then(m => ({ default: m.WinReveal })));
-const ProfileModal = lazy(() => import("@/components/profile/ProfileModal").then(m => ({ default: m.ProfileModal })));
 import { useGameState } from "@/hooks/useGameState";
 import { usePlayerProgress } from "@/hooks/usePlayerProgress";
 import { useRoomInstances } from "@/hooks/useRoomInstances";
@@ -274,13 +271,6 @@ export default function App() {
     handleRoomSelect("pit", pitInstanceKey);
   }
 
-  // ── Lazy-load fallback ────────────────────────────────────────────────────
-  const LazyFallback = (
-    <div className="flex flex-1 items-center justify-center py-20">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold/30 border-t-gold" />
-    </div>
-  );
-
   const showRoomSelect = page === "game" && roomId === null;
   const showGame       = page === "game" && roomId !== null;
   const currentRoom    = roomId ? ROOMS[roomId] : null;
@@ -345,7 +335,6 @@ export default function App() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <Suspense fallback={LazyFallback}>
                     <RoomSelectScreen
                       onSelect={handleRoomSelect}
                       // Layer 1
@@ -361,7 +350,6 @@ export default function App() {
                       canClaimLoginVoucher={canClaimLoginVoucher()}
                       onClaimLoginVoucher={claimLoginVoucher}
                     />
-                    </Suspense>
                   </motion.div>
                 )}
 
@@ -373,7 +361,6 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25 }}
                   >
-                    <Suspense fallback={LazyFallback}>
                     <GameScreen
                       state={state}
                       onYoink={yoink}
@@ -386,7 +373,6 @@ export default function App() {
                       cardTheme={raw.equippedCardTheme}
                       displayName={raw.displayName}
                     />
-                    </Suspense>
                   </motion.div>
                 )}
 
@@ -415,14 +401,12 @@ export default function App() {
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                     className="px-4 py-10 sm:px-6"
                   >
-                    <Suspense fallback={LazyFallback}>
                     <Leaderboard
                       entries={leaderboard}
                       bagAmount={state.bagAmount}
                       playerCount={state.playerCount}
                       roundNumber={state.roundNumber}
                     />
-                    </Suspense>
                   </motion.div>
                 )}
 
@@ -434,7 +418,6 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <Suspense fallback={LazyFallback}>
                     <ShopScreen
                       progress={progress}
                       ownedItems={raw.ownedItems}
@@ -444,7 +427,6 @@ export default function App() {
                       canClaimVoucher={canClaimLoginVoucher()}
                       onClaimVoucher={claimLoginVoucher}
                     />
-                    </Suspense>
                   </motion.div>
                 )}
 
@@ -453,7 +435,6 @@ export default function App() {
 
             <Footer />
 
-            <Suspense fallback={null}>
             <WinReveal
               open={state.isRoundOver}
               winner={state.winner}
@@ -469,11 +450,9 @@ export default function App() {
               jackpot={state.jackpotResult}
               onPlayAgain={playAgain}
             />
-            </Suspense>
 
             <LevelUpToast events={levelUpEvents} />
 
-            <Suspense fallback={null}>
             <ProfileModal
               open={profileOpen}
               onClose={() => setProfileOpen(false)}
@@ -484,7 +463,6 @@ export default function App() {
               onSetAvatar={setAvatar}
               onEquipTheme={setCardTheme}
             />
-            </Suspense>
           </motion.div>
         )}
       </AnimatePresence>
