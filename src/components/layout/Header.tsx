@@ -7,7 +7,6 @@ import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn, truncateAddress } from "@/lib/utils";
 import { NETWORK_LABEL } from "@/lib/solana";
-import { useWallet } from "@/lib/wallet";
 import { PurgeAvatar } from "@/components/walletwars/PurgeAvatar";
 import type { PlayerProgress } from "@/lib/progression";
 import type { Room } from "@/lib/rooms";
@@ -44,7 +43,6 @@ const NAV = [
 // Nav items use brand icons instead of generic lucide icons
 export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, instanceLabel, publicKey, onOpenProfile }: HeaderProps) {
   const [muted, setMuted] = useState(() => getVolume() === 0);
-  const { previewMode } = useWallet();
 
   function toggleMute() {
     if (muted) { setVolume(0.7); setMuted(false); }
@@ -81,19 +79,11 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, i
 
           {/* Network badge — honest about devnet + simulated stakes */}
           <span
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em]",
-              previewMode
-                ? "border border-gold/25 bg-gold/[0.08] text-gold"
-                : "border border-emerald/25 bg-emerald/[0.08] text-emerald",
-            )}
-            title={previewMode
-              ? "Preview mode — no wallet connected. All stakes simulated."
-              : "Real wallet connection on Devnet. Gameplay stakes are simulated."}
+            className="hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald/25 bg-emerald/[0.08] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-emerald sm:flex"
+            title="Real wallet connection on Devnet. Gameplay stakes are simulated."
           >
-            <span className={cn("h-1.5 w-1.5 rounded-full", previewMode ? "bg-gold" : "bg-emerald")} aria-hidden />
-            <span className="hidden sm:inline">{previewMode ? "Preview" : NETWORK_LABEL} · Sim stakes</span>
-            <span className="sm:hidden">{previewMode ? "Preview" : "Devnet"}</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald" aria-hidden />
+            {NETWORK_LABEL} · Sim stakes
           </span>
 
           {/* Room badge — shown while a room is active */}

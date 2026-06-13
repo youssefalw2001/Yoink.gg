@@ -16,7 +16,7 @@
  */
 
 import { motion } from "framer-motion";
-import { Wallet, ShieldCheck, Key, Timer, TrendingUp, Crosshair, Loader, Eye } from "lucide-react";
+import { Wallet, ShieldCheck, Key, Timer, TrendingUp, Crosshair, Loader } from "lucide-react";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import { useWallet } from "@/lib/wallet";
 
@@ -57,7 +57,7 @@ const VALUE_PROPS = [
 ] as const;
 
 export function ConnectScreen() {
-  const { connect, connecting, enterPreview } = useWallet();
+  const { connect, connecting } = useWallet();
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-16">
@@ -167,7 +167,7 @@ export function ConnectScreen() {
           ))}
         </motion.div>
 
-        {/* Connect CTA */}
+          {/* Connect CTA */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -195,22 +195,6 @@ export function ConnectScreen() {
                 <span className="font-display text-sm font-black uppercase tracking-[0.12em]">Connect Wallet</span>
               </>
             )}
-          </motion.button>
-
-          {/* Preview mode bypass — no wallet needed */}
-          <motion.button
-            type="button"
-            onClick={enterPreview}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: D.cta + 0.15, ease: EASE }}
-            whileTap={{ scale: 0.97 }}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] py-3 text-slate transition-colors duration-200 hover:border-gold/20 hover:text-gold/80"
-            style={{ willChange: "transform" }}
-            aria-label="Skip wallet connection and preview the app"
-          >
-            <Eye className="h-4 w-4" aria-hidden />
-            <span className="font-mono text-xs font-medium uppercase tracking-[0.1em]">Skip — preview the app</span>
           </motion.button>
         </motion.div>
 

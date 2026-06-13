@@ -39,12 +39,8 @@ export interface WalletState {
   connecting:    boolean;
   /** Real on-chain SOL balance, fetched via RPC after connect. */
   walletBalance: number;
-  /** Preview mode — app is accessible without a real wallet connection. */
-  previewMode:   boolean;
   connect:       () => Promise<void>;
   disconnect:    () => void;
-  /** Enter preview mode (bypasses wallet gate, simulated stakes only). */
-  enterPreview:  () => void;
 }
 
 const WalletCtx = createContext<WalletState | null>(null);
@@ -60,9 +56,6 @@ function WalletBridge({ children }: { children: ReactNode }) {
   } = useAdapterWallet();
   const { setVisible } = useWalletModal();
   const [walletBalance, setWalletBalance] = useState(0);
-  const [previewMode, setPreviewMode] = useState(() => {
-    try { return sessionStorage.getItem("yoink_preview") === "1"; } catch { return false; }
-  });
 
   const wantConnect = useRef(false);
 
@@ -110,25 +103,16 @@ function WalletBridge({ children }: { children: ReactNode }) {
   }, [connected, wallet, wallets, select, adapterConnect, setVisible]);
 
   const disconnect = useCallback(() => {
-    setPreviewMode(false);
-    try { sessionStorage.removeItem("yoink_preview"); } catch {}
     adapterDisconnect().catch(() => {});
   }, [adapterDisconnect]);
 
-  const enterPreview = useCallback(() => {
-    setPreviewMode(true);
-    try { sessionStorage.setItem("yoink_preview", "1"); } catch {}
-  }, []);
-
   const value: WalletState = {
-    connected: connected || previewMode,
-    publicKey: pkStr ?? (previewMode ? "PREViEW00000000000000000000000000000000000" : null),
+    connected,
+    publicKey: pkStr,
     connecting,
-    walletBalance: previewMode && !pkStr ? 0 : walletBalance,
-    previewMode,
+    walletBalance,
     connect,
     disconnect,
-    enterPreview,
   };
 
   return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;
