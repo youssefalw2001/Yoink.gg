@@ -1,20 +1,28 @@
 /**
- * YOINK.GG — Solana network config (HEAVY — imports @solana/web3.js)
+ * YOINK.GG — Solana network config
  *
- * Only imported by wallet-solana.tsx and other chain-interaction modules.
- * UI components should import from @/lib/constants instead to avoid
- * pulling the Solana vendor chunk into the critical path.
+ * SAFETY: defaults to DEVNET. Wallet connection + balance reads are the only
+ * on-chain actions wired today — these move ZERO funds.
  */
 
-import { clusterApiUrl, Connection } from "@solana/web3.js";
-import { SOLANA_NETWORK, NETWORK_LABEL } from "@/lib/constants";
+import { clusterApiUrl, Connection, type Cluster } from "@solana/web3.js";
 
-// Re-export for backward compat with any module that already imports from here
-export { SOLANA_NETWORK, NETWORK_LABEL };
+const ENV_NETWORK = (import.meta.env.VITE_SOLANA_NETWORK as string | undefined)?.toLowerCase();
 
-/** Optional custom RPC (e.g. Helius/QuickNode) via env, else public cluster RPC. */
+export const SOLANA_NETWORK: Cluster =
+  ENV_NETWORK === "mainnet-beta" || ENV_NETWORK === "testnet" || ENV_NETWORK === "devnet"
+    ? (ENV_NETWORK as Cluster)
+    : "devnet";
+
+/** Optional custom RPC via env, else public cluster RPC. */
 export const RPC_ENDPOINT =
   (import.meta.env.VITE_SOLANA_RPC as string | undefined) || clusterApiUrl(SOLANA_NETWORK);
+
+/** Human label for the network badge. */
+export const NETWORK_LABEL =
+  SOLANA_NETWORK === "mainnet-beta" ? "Mainnet" :
+  SOLANA_NETWORK === "testnet"      ? "Testnet" :
+  "Devnet";
 
 /** Shared read-only connection used for balance lookups. */
 export const connection = new Connection(RPC_ENDPOINT, "confirmed");

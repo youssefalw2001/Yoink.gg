@@ -1,12 +1,15 @@
 /**
- * YOINK.GG — Lightweight Wallet Context (ZERO Solana imports)
+ * YOINK.GG — WalletContext (REAL wallet, devnet)
  *
- * This module provides the wallet context, useWallet() hook, and the
- * WalletProvider shell. It contains NO Solana dependencies — those are
- * lazily loaded from wallet-solana.tsx after initial paint.
+ * Connects a real Solana wallet (Phantom / Solflare / any Wallet-Standard
+ * wallet) and reads the real on-chain balance. These actions move ZERO funds.
  *
- * Result: The Connect/Preview screen renders instantly (~229KB gzip critical
- * path instead of ~341KB). Solana libs (112KB gzip) load in the background.
+ * The app's existing surface — useWallet() returning
+ *   { connected, publicKey, connecting, walletBalance, previewMode, connect, disconnect, enterPreview }
+ * — is preserved exactly, so every consumer keeps working unchanged.
+ *
+ * PREVIEW MODE: allows full app access without a wallet connection.
+ * All gameplay remains simulated. Entered via "Skip — preview the app".
  */
 
 import {
@@ -14,108 +17,139 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { PublicKey } from "@solana/web3.js";
+import {
+  ConnectionProvider,
+  WalletProvider as AdapterWalletProvider,
+  useWallet as useAdapterWallet,
+} from "@solana/wallet-adapter-react";
+import { WalletModalProvider, useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
+import "@solana/wallet-adapter-react-ui/styles.css";
+import { RPC_ENDPOINT, connection, LAMPORTS_PER_SOL } from "@/lib/solana";
 
-// ─── Public interface ────────────────────────────────────────────────────────
 export interface WalletState {
   connected:     boolean;
   publicKey:     string | null;
   connecting:    boolean;
+  /** Real on-chain SOL balance, fetched via RPC after connect. */
   walletBalance: number;
+  /** Preview mode — app is accessible without a real wallet connection. */
   previewMode:   boolean;
   connect:       () => Promise<void>;
   disconnect:    () => void;
+  /** Enter preview mode (bypasses wallet gate, simulated stakes only). */
   enterPreview:  () => void;
 }
 
-// ─── Context ─────────────────────────────────────────────────────────────────
 const WalletCtx = createContext<WalletState | null>(null);
 
-export function useWallet(): WalletState {
-  const ctx = useContext(WalletCtx);
-  if (!ctx) throw new Error("useWallet must be used inside <WalletProvider>");
-  return ctx;
-}
+const isReady = (rs: WalletReadyState) =>
+  rs === WalletReadyState.Installed || rs === WalletReadyState.Loadable;
 
-// ─── Provider ────────────────────────────────────────────────────────────────
-
-/**
- * Lightweight wallet provider that renders children IMMEDIATELY.
- * Solana dependencies load in the background — the app is usable
- * (preview mode, connect screen) without waiting for the heavy chunk.
- */
-export function WalletProvider({ children }: { children: ReactNode }) {
+/** Bridges the real wallet adapter to the app's useWallet() shape. */
+function WalletBridge({ children }: { children: ReactNode }) {
+  const {
+    publicKey, connected, connecting, wallet, wallets,
+    select, connect: adapterConnect, disconnect: adapterDisconnect,
+  } = useAdapterWallet();
+  const { setVisible } = useWalletModal();
+  const [walletBalance, setWalletBalance] = useState(0);
   const [previewMode, setPreviewMode] = useState(() => {
     try { return sessionStorage.getItem("yoink_preview") === "1"; } catch { return false; }
   });
 
-  // Wallet state — starts disconnected, updated by Solana bridge when it loads
-  const [walletState, setWalletState] = useState<Omit<WalletState, "previewMode" | "enterPreview">>({
-    connected: false,
-    publicKey: null,
-    connecting: false,
-    walletBalance: 0,
-    connect: async () => {
-      // If Solana not loaded yet, this will be replaced when it loads.
-      // In the meantime, show a brief loading state.
-      setWalletState((s) => ({ ...s, connecting: true }));
-    },
-    disconnect: () => {},
-  });
+  const wantConnect = useRef(false);
 
-  // Ref for the Solana bridge to push state updates back to us
-  const bridgeRef = useRef<{ update: (state: Partial<WalletState>) => void } | null>(null);
-  bridgeRef.current = {
-    update: (partial) => {
-      setWalletState((prev) => ({ ...prev, ...partial }));
-    },
-  };
+  const pkStr = publicKey ? publicKey.toBase58() : null;
 
-  // Solana bridge component (lazy loaded)
-  const [SolanaBridge, setSolanaBridge] = useState<React.ComponentType<{
-    children: ReactNode;
-    walletCtxRef: React.MutableRefObject<{ update: (state: Partial<WalletState>) => void } | null>;
-    previewMode: boolean;
-  }> | null>(null);
-
-  // Load Solana bridge in the background after initial paint
+  // Fetch + poll the real on-chain balance while connected.
   useEffect(() => {
-    import("@/lib/wallet-solana").then((m) => {
-      setSolanaBridge(() => m.SolanaWalletBridge);
-    });
-  }, []);
+    if (!pkStr) { setWalletBalance(0); return; }
+    let active = true;
+    const pk = new PublicKey(pkStr);
+    const fetchBalance = async () => {
+      try {
+        const lamports = await connection.getBalance(pk);
+        if (active) setWalletBalance(+(lamports / LAMPORTS_PER_SOL).toFixed(4));
+      } catch { /* RPC hiccup — keep last known balance */ }
+    };
+    fetchBalance();
+    const id = setInterval(fetchBalance, 20_000);
+    return () => { active = false; clearInterval(id); };
+  }, [pkStr]);
+
+  // Finish the connect once a wallet is selected.
+  useEffect(() => {
+    if (wantConnect.current && wallet && !connected && !connecting) {
+      wantConnect.current = false;
+      adapterConnect().catch(() => setVisible(true));
+    }
+  }, [wallet, connected, connecting, adapterConnect, setVisible]);
+
+  const connect = useCallback(async () => {
+    if (connected) return;
+    if (wallet) {
+      try { await adapterConnect(); } catch { setVisible(true); }
+      return;
+    }
+    const phantom = wallets.find((w) => w.adapter.name === "Phantom" && isReady(w.readyState));
+    const anyReady = wallets.find((w) => isReady(w.readyState));
+    const pick = phantom ?? anyReady;
+    if (pick) {
+      wantConnect.current = true;
+      select(pick.adapter.name);
+    } else {
+      setVisible(true);
+    }
+  }, [connected, wallet, wallets, select, adapterConnect, setVisible]);
+
+  const disconnect = useCallback(() => {
+    setPreviewMode(false);
+    try { sessionStorage.removeItem("yoink_preview"); } catch {}
+    adapterDisconnect().catch(() => {});
+  }, [adapterDisconnect]);
 
   const enterPreview = useCallback(() => {
     setPreviewMode(true);
     try { sessionStorage.setItem("yoink_preview", "1"); } catch {}
   }, []);
 
-  const disconnect = useCallback(() => {
-    setPreviewMode(false);
-    try { sessionStorage.removeItem("yoink_preview"); } catch {}
-    walletState.disconnect();
-  }, [walletState]);
-
   const value: WalletState = {
-    ...walletState,
-    connected: walletState.connected || previewMode,
+    connected: connected || previewMode,
+    publicKey: pkStr,
+    connecting,
+    walletBalance,
     previewMode,
-    enterPreview,
+    connect,
     disconnect,
+    enterPreview,
   };
 
-  // Render the Solana provider tree wrapping children once loaded.
-  // Before it loads, children still render with the minimal context above.
-  const content = SolanaBridge ? (
-    <SolanaBridge walletCtxRef={bridgeRef} previewMode={previewMode}>
-      {children}
-    </SolanaBridge>
-  ) : (
-    children
-  );
+  return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;
+}
 
-  return <WalletCtx.Provider value={value}>{content}</WalletCtx.Provider>;
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const wallets = useMemo(() => [], []);
+
+  return (
+    <ConnectionProvider endpoint={RPC_ENDPOINT}>
+      <AdapterWalletProvider wallets={wallets} autoConnect>
+        <WalletModalProvider>
+          <WalletBridge>{children}</WalletBridge>
+        </WalletModalProvider>
+      </AdapterWalletProvider>
+    </ConnectionProvider>
+  );
+}
+
+export function useWallet(): WalletState {
+  const ctx = useContext(WalletCtx);
+  if (!ctx) throw new Error("useWallet must be used inside <WalletProvider>");
+  return ctx;
 }

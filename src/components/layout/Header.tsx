@@ -6,7 +6,7 @@ import { VoidEyeIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn, truncateAddress } from "@/lib/utils";
-import { NETWORK_LABEL } from "@/lib/constants";
+import { NETWORK_LABEL } from "@/lib/solana";
 import { useWallet } from "@/lib/wallet";
 import { PurgeAvatar } from "@/components/walletwars/PurgeAvatar";
 import type { PlayerProgress } from "@/lib/progression";
