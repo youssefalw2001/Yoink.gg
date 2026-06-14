@@ -85,7 +85,7 @@ Task 1 is foundational; nothing that moves SOL is wired until its math is proven
     - **Property 5: Collusion −EV.** *For any* closed wallet group, summed internal EV `= −(ρ_fee·f + p·ρ_prize·s)·V < 0` per attempt
     - **Validates: Requirements 17.1**
 
-- [ ] 2. Introduce `Vault` and `SiegeResult` types
+- [x] 2. Introduce `Vault` and `SiegeResult` types
   - Rename `Stash` → `Vault` and add fields: `banked`, `survived`, `cracked`, `streak`, `openedAt`, `seq`, `compound`, `bountyPool`, `bountyExpiry`
   - Add `SiegeOutcome = "win" | "loss"` and the `SiegeResult` interface (`pWin`, `fee`, `repeatTax`, `seized`, `prizeGross`, `lost`, `roll`, `seed`, `streakAtSiege`, `targetWallet`, `targetId`, `yourVaultAfter`)
   - Add `REPEAT_TAX_*`, `STREAK`, and shield/cooldown config constants needed by later tasks to `WAR_CONFIG` (keep old fields temporarily so the app still compiles)
