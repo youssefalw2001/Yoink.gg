@@ -245,9 +245,11 @@ export function rollFromSeed(seed: string): number {
 }
 
 /**
- * Provable-fairness verifier: recompute the outcome from the public seed and the
- * published per-tier win chance and confirm it matches the claimed outcome.
- * (Full UI surfacing is Task 5; defined here so the result shape is verifiable.)
+ * Provable-fairness verifier (Task 5): recompute the outcome from the public
+ * seed and the published per-tier win chance and confirm it matches the claimed
+ * outcome. Returns true iff `(rollFromSeed(seed) < pWin) === (claimed === "win")`.
+ * The per-tier `pWin` is fixed & published (never varied by streak/heat/size), so
+ * any observer can recompute a siege from the `seed`/`roll`/`pWin` on its result.
  */
 export function verifySiege(seed: string, pWin: number, claimedOutcome: SiegeOutcome): boolean {
   return (rollFromSeed(seed) < pWin) === (claimedOutcome === "win");
@@ -291,13 +293,17 @@ function seedBoard(at: number): Stash[] {
   return sortByHeat(board, at);
 }
 
+/** Seeded house treasury / hall-of-fame defaults for a fresh (or migrated) state. */
+const SEED_TOTAL_BANKED = 1_284.6;
+const SEED_BIGGEST_HEIST = 12.4;
+
 function initialState(): WarState {
   return {
     stashes: seedBoard(now()),
     you: null,
     feed: [],
-    totalBanked: 1_284.6,
-    biggestHeist: 12.4,
+    totalBanked: SEED_TOTAL_BANKED,
+    biggestHeist: SEED_BIGGEST_HEIST,
     raidCooldownUntil: 0,
   };
 }
@@ -608,10 +614,36 @@ export function withdrawBankedState(state: WarState): { amount: number; state: W
   return { amount, state: { ...state, you: { ...state.you, banked: 0 } } };
 }
 
-// ── Persistence (STORAGE_KEY stays v3 for Task 3; v3→v4 migration is Task 4) ────
+// ── Persistence (Task 4: v3 → v4 migration) ───────────────────────────────────
 
-const STORAGE_KEY = "yoink_walletwars_v3";
-interface PersistedWar { you: Stash | null; totalBanked: number; biggestHeist: number; }
+/** Current persisted schema key. */
+const STORAGE_KEY = "yoink_walletwars_v4";
+/** Legacy schema key migrated forward on first v4 load. */
+const LEGACY_STORAGE_KEY_V3 = "yoink_walletwars_v3";
+
+interface PersistedWar { you: Vault | null; totalBanked: number; biggestHeist: number; }
+
+/**
+ * The minimal storage surface the loader needs. Injecting it (rather than
+ * touching the global `localStorage` directly) keeps `loadWarFromStorage`
+ * pure-ish and unit-testable, and lets the hook pass `null` when storage is
+ * unavailable so the session simply runs in memory (Requirement 23.5).
+ */
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+/** Read `localStorage` defensively — returns null if it is absent or throws. */
+function safeLocalStorage(): StorageLike | null {
+  try {
+    if (typeof localStorage !== "undefined" && localStorage) return localStorage;
+  } catch { /* access itself can throw in sandboxed/blocked contexts */ }
+  return null;
+}
+
+const fin = (v: unknown, fallback: number): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : fallback;
 
 /** Normalise a possibly-legacy persisted vault so missing fields never NaN the math. */
 function normalizeVault(v: Partial<Vault> | null, at: number): Vault | null {
@@ -620,8 +652,8 @@ function normalizeVault(v: Partial<Vault> | null, at: number): Vault | null {
     id: v.id ?? uid("you"),
     wallet: v.wallet ?? "You",
     isYou: v.isYou ?? true,
-    amount: Number.isFinite(v.amount) ? (v.amount as number) : 0,
-    banked: Number.isFinite(v.banked) ? (v.banked as number) : 0,
+    amount: fin(v.amount, 0),
+    banked: fin(v.banked, 0),
     survived: v.survived ?? 0,
     cracked: v.cracked ?? 0,
     streak: v.streak ?? 0,
@@ -634,16 +666,87 @@ function normalizeVault(v: Partial<Vault> | null, at: number): Vault | null {
   };
 }
 
-function loadPersisted(): PersistedWar | null {
+/**
+ * Map a legacy `yoink_walletwars_v3` record to the v4 `PersistedWar` shape
+ * (Requirement 23.1–23.2). Each legacy `Stash` becomes a `Vault`: `streak`,
+ * `seq`, and `bountyExpiry` reset to 0, `compound` enabled, `openedAt` set to
+ * `at`, and the prior `bounty` carried over as the `bountyPool`. The corpus
+ * `amount`, `banked`, house `totalBanked`, and `biggestHeist` are preserved.
+ * Pure & total: any malformed input degrades to the seeded defaults.
+ */
+export function migrateV3ToV4(raw: unknown, at: number): PersistedWar {
+  const rec = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const youRaw =
+    rec.you && typeof rec.you === "object" ? (rec.you as Record<string, unknown>) : null;
+
+  let you: Vault | null = null;
+  if (youRaw) {
+    const priorBounty = fin(youRaw.bounty ?? youRaw.bountyPool, 0);
+    you = {
+      id: typeof youRaw.id === "string" ? youRaw.id : uid("you"),
+      wallet: typeof youRaw.wallet === "string" ? youRaw.wallet : "You",
+      isYou: true,
+      amount: fin(youRaw.amount, 0),
+      banked: fin(youRaw.banked, 0),
+      survived: fin(youRaw.survived, 0),
+      cracked: fin(youRaw.cracked, 0),
+      streak: 0,
+      openedAt: at,
+      shieldUntil: 0,
+      seq: 0,
+      compound: true,
+      bountyPool: priorBounty,
+      bountyExpiry: 0,
+    };
+  }
+
+  return {
+    you,
+    totalBanked: fin(rec.totalBanked, SEED_TOTAL_BANKED),
+    biggestHeist: fin(rec.biggestHeist, SEED_BIGGEST_HEIST),
+  };
+}
+
+/**
+ * Load persisted war state, migrating `v3 → v4` on first encounter. Returns the
+ * loaded `PersistedWar` or `null` when nothing valid is stored (the caller then
+ * falls back to the seeded `INITIAL` state — Requirement 23.4). When `storage`
+ * is `null` (unavailable), returns `null` without throwing (Requirement 23.5).
+ */
+export function loadWarFromStorage(storage: StorageLike | null, at: number): PersistedWar | null {
+  if (!storage) return null;
+
+  // 1. Prefer the current v4 record.
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as PersistedWar;
-  } catch { /* ignore */ }
+    const rawV4 = storage.getItem(STORAGE_KEY);
+    if (rawV4) {
+      const parsed = JSON.parse(rawV4) as Partial<PersistedWar>;
+      return {
+        you: normalizeVault((parsed.you ?? null) as Partial<Vault> | null, at),
+        totalBanked: fin(parsed.totalBanked, SEED_TOTAL_BANKED),
+        biggestHeist: fin(parsed.biggestHeist, SEED_BIGGEST_HEIST),
+      };
+    }
+  } catch { /* corrupt v4 → try a legacy record, then fall back to seeded */ }
+
+  // 2. Migrate a legacy v3 record forward and write it back under v4.
+  try {
+    const rawV3 = storage.getItem(LEGACY_STORAGE_KEY_V3);
+    if (rawV3) {
+      const migrated = migrateV3ToV4(JSON.parse(rawV3), at);
+      try { storage.setItem(STORAGE_KEY, JSON.stringify(migrated)); } catch { /* ignore */ }
+      return migrated;
+    }
+  } catch { /* corrupt v3 → seeded fallback */ }
+
   return null;
 }
+
 function savePersisted(s: WarState): void {
+  const storage = safeLocalStorage();
+  if (!storage) return;
   try {
-    localStorage.setItem(
+    storage.setItem(
       STORAGE_KEY,
       JSON.stringify({ you: s.you, totalBanked: s.totalBanked, biggestHeist: s.biggestHeist }),
     );
@@ -655,13 +758,13 @@ function savePersisted(s: WarState): void {
 export function useWalletWars() {
   const [state, setState] = useState<WarState>(() => {
     const base = initialState();
-    const p = loadPersisted();
+    const p = loadWarFromStorage(safeLocalStorage(), Date.now());
     if (!p) return base;
     return {
       ...base,
-      you: normalizeVault(p.you as Partial<Vault> | null, Date.now()),
-      totalBanked: p.totalBanked ?? base.totalBanked,
-      biggestHeist: p.biggestHeist ?? base.biggestHeist,
+      you: p.you,
+      totalBanked: p.totalBanked,
+      biggestHeist: p.biggestHeist,
     };
   });
   const stateRef = useRef(state);

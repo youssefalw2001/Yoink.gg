@@ -125,27 +125,27 @@ Task 1 is foundational; nothing that moves SOL is wired until its math is proven
     - Drive `openVault → siege(loss) → siege(win)` and assert the four balance deltas sum to zero and the corpus floor holds
     - **Validates: Requirements 5.1, 4.4, 19.4**
 
-- [ ] 4. Migrate persistence from v3 to v4
+- [x] 4. Migrate persistence from v3 to v4
   - Change `STORAGE_KEY` to `yoink_walletwars_v4`; on load, if a `yoink_walletwars_v3` record exists, map each `Stash → Vault` (`streak=0`, `seq=0`, `bountyExpiry=0`, `compound=true`, `openedAt=now`, `bountyPool` from prior bounty), preserving `you.amount`, `banked`, `totalBanked`, and `biggestHeist`
   - Fall back to the seeded `INITIAL` state on missing/invalid JSON; run in-memory without throwing when `localStorage` is unavailable
   - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5_
-  - [ ]* 4.1 Unit test — v3→v4 migration and corrupt/absent-storage fallback
+  - [x]* 4.1 Unit test — v3→v4 migration and corrupt/absent-storage fallback
     - Seed a fake v3 blob, assert mapped `v4` shape and preserved balances; assert fallback paths do not throw
     - _Requirements: 23.1, 23.4, 23.5_
 
-- [ ] 5. Provable fairness: `verifySiege` + variable per-tier odds
+- [x] 5. Provable fairness: `verifySiege` + variable per-tier odds
   - Keep `rollFromSeed` unchanged; resolve `won` iff `rollFromSeed(seed) < params.winChance`; keep `p` fixed within a tier (never varied by streak/heat/balance/size)
   - Include `seed`, `roll`, and `pWin` in every `SiegeResult`; implement `verifySiege(seed, pWin, claimedOutcome)` returning true iff the recomputed outcome matches
   - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.5_
-  - [ ]* 5.1 Property test — Verifiability round-trip (**Property 6**)
+  - [x]* 5.1 Property test — Verifiability round-trip (**Property 6**)
     - **Property 6: Verifiability.** *For any* result, `outcome === "win"` ⇔ `rollFromSeed(seed) < pWin`, and `verifySiege` agrees
     - **Validates: Requirements 22.2, 22.5**
 
-- [ ] 6. Free-siege beginner on-ramp (`useFreeRound → useFreeSiege`)
+- [x] 6. Free-siege beginner on-ramp (`useFreeRound → useFreeSiege`)
   - Repurpose the hook to `useFreeSiege`: a claim waives the fee and targets a **house-owned training vault** (no real defender), paying any win from a capped house promo pool
   - Track a daily quota in `localStorage` (`yoink_ww_free_v1`), decrement on claim, reset on the UTC day boundary, and refuse to claim when the quota is zero; reuse the existing `computeFreeRound` cadence as a "free siege happy hour"
   - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6_
-  - [ ]* 6.1 Unit test — quota decrement, UTC reset, and zero-quota refusal
+  - [x]* 6.1 Unit test — quota decrement, UTC reset, and zero-quota refusal
     - _Requirements: 14.4, 14.5, 14.6_
 
 - [ ] 7. UI updates (Framer Motion only)
