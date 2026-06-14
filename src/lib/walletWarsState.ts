@@ -35,6 +35,12 @@ export const WAR_CONFIG = {
   REPEAT_TAX_STEP: 0.3,
   REPEAT_TAX_CAP: 1.2,
   REPEAT_WINDOW_MS: 45_000,
+  /**
+   * Survival-streak ramp (m_k = 1 + step·min(streak, cap)), aligned with
+   * `siegeMath.STREAK_CFG` so the engine and pure math agree. Used by the
+   * Task 3 siege rework; m ∈ [1.0, 2.0].
+   */
+  STREAK: { STEP: 0.04, CAP: 25 },
 } as const;
 
 export interface Tier {
@@ -67,19 +73,52 @@ export function tierForAmount(amount: number): Tier {
   return TIERS[tierIndexForAmount(amount)];
 }
 
-export interface Stash {
+/**
+ * A Vault = a stash that is also a fee-earning "table" (the "Siege the Vault"
+ * economy). Renamed from the former `Stash`; the new fields (`streak`,
+ * `openedAt`, `seq`, `compound`, `bountyPool`, `bountyExpiry`) are introduced
+ * here as additive state. The legacy `bounty` field is retained so the current
+ * raid/bounty logic keeps compiling until the engine rework (Task 3).
+ */
+export interface Vault {
   id: string;
   wallet: string;
   isYou: boolean;
+  /** V — the corpus (prize is sliced from this). */
   amount: number;
+  /** Fees earned, withdrawable / auto-compoundable. */
   banked: number;
+  /** Lifetime survived sieges. */
   survived: number;
+  /** Lifetime cracks suffered. */
   cracked: number;
+  /** k — consecutive survivals since last crack/cashout → m_k. */
+  streak: number;
+  /** ms — for the longevity leaderboard. */
+  openedAt: number;
   shieldUntil: number;
+  /** Optimistic-concurrency version (anti double-spend). */
+  seq: number;
+  /** Auto-fold banked → amount. */
+  compound: boolean;
+  /** Community prize add-on (Bounty v2). */
+  bountyPool: number;
+  /** ms — bounty refund window. */
+  bountyExpiry: number;
+  /** @deprecated Legacy single-bounty field; retained until the Task 3 rework. */
   bounty: number;
 }
 
+/**
+ * Backward-compatible alias so existing references (`StashCard`,
+ * `YourStashPanel`, `RaidModal`, `WalletWarsExtras`, …) keep compiling while the
+ * engine migrates to the Vault model.
+ */
+export type Stash = Vault;
+
 export type RaidOutcome = "win" | "loss";
+
+export type SiegeOutcome = "win" | "loss";
 
 export interface RaidEvent {
   id: string;
@@ -109,6 +148,37 @@ export interface RaidResult {
   yourStashAfter: number;
   /** Provably-fair roll ∈ [0,1) and the seed it came from. */
   roll: number;
+  seed: string;
+}
+
+/**
+ * Outcome of a single siege attempt in the "Siege the Vault" economy. Returned
+ * by the `siege` engine action (Task 3); defined here so callers and tests can
+ * reference the shape ahead of the engine rework.
+ */
+export interface SiegeResult {
+  outcome: SiegeOutcome;
+  /** p — the published crack probability for the tier. */
+  pWin: number;
+  /** F — the attempt fee the raider paid (base + repeat tax). */
+  fee: number;
+  /** The repeat-target surcharge portion of the fee (routed 100% to house). */
+  repeatTax: number;
+  /** Prize net to the raider on a win (incl. bounty), else 0. */
+  seized: number;
+  /** s·V·m_k — the gross slice that left the corpus on a win, else 0. */
+  prizeGross: number;
+  /** The fee (+ tax) lost on a losing siege, else 0. */
+  lost: number;
+  /** m_k — the streak multiplier applied at siege time. */
+  streakAtSiege: number;
+  targetWallet: string;
+  targetId: string;
+  /** The raider's own vault corpus after the siege settled. */
+  yourVaultAfter: number;
+  /** Provably-fair roll ∈ [0,1). */
+  roll: number;
+  /** The seed revealed for verification. */
   seed: string;
 }
 
@@ -177,7 +247,13 @@ function makeBotStash(tier: Tier): Stash {
     banked: round(Math.random() * 0.4),
     survived: Math.floor(Math.random() * 12),
     cracked: Math.floor(Math.random() * 3),
+    streak: 0,
+    openedAt: now(),
     shieldUntil: 0,
+    seq: 0,
+    compound: true,
+    bountyPool: 0,
+    bountyExpiry: 0,
     bounty: Math.random() < 0.15 ? round(tier.minBet * (3 + Math.random() * 8)) : 0,
   };
 }
@@ -233,7 +309,7 @@ export function useWalletWars() {
   const openStash = useCallback((amount: number) => {
     setState((prev) => prev.you ? prev : {
       ...prev,
-      you: { id: uid("you"), wallet: "You", isYou: true, amount: round(amount), banked: 0, survived: 0, cracked: 0, shieldUntil: 0, bounty: 0 },
+      you: { id: uid("you"), wallet: "You", isYou: true, amount: round(amount), banked: 0, survived: 0, cracked: 0, streak: 0, openedAt: now(), shieldUntil: 0, seq: 0, compound: true, bountyPool: 0, bountyExpiry: 0, bounty: 0 },
     });
   }, []);
 
