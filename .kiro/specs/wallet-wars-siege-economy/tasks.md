@@ -91,37 +91,37 @@ Task 1 is foundational; nothing that moves SOL is wired until its math is proven
   - Add `REPEAT_TAX_*`, `STREAK`, and shield/cooldown config constants needed by later tasks to `WAR_CONFIG` (keep old fields temporarily so the app still compiles)
   - _Requirements: 1.2, 2.1, 4.1, 8.1_
 
-- [ ] 3. Rework the engine in `walletWarsState.ts`
-  - [ ] 3.1 Implement `openVault` and the targetable-board filter
+- [x] 3. Rework the engine in `walletWarsState.ts`
+  - [x] 3.1 Implement `openVault` and the targetable-board filter
     - Replace `openStash` with `openVault(amount)`: corpus = stake, mark `isYou`, init `banked/survived/cracked/streak/seq = 0`, `openedAt = now`, `compound = true`
     - Keep `OPEN_STAKES = [0.25, 1, 5, 20]`; exclude the player's own vault from the targetable list
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
-  - [ ] 3.2 Implement `repeatTaxMult` and the `siege` precondition guards
+  - [x] 3.2 Implement `repeatTaxMult` and the `siege` precondition guards
     - `repeatTaxMult(targetId)` from `raidLog` timestamps within `REPEAT_WINDOW_MS`, bounded by `REPEAT_TAX_CAP`
     - `siege(targetId)` guards: cooldown, missing/shielded target, self-siege (`target.id === you.id` or `target.isYou`), tier mismatch, and unaffordable fee → return `null` with no state change
     - _Requirements: 2.3, 2.4, 2.5, 16.1, 16.2, 18.1, 20.2_
-  - [ ] 3.3 Implement `siege` settlement using `siegeMath`
+  - [x] 3.3 Implement `siege` settlement using `siegeMath`
     - Draw seed, `roll = rollFromSeed(seed)`, `won = roll < params.winChance`; debit fee from raider
     - On loss: defender `+= toDefenderOnFail`, house `+= toHouseOnFail`, `survived++`, `streak++`
     - On win: corpus `−= prize.gross` (floor 0.01), raider `+= toRaider (+ bounty net)`, defender still banks toll, house `+= toHouse + ρ_fee·baseFee + repeatTax (+ bounty rake)`, `streak = 0`, `cracked++`
     - Always: route repeat-tax 100% to house, set `shieldUntil = now + SHIELD_MS`, `seq++`, `raidCooldownUntil = now + RAID_COOLDOWN_MS`; obtain every amount from `siegeMath`
     - _Requirements: 2.1, 2.2, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 8.3, 15.2, 18.2, 18.3, 20.1_
-  - [ ] 3.4 Implement auto-compound, `cashOut`, and manual withdraw-banked
+  - [x] 3.4 Implement auto-compound, `cashOut`, and manual withdraw-banked
     - On every settled siege, if `compound`, fold `banked` into `amount` and reset `banked = 0`
     - `cashOut()` returns `amount + banked`, clears `you`, resets streak; add `withdrawBanked()` that harvests without growing corpus
     - _Requirements: 9.5, 11.1, 11.2_
-  - [ ] 3.5 Implement Bounty v2 (`placeBounty` with pool/expiry/refund)
+  - [x] 3.5 Implement Bounty v2 (`placeBounty` with pool/expiry/refund)
     - `placeBounty(targetId, amount)` adds to the target `bountyPool` with `bountyExpiry`, held separately from the placer's corpus (no tier movement)
     - On crack, add bounty net of `ρ_prize` to the prize and route bounty rake to house; in the tick, refund expired unclaimed bounties minus a small house fee
     - _Requirements: 21.1, 21.2, 21.3, 21.4_
-  - [ ] 3.6 Update the bot simulation tick to siege semantics + heat sort
+  - [x] 3.6 Update the bot simulation tick to siege semantics + heat sort
     - Bots pay a fee, defender banks on a bounce, corpus is sliced on a crack; sort the board by `heatScore` (hottest first); heat never alters odds
     - Remove `raid` and `FIXED_WIN_CHANCE`; update the `useWalletWars` return surface and adapt `WalletWarsScreen` wiring so the app still compiles
     - _Requirements: 10.2, 10.3, 25.1, 25.2_
-  - [ ] 3.7 Confirm the on-chain seam stays dormant
+  - [x] 3.7 Confirm the on-chain seam stays dormant
     - Keep `ESCROW_ENABLED = false`; `siege` routes through `isEscrowLive()` (sim branch only) and moves no real funds
     - _Requirements: 24.1, 24.2, 24.3_
-  - [ ]* 3.8 Integration test — conservation across a real siege settlement
+  - [x]* 3.8 Integration test — conservation across a real siege settlement
     - Drive `openVault → siege(loss) → siege(win)` and assert the four balance deltas sum to zero and the corpus floor holds
     - **Validates: Requirements 5.1, 4.4, 19.4**
 

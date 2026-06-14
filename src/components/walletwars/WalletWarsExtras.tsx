@@ -118,7 +118,7 @@ interface BountyBoardProps {
 
 export function BountyBoard({ stashes, canRaid, onCrack }: BountyBoardProps) {
   const bountied = useMemo(
-    () => stashes.filter((s) => !s.isYou && (s.bounty ?? 0) > 0).sort((a, b) => b.bounty - a.bounty),
+    () => stashes.filter((s) => !s.isYou && (s.bountyPool ?? 0) > 0).sort((a, b) => b.bountyPool - a.bountyPool),
     [stashes],
   );
 
@@ -150,7 +150,7 @@ export function BountyBoard({ stashes, canRaid, onCrack }: BountyBoardProps) {
                   </span>
                   <span className="flex items-center gap-1 font-mono text-[10px] text-phantom">
                     <Target className="h-3 w-3" aria-hidden />
-                    {formatSol(s.bounty, 2)} SOL pool
+                    {formatSol(s.bountyPool, 2)} SOL pool
                   </span>
                 </div>
                 <motion.button

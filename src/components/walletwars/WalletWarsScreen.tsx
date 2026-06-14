@@ -20,7 +20,7 @@ import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import {
   useWalletWars, TIERS, tierIndexForAmount,
-  type RaidResult, type Stash,
+  type SiegeResolution, type Stash,
 } from "@/lib/walletWarsState";
 import { useWallet } from "@/lib/wallet";
 import { formatSol, truncateAddress } from "@/lib/utils";
@@ -34,6 +34,24 @@ import {
 } from "./WalletWarsExtras";
 
 const ONBOARD_KEY = "yoink_ww_onboarded";
+
+/** Human-readable copy for a typed siege rejection (no silent failures). */
+function describeRejection(reason: import("@/lib/walletWarsState").SiegeRejection): string {
+  switch (reason.kind) {
+    case "cooldown":
+      return `on cooldown (${Math.ceil(reason.remainingMs / 1000)}s)`;
+    case "shielded":
+      return reason.shieldRemainingMs > 0
+        ? `target shielded (${Math.ceil(reason.shieldRemainingMs / 1000)}s)`
+        : "target unavailable";
+    case "self_siege":
+      return "you can't siege your own vault";
+    case "tier_mismatch":
+      return "different weight class";
+    case "insufficient_funds":
+      return `fee ${formatSol(reason.required, 3)} > your ${formatSol(reason.available, 3)} SOL`;
+  }
+}
 
 function HeroStat({ icon, label, value, color, accent, border }: {
   icon: React.ReactNode; label: string; value: string; color: string; accent: string; border: string;
@@ -58,7 +76,7 @@ export function WalletWarsScreen({
   avatarVariant?: number | null;
   avatarColor?: string | null;
 }) {
-  const { state, openStash, closeStash, raid, placeBounty, repeatTaxMult } = useWalletWars();
+  const { state, openVault, cashOut, siege, placeBounty, repeatTaxMult } = useWalletWars();
   const { walletBalance, publicKey } = useWallet();
 
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
@@ -132,11 +150,14 @@ export function WalletWarsScreen({
     setRaidTargetId(id);
   }
 
-  // Wrap the raid commit so we can update the W/L record + status bar.
-  function handleRaidCommit(bid: number): RaidResult | null {
-    if (!target) return null;
-    const r = raid(target.id, bid);
-    if (r) {
+  // Wrap the siege commit so we can update the W/L record + status bar.
+  // Returns the typed resolution so the modal can surface a rejection reason
+  // instead of failing silently (full SiegeModal polish is Task 7).
+  function handleSiegeCommit(): SiegeResolution {
+    if (!target) return { ok: false, reason: { kind: "self_siege" } };
+    const res = siege(target.id);
+    if (res.ok) {
+      const r = res.result;
       setRaidRecord((rec) =>
         r.outcome === "win"
           ? { ...rec, wins: rec.wins + 1 }
@@ -144,11 +165,13 @@ export function WalletWarsScreen({
       );
       setLastAction(
         r.outcome === "win"
-          ? `Last raid: Won +${formatSol(r.seized + r.bounty, 3)} SOL against ${truncateAddress(r.targetWallet, 4, 4)}`
-          : `Last raid: Stash hit — lost ${formatSol(r.bid + r.tax, 3)} SOL on ${truncateAddress(r.targetWallet, 4, 4)}`,
+          ? `Last siege: cracked +${formatSol(r.seized, 3)} SOL from ${truncateAddress(r.targetWallet, 4, 4)}`
+          : `Last siege: bounced — lost ${formatSol(r.lost, 3)} SOL fee on ${truncateAddress(r.targetWallet, 4, 4)}`,
       );
+    } else {
+      setLastAction(`Siege declined — ${describeRejection(res.reason)}`);
     }
-    return r;
+    return res;
   }
 
   // Default status text when nothing has happened yet.
@@ -207,8 +230,8 @@ export function WalletWarsScreen({
         <YourStashPanel
           you={state.you}
           walletBalance={walletBalance}
-          onOpen={openStash}
-          onClose={closeStash}
+          onOpen={openVault}
+          onClose={cashOut}
           displayName={displayName}
           avatarSeed={avatarSeed}
           avatarVariant={avatarVariant}
@@ -311,7 +334,7 @@ export function WalletWarsScreen({
             target={target}
             yourStash={state.you.amount}
             taxMult={repeatTaxMult(target.id)}
-            onCommit={handleRaidCommit}
+            onCommit={handleSiegeCommit}
             onPlaceBounty={(amt) => placeBounty(target.id, amt)}
             onClose={() => setRaidTargetId(null)}
           />
