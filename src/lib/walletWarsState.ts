@@ -653,22 +653,22 @@ const fin = (v: unknown, fallback: number): number =>
 
 /** Normalise a possibly-legacy persisted vault so missing fields never NaN the math. */
 function normalizeVault(v: Partial<Vault> | null, at: number): Vault | null {
-  if (!v) return null;
+  if (!v || typeof v !== "object") return null;
   return {
-    id: v.id ?? uid("you"),
-    wallet: v.wallet ?? "You",
-    isYou: v.isYou ?? true,
-    amount: fin(v.amount, 0),
-    banked: fin(v.banked, 0),
-    survived: v.survived ?? 0,
-    cracked: v.cracked ?? 0,
-    streak: v.streak ?? 0,
-    openedAt: v.openedAt ?? at,
-    shieldUntil: v.shieldUntil ?? 0,
-    seq: v.seq ?? 0,
-    compound: v.compound ?? true,
-    bountyPool: v.bountyPool ?? 0,
-    bountyExpiry: v.bountyExpiry ?? 0,
+    id: typeof v.id === "string" && v.id.length > 0 ? v.id : uid("you"),
+    wallet: typeof v.wallet === "string" && v.wallet.length > 0 ? v.wallet : "You",
+    isYou: typeof v.isYou === "boolean" ? v.isYou : true,
+    amount: Math.max(0, fin(v.amount, 0)),
+    banked: Math.max(0, fin(v.banked, 0)),
+    survived: Math.max(0, fin(v.survived, 0)),
+    cracked: Math.max(0, fin(v.cracked, 0)),
+    streak: Math.max(0, fin(v.streak, 0)),
+    openedAt: fin(v.openedAt, at),
+    shieldUntil: fin(v.shieldUntil, 0),
+    seq: Math.max(0, fin(v.seq, 0)),
+    compound: typeof v.compound === "boolean" ? v.compound : true,
+    bountyPool: Math.max(0, fin(v.bountyPool, 0)),
+    bountyExpiry: fin(v.bountyExpiry, 0),
   };
 }
 
@@ -764,14 +764,20 @@ function savePersisted(s: WarState): void {
 export function useWalletWars() {
   const [state, setState] = useState<WarState>(() => {
     const base = initialState();
-    const p = loadWarFromStorage(safeLocalStorage(), Date.now());
-    if (!p) return base;
-    return {
-      ...base,
-      you: p.you,
-      totalBanked: p.totalBanked,
-      biggestHeist: p.biggestHeist,
-    };
+    // Fully defensive: a malformed/legacy persisted record must never throw on
+    // mount and white-screen the app — fall back to the seeded INITIAL state.
+    try {
+      const p = loadWarFromStorage(safeLocalStorage(), Date.now());
+      if (!p) return base;
+      return {
+        ...base,
+        you: p.you,
+        totalBanked: Number.isFinite(p.totalBanked) ? p.totalBanked : base.totalBanked,
+        biggestHeist: Number.isFinite(p.biggestHeist) ? p.biggestHeist : base.biggestHeist,
+      };
+    } catch {
+      return base;
+    }
   });
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -842,6 +848,10 @@ export function useWalletWars() {
   // ── Bot simulation (siege semantics: fee paid, defender banks, corpus sliced) ──
   useEffect(() => {
     const interval = setInterval(() => {
+      // Defensive: an uncaught throw inside a timer escapes React's error
+      // boundaries and can crash the whole tab/PWA. A single bad tick must
+      // never take down the app — log and skip to the next tick instead.
+      try {
       const ts = now();
 
       // Pre-compute expired-bounty refunds (placer ledger read read-only here).
@@ -986,6 +996,10 @@ export function useWalletWars() {
 
       // Clean up the placer ledger for refunded bounties (outside the updater).
       for (const id of refundIds) bountyPlacers.current.delete(id);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Wallet Wars sim tick skipped after error:", err);
+      }
     }, WAR_CONFIG.TICK_MS);
 
     return () => clearInterval(interval);

@@ -13,11 +13,22 @@ export function truncateAddress(address?: string | null, head = 4, tail = 4): st
   return `${address.slice(0, head)}...${address.slice(-tail)}`;
 }
 
-/** Format a SOL amount with fixed precision + thin spacing. */
+/**
+ * Format a SOL amount with fixed precision + thin spacing.
+ *
+ * TOTAL & crash-proof: a single bad value (undefined / null / NaN / ±Infinity,
+ * or a non-number sneaking through from a corrupt persisted record) must never
+ * throw during render. `undefined.toLocaleString()` is exactly the kind of
+ * unhandled exception that white-screens the PWA / crashes the in-app browser,
+ * so we coerce any non-finite input to 0 instead of letting it blow up.
+ */
 export function formatSol(amount: number, decimals = 3): string {
-  return amount.toLocaleString("en-US", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+  const safe = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
+  const safeDecimals =
+    Number.isFinite(decimals) ? Math.min(Math.max(Math.trunc(decimals), 0), 20) : 3;
+  return safe.toLocaleString("en-US", {
+    minimumFractionDigits: safeDecimals,
+    maximumFractionDigits: safeDecimals,
   });
 }
 
