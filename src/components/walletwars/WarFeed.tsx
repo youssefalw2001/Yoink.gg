@@ -45,6 +45,7 @@ export const WarFeed = memo(function WarFeed({
         )}
         <AnimatePresence initial={false} mode="popLayout">
           {events.map((e) => {
+            const refund = e.kind === "refund";
             const win = e.outcome === "win";
             const involvesYou = e.raiderIsYou || e.targetIsYou;
             return (
@@ -79,24 +80,36 @@ export const WarFeed = memo(function WarFeed({
 
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-mono text-[11px]">
-                    <span style={{ color: e.raiderIsYou ? "#FFD700" : "#eef1f6", fontWeight: 700 }}>
-                      {nameOf(e.raider, e.raiderIsYou, playerName)}
-                    </span>
-                    <span className="text-slate">{win ? " cracked " : " bounced off "}</span>
-                    <span style={{ color: e.targetIsYou ? "#FF2200" : "#8892a4", fontWeight: 700 }}>
-                      {nameOf(e.target, e.targetIsYou, playerName)}
-                    </span>
+                    {refund ? (
+                      <>
+                        <span style={{ color: "#7000FF", fontWeight: 700 }}>Bounty refunded</span>
+                        <span className="text-slate"> to </span>
+                        <span style={{ color: e.targetIsYou ? "#FFD700" : "#8892a4", fontWeight: 700 }}>
+                          {nameOf(e.target, e.targetIsYou, playerName)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ color: e.raiderIsYou ? "#FFD700" : "#eef1f6", fontWeight: 700 }}>
+                          {nameOf(e.raider, e.raiderIsYou, playerName)}
+                        </span>
+                        <span className="text-slate">{win ? " cracked " : " bounced off "}</span>
+                        <span style={{ color: e.targetIsYou ? "#FF2200" : "#8892a4", fontWeight: 700 }}>
+                          {nameOf(e.target, e.targetIsYou, playerName)}
+                        </span>
+                      </>
+                    )}
                   </span>
                   <span className="font-mono text-[10px] text-dim">
-                    {win ? "snatched" : "defended"} · {formatSol(e.amount, 3)} SOL
+                    {refund ? "unclaimed bounty returned" : win ? "snatched" : "defended"} · {formatSol(e.amount, 3)} SOL
                   </span>
                 </div>
 
                 <span
                   className="shrink-0 font-mono text-xs font-bold tabular-nums"
-                  style={{ color: win ? "#FF9900" : "#00E676" }}
+                  style={{ color: refund ? "#7000FF" : win ? "#FF9900" : "#00E676" }}
                 >
-                  {win ? "−" : "+"}{formatSol(e.amount, 2)}
+                  {refund ? "↩" : win ? "−" : "+"}{formatSol(e.amount, 2)}
                 </span>
               </motion.div>
             );

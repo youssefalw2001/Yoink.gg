@@ -1,22 +1,30 @@
 /**
- * RaidModal — the heist flow with the "Crack the Vault" reveal.
- *   1. Pick your wager (slider + ALL-IN). Odds are FIXED 50/50 for everyone.
+ * RaidModal — the "Siege the Vault" flow (transitional; the fully redesigned
+ * SiegeModal is Task 7.1).
+ *   1. Review the published per-tier odds, the attempt FEE (all you risk), and
+ *      the prize slice you'd crack.
  *   2. Optionally pledge a bounty on the target.
- *   3. CRACK → pick 1 of 3 vaults → WIN (take your matched wager) or BOUNCE.
+ *   3. CRACK → pick 1 of 3 vaults → CRACK (take the slice) or BOUNCE (lose the fee).
  *
- * FAIR: win odds are a flat 50% regardless of balance (matched stakes — you
- * win exactly what you risk). The vault pick is ceremony over a provably-fair
- * VRF roll; the seed is revealed so the result can be verified.
+ * NO SILENT FAILURES: commit returns a typed `SiegeResolution`; a declined siege
+ * shows the reason inline instead of closing the modal.
+ *
+ * FAIR: the crack chance is the FIXED, published per-tier win chance. The vault
+ * pick is ceremony over a provably-fair roll; the seed is revealed so the result
+ * can be verified.
  */
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock, Vault, Zap, ShieldCheck, Share2 } from "lucide-react";
 import {
-  WAR_CONFIG, maxWagerFor, tierForAmount,
-  type Stash, type RaidResult,
+  tierForAmount,
+  type Stash, type SiegeResult, type SiegeResolution, type SiegeRejection,
 } from "@/lib/walletWarsState";
-import { formatSol, truncateAddress, clamp } from "@/lib/utils";
+import {
+  tierParamsFor, feeMultiplierForStreak, computeFee, computePrize, STREAK_CFG,
+} from "@/lib/siegeMath";
+import { formatSol, truncateAddress } from "@/lib/utils";
 import { playYoink, playWin, playCooldownBlock, playPurchase, playTick } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
 
@@ -24,33 +32,52 @@ interface RaidModalProps {
   target: Stash;
   yourStash: number;
   taxMult: number;
-  onCommit: (wager: number) => RaidResult | null;
-  onPlaceBounty: (amount: number) => boolean;
+  onCommit: () => SiegeResolution;
+  onPlaceBounty: (amount: number) => { ok: boolean };
   onClose: () => void;
 }
 
 type Phase = "select" | "pick" | "result";
 const QR_KEY = "yoink_ww_quickraid";
 
-export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty, onClose }: RaidModalProps) {
-  const tier   = tierForAmount(yourStash);
-  const minBid = tier.minBet;
-  const maxBid = Math.max(minBid, maxWagerFor(target.amount, yourStash, taxMult));
+function rejectionCopy(reason: SiegeRejection): string {
+  switch (reason.kind) {
+    case "cooldown":
+      return `On cooldown — wait ${Math.ceil(reason.remainingMs / 1000)}s`;
+    case "shielded":
+      return reason.shieldRemainingMs > 0
+        ? `Target shielded — ${Math.ceil(reason.shieldRemainingMs / 1000)}s left`
+        : "Target no longer available";
+    case "self_siege":
+      return "You can't siege your own vault";
+    case "tier_mismatch":
+      return "Target is in a different weight class";
+    case "insufficient_funds":
+      return `Fee ${formatSol(reason.required, 3)} SOL exceeds your ${formatSol(reason.available, 3)} SOL`;
+  }
+}
 
-  const [bid, setBid]       = useState(() => clamp(+((minBid + maxBid) / 2).toFixed(3), minBid, maxBid));
-  const [phase, setPhase]   = useState<Phase>("select");
-  const [result, setResult] = useState<RaidResult | null>(null);
+export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty, onClose }: RaidModalProps) {
+  const tier = tierForAmount(yourStash);
+
+  // Siege economics, straight from the pure money math (no inline arithmetic).
+  const params = tierParamsFor(target.amount);
+  const mult = feeMultiplierForStreak(target.streak, STREAK_CFG);
+  const feeB = computeFee(target.amount, params, mult, taxMult);
+  const prizeB = computePrize(target.amount, params, mult);
+  const pWin = params.winChance;
+  const bountyNet = target.bountyPool > 0 ? target.bountyPool * (1 - params.housePrizeRake) : 0;
+  const reward = prizeB.toRaider + bountyNet;
+  const canAfford = feeB.fee <= yourStash;
+
+  const [phase, setPhase] = useState<Phase>("select");
+  const [result, setResult] = useState<SiegeResult | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
   const [loaded, setLoaded] = useState<number | null>(null);
+  const [blocked, setBlocked] = useState<string | null>(null);
   const [quickRaid, setQuickRaid] = useState(() => {
     try { return localStorage.getItem(QR_KEY) === "1"; } catch { return false; }
   });
-
-  const pWin      = WAR_CONFIG.FIXED_WIN_CHANCE;
-  const winNet    = bid * (1 - WAR_CONFIG.HOUSE_RAKE);
-  const bountyNet = target.bounty > 0 ? target.bounty * (1 - WAR_CONFIG.HOUSE_RAKE) : 0;
-  const reward    = winNet + bountyNet;
-  const tax       = +(bid * taxMult).toFixed(3);
 
   const bountyPresets = [tier.minBet * 3, tier.minBet * 6, tier.minBet * 12]
     .map((v) => +v.toFixed(3)).filter((v) => v <= yourStash);
@@ -64,14 +91,20 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
   }
 
   function commit() {
-    if (bid < minBid || bid + tax > yourStash) { playCooldownBlock(); return; }
+    if (!canAfford) { playCooldownBlock(); setBlocked(rejectionCopy({ kind: "insufficient_funds", required: feeB.fee, available: yourStash })); return; }
     playYoink();
-    const r = onCommit(bid);
-    if (!r) { onClose(); return; }
-    setResult(r);
+    const res = onCommit();
+    if (!res.ok) {
+      // Surface the typed reason instead of silently closing.
+      playCooldownBlock();
+      setBlocked(rejectionCopy(res.reason));
+      return;
+    }
+    setBlocked(null);
+    setResult(res.result);
     if (quickRaid) {
       setPhase("result");
-      if (r.outcome === "win") playWin();
+      if (res.result.outcome === "win") playWin();
     } else {
       setPhase("pick");
     }
@@ -94,7 +127,7 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
       style={{ background: "rgba(8,8,15,0.9)", backdropFilter: "blur(12px)" }}
-      role="dialog" aria-modal="true" aria-label={`Raid ${truncateAddress(target.wallet)}`}
+      role="dialog" aria-modal="true" aria-label={`Siege ${truncateAddress(target.wallet)}`}
     >
       <motion.div
         initial={{ scale: 0.92, y: 16, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
@@ -111,70 +144,65 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
             <motion.div key="select" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4">
               <div className="flex flex-col items-center gap-1 text-center">
                 <span className="flex items-center gap-2 rounded-full border border-blood/30 bg-blood/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-blood">
-                  <Crosshair className="h-3 w-3" aria-hidden /> Raiding · {tier.label}
+                  <Crosshair className="h-3 w-3" aria-hidden /> Sieging · {tier.label}
                 </span>
                 <div className="my-1"><PurgeAvatar seed={target.wallet} size={64} pulse /></div>
                 <span className="font-mono text-sm font-bold text-white">{truncateAddress(target.wallet, 4, 4)}</span>
                 <span className="font-display text-3xl font-black tabular-nums gold-text-gradient">
-                  {formatSol(target.amount, 2)} <span className="text-base text-slate">SOL</span>
+                  {formatSol(target.amount, 2)} <span className="text-base text-slate">SOL vault</span>
                 </span>
-                {target.bounty > 0 && (
+                {target.bountyPool > 0 && (
                   <span className="mt-0.5 flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 font-mono text-[10px] font-bold text-gold">
-                    <Target className="h-3 w-3" aria-hidden /> Bounty {formatSol(target.bounty, 2)} SOL
+                    <Target className="h-3 w-3" aria-hidden /> Bounty {formatSol(target.bountyPool, 2)} SOL
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate">Your wager</span>
-                  <span className="font-mono text-sm font-black tabular-nums text-white">{formatSol(bid, 3)}</span>
-                </div>
-                <input
-                  type="range" min={minBid} max={maxBid} step={Math.max(0.001, +((maxBid - minBid) / 40).toFixed(3))}
-                  value={bid} onChange={(e) => setBid(+e.target.value)} className="w-full accent-[#FFD700]" aria-label="Wager amount"
-                />
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[9px] text-dim">min {formatSol(minBid, 2)}</span>
-                  <button type="button" onClick={() => setBid(maxBid)} className="rounded-md border border-blood/30 bg-blood/10 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-blood">
-                    All-in {formatSol(maxBid, 2)}
-                  </button>
-                </div>
+              {/* fee (all you risk) */}
+              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "rgba(255,34,0,0.06)", border: "1px solid rgba(255,34,0,0.16)" }}>
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate">Attempt fee</span>
+                <span className="font-mono text-lg font-black tabular-nums text-blood">{formatSol(feeB.fee, 3)} SOL</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-0.5 rounded-xl px-3 py-2.5" style={{ background: "rgba(0,230,118,0.06)", border: "1px solid rgba(0,230,118,0.16)" }}>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Win chance</span>
-                  <span className="font-mono text-lg font-black tabular-nums text-emerald">{Math.round(pWin * 100)}%</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Crack chance</span>
+                  <span className="font-mono text-lg font-black tabular-nums text-emerald">{(pWin * 100).toFixed(0)}%</span>
                 </div>
                 <div className="flex flex-col gap-0.5 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,153,0,0.06)", border: "1px solid rgba(255,153,0,0.16)" }}>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">You take</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Prize slice</span>
                   <span className="font-mono text-lg font-black tabular-nums text-[#FF9900]">{formatSol(reward, 2)}</span>
                 </div>
               </div>
 
-              {tax > 0 && (
+              {feeB.repeatTax > 0 && (
                 <p className="flex items-center justify-center gap-1.5 rounded-lg border border-blood/15 bg-blood/[0.05] py-1.5 font-mono text-[10px] text-blood">
-                  <Flame className="h-3 w-3" aria-hidden /> Repeat-target tax: +{formatSol(tax, 3)} SOL to the house
+                  <Flame className="h-3 w-3" aria-hidden /> Repeat-target tax: +{formatSol(feeB.repeatTax, 3)} SOL to the house
                 </p>
               )}
               <p className="flex items-center justify-center gap-1.5 text-center font-mono text-[10px] text-dim">
                 <ShieldCheck className="h-3 w-3 text-emerald" aria-hidden />
-                Even 50/50 — same odds for everyone · matched stakes · house rakes {Math.round(WAR_CONFIG.HOUSE_RAKE * 100)}%
+                Lose the siege, you only lose the fee · published {(pWin * 100).toFixed(0)}% odds for this tier
               </p>
 
+              {blocked && (
+                <p className="flex items-center justify-center gap-1.5 rounded-lg border border-blood/25 bg-blood/[0.08] py-2 font-mono text-[10px] font-bold text-blood" role="alert">
+                  <ShieldAlert className="h-3 w-3" aria-hidden /> {blocked}
+                </p>
+              )}
+
               <motion.button
-                type="button" onClick={commit}
-                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.14 }}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-blood/40 bg-blood/15 py-3.5 font-display text-sm font-black uppercase tracking-[0.14em] text-blood transition-colors hover:bg-blood/25"
+                type="button" onClick={commit} disabled={!canAfford}
+                whileHover={canAfford ? { scale: 1.03 } : undefined} whileTap={canAfford ? { scale: 0.96 } : undefined} transition={{ duration: 0.14 }}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-blood/40 bg-blood/15 py-3.5 font-display text-sm font-black uppercase tracking-[0.14em] text-blood transition-colors hover:bg-blood/25 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ willChange: "transform" }}
               >
-                <Flame className="h-4 w-4" aria-hidden /> Crack it — {formatSol(bid, 2)} SOL
+                <Flame className="h-4 w-4" aria-hidden /> Crack it — {formatSol(feeB.fee, 3)} SOL
               </motion.button>
 
               <button type="button" onClick={toggleQuick} className="flex items-center justify-center gap-1.5 font-mono text-[10px] text-dim transition-colors hover:text-white">
                 <Zap className="h-3 w-3" style={{ color: quickRaid ? "#FFD700" : undefined }} aria-hidden />
-                Quick Raid {quickRaid ? "ON" : "OFF"} — skip the vault pick
+                Quick Siege {quickRaid ? "ON" : "OFF"} — skip the vault pick
               </button>
 
               {bountyPresets.length > 0 && (
@@ -184,7 +212,7 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   </span>
                   <div className="grid grid-cols-3 gap-2">
                     {bountyPresets.map((amt) => (
-                      <button key={amt} type="button" onClick={() => { if (onPlaceBounty(amt)) playPurchase(); }}
+                      <button key={amt} type="button" onClick={() => { if (onPlaceBounty(amt).ok) playPurchase(); else { playCooldownBlock(); setBlocked("Bounty declined — would drop you a tier or invalid amount"); } }}
                         className="rounded-xl border border-gold/25 bg-gold/[0.07] py-2 font-mono text-xs font-bold tabular-nums text-gold transition-colors hover:bg-gold/15">
                         +{formatSol(amt, 2)}
                       </button>
@@ -234,7 +262,7 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   );
                 })}
               </div>
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">50/50 · outcome already sealed by the seed</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">outcome already sealed by the seed</span>
             </motion.div>
           )}
 
@@ -252,16 +280,13 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                     className="flex h-16 w-16 items-center justify-center rounded-2xl border border-gold/40 bg-gold/15" style={{ willChange: "transform" }}>
                     <TrendingUp className="h-8 w-8 text-gold" aria-hidden />
                   </motion.div>
-                  <span className="font-display text-3xl font-black uppercase tracking-[0.1em] gold-text-gradient">Snatched!</span>
-                  <span className="font-mono text-sm text-slate">You cracked {truncateAddress(result.targetWallet, 4, 4)}</span>
-                  <span className="font-display text-4xl font-black tabular-nums text-[#FF9900]">+{formatSol(result.seized + result.bounty, 3)}</span>
-                  {result.bounty > 0 && (
-                    <span className="flex items-center gap-1 font-mono text-[11px] text-gold"><Target className="h-3 w-3" aria-hidden /> incl. {formatSol(result.bounty, 3)} bounty</span>
-                  )}
-                  <span className="font-mono text-[11px] text-dim">Stash now {formatSol(result.yourStashAfter, 3)} SOL</span>
+                  <span className="font-display text-3xl font-black uppercase tracking-[0.1em] gold-text-gradient">Cracked!</span>
+                  <span className="font-mono text-sm text-slate">You sliced {truncateAddress(result.targetWallet, 4, 4)}</span>
+                  <span className="font-display text-4xl font-black tabular-nums text-[#FF9900]">+{formatSol(result.seized, 3)}</span>
+                  <span className="font-mono text-[11px] text-dim">Your vault now {formatSol(result.yourVaultAfter, 3)} SOL</span>
                   <a
                     href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                      `I just cracked ${truncateAddress(result.targetWallet, 4, 4)} for ${formatSol(result.seized + result.bounty, 3)} SOL on YOINK.GG Wallet Wars. yoink.gg`,
+                      `I just cracked ${truncateAddress(result.targetWallet, 4, 4)} for ${formatSol(result.seized, 3)} SOL on YOINK.GG Wallet Wars. yoink.gg`,
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -278,8 +303,8 @@ export function RaidModal({ target, yourStash, taxMult, onCommit, onPlaceBounty,
                   </motion.div>
                   <span className="font-display text-3xl font-black uppercase tracking-[0.1em] text-slate">Bounced</span>
                   <span className="font-mono text-sm text-slate">{truncateAddress(result.targetWallet, 4, 4)} held the vault</span>
-                  <span className="font-display text-3xl font-black tabular-nums text-blood">−{formatSol(result.bid + result.tax, 3)}</span>
-                  <span className="font-mono text-[11px] text-dim">Your wager funded their stash</span>
+                  <span className="font-display text-3xl font-black tabular-nums text-blood">−{formatSol(result.lost, 3)}</span>
+                  <span className="font-mono text-[11px] text-dim">Your fee banked their vault — only the fee was risked</span>
                 </>
               )}
 

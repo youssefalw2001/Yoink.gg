@@ -61,11 +61,11 @@ export const StashCard = memo(function StashCard({ stash, canRaid, onRaid }: Sta
         )}
       </div>
 
-      {stash.bounty > 0 && (
+      {stash.bountyPool > 0 && (
         <div className="flex items-center gap-1.5 rounded-lg border border-gold/25 bg-gold/[0.07] px-2.5 py-1.5">
           <Target className="h-3 w-3 shrink-0 text-gold" aria-hidden />
           <span className="font-mono text-[10px] text-gold">
-            <span className="font-bold">{formatSol(stash.bounty, 2)} SOL</span> bounty — crack them, take it
+            <span className="font-bold">{formatSol(stash.bountyPool, 2)} SOL</span> bounty — crack them, take it
           </span>
         </div>
       )}
