@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GAME_CONFIG,
   FUSE_CONFIG,
-  bagAddFor,
   drainFor,
   drawFuseSeconds,
   computeYoinkCost,
@@ -15,6 +14,7 @@ import { ROOMS, type RoomId } from "@/lib/rooms";
 import { randomPoolWallet } from "@/lib/wallets";
 import { commitFuse } from "@/lib/vrf";
 import { computePayouts } from "@/lib/payouts";
+import { accrueReignToll } from "@/lib/reignToll";
 import {
   loadJackpot,
   saveJackpot,
@@ -26,6 +26,36 @@ import {
 
 let kingCounter = 0;
 const nextId = () => `king-${Date.now()}-${kingCounter++}`;
+
+/**
+ * Lifetime Reign Tolls persistence — mirrors the `jackpot.ts` localStorage
+ * pattern (key + try/catch for private-mode safety). When storage is
+ * unavailable the total runs in memory for the session via `memoryTolls`,
+ * so the game never crashes (Req 10.4).
+ */
+const TOLLS_KEY = "yoink_tolls_v1";
+let memoryTolls = 0;
+
+function loadTolls(): number {
+  try {
+    const raw = localStorage.getItem(TOLLS_KEY);
+    if (raw) {
+      const n = parseFloat(raw);
+      if (Number.isFinite(n) && n >= 0) {
+        memoryTolls = n;
+        return n;
+      }
+    }
+  } catch { /* private mode / disabled storage */ }
+  return memoryTolls;
+}
+
+function saveTolls(amount: number): void {
+  memoryTolls = amount;
+  try {
+    localStorage.setItem(TOLLS_KEY, amount.toFixed(6));
+  } catch { /* ignore */ }
+}
 
 function seedRecentKings(): King[] {
   return Array.from({ length: 6 }, () => ({
@@ -83,6 +113,7 @@ function makeInitial(roomId: RoomId): GameState {
     jackpotAmount:       loadJackpot(),
     jackpotResult:       null,
     payouts:             [],
+    roundTollsBanked:    0,
   };
 }
 
@@ -91,6 +122,11 @@ export function useGameState(roomId: RoomId = "arena") {
 
   const [state, setState]           = useState<GameState>(() => makeInitial(roomId));
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(seedLeaderboard);
+
+  // Lifetime Reign Tolls — read once on mount (Req 10.3), accumulated across
+  // the session and persisted on every local-player dethrone + on unmount.
+  const [lifetimeTolls, setLifetimeTolls] = useState<number>(() => loadTolls());
+  const lifetimeTollsRef = useRef(lifetimeTolls);
 
   const prevRoomId = useRef(roomId);
   useEffect(() => {
@@ -126,15 +162,28 @@ export function useGameState(roomId: RoomId = "arena") {
           room.baseCost, room.costStep, room.maxCost, nextCount, nextFeeMult,
         );
 
-        const bagAdd = bagAddFor(cost);
+        // ── Reign Toll settlement (pure) — credit the OUTGOING King a toll
+        //    slice of this fee, banked instantly and kept regardless of the
+        //    fuse outcome. Only `toBag` flows into the bag (drain unchanged).
+        const priorWalletTolls =
+          prev.roundKings.find((k) => k.wallet === prev.currentKing)?.tollsBanked ?? 0;
+        const accrual = accrueReignToll({
+          cost,
+          roomId,
+          dethronedIsYou:        prev.kingIsYou,
+          priorWalletTolls,
+          priorRoundTollsBanked: prev.roundTollsBanked,
+        });
+
         const drain  = drainFor(prev.bagAmount);
-        const netBag = +(prev.bagAmount + bagAdd - drain).toFixed(6);
+        const netBag = +(prev.bagAmount + accrual.toBag - drain).toFixed(6);
 
         const fallen: King = {
-          wallet:  prev.currentKing,
-          heldFor: prev.kingHeldFor,
-          isYou:   prev.kingIsYou,
-          id:      nextId(),
+          wallet:      prev.currentKing,
+          heldFor:     prev.kingHeldFor,
+          isYou:       prev.kingIsYou,
+          id:          nextId(),
+          tollsBanked: accrual.fallenTollsBanked,
         };
 
         const newKing  = byPlayer ? "You" : randomPoolWallet(prev.currentKing);
@@ -149,6 +198,7 @@ export function useGameState(roomId: RoomId = "arena") {
           bagAfter:    netBag,
           drainAmount: drain,
           ts:          now,
+          tollPaid:    accrual.tollPaid,
         };
 
         // 5% of every yoink feeds the shared progressive jackpot (the same
@@ -174,14 +224,38 @@ export function useGameState(roomId: RoomId = "arena") {
           jackpotAmount:       +(prev.jackpotAmount + jackpotAdd).toFixed(6),
           totalDrained:        +(prev.totalDrained + drain).toFixed(6),
           roundDrained:        +(prev.roundDrained + drain).toFixed(6),
+          roundTollsBanked:    accrual.roundTollsBanked,
           playerCooldownUntil: byPlayer
             ? now + GAME_CONFIG.PLAYER_COOLDOWN_MS
             : prev.playerCooldownUntil,
         };
       });
+
+      // Lifetime Reign Tolls — when the LOCAL player is the King being
+      // dethroned, accrue + persist their banked toll (Req 10.2). Computed from
+      // the same snapshot the state updater used. Free yoinks bank nothing.
+      const snap = stateRef.current;
+      if (!snap.isRoundOver && !snap.isWaiting && snap.kingIsYou) {
+        const priorWalletTolls =
+          snap.roundKings.find((k) => k.wallet === snap.currentKing)?.tollsBanked ?? 0;
+        const a = accrueReignToll({
+          cost:                  snap.currentCost,
+          roomId,
+          dethronedIsYou:        true,
+          priorWalletTolls,
+          priorRoundTollsBanked: snap.roundTollsBanked,
+        });
+        if (a.toll > 0) {
+          const next = +(lifetimeTollsRef.current + a.toll).toFixed(6);
+          lifetimeTollsRef.current = next;
+          setLifetimeTolls(next);
+          saveTolls(next);
+        }
+      }
+
       heldTickRef.current = 0;
     },
-    [room],
+    [room, roomId],
   );
 
   const yoink = useCallback(() => {
@@ -204,6 +278,7 @@ export function useGameState(roomId: RoomId = "arena") {
       currentKing:      randomPoolWallet(),
       bagAmount:        +(room.startingBag + Math.random() * room.startingBag * 0.75).toFixed(3),
       isWaiting:        false,
+      roundTollsBanked: 0,
     }));
     heldTickRef.current = 0;
     botCooldowns.current.clear();
@@ -384,6 +459,7 @@ export function useGameState(roomId: RoomId = "arena") {
     return () => {
       clearInterval(id);
       saveJackpot(stateRef.current.jackpotAmount);
+      saveTolls(lifetimeTollsRef.current);
     };
   }, []);
 
@@ -411,5 +487,5 @@ export function useGameState(roomId: RoomId = "arena") {
     return () => { cancelled = true; };
   }, [state.fuseSeconds, state.roundNumber]);
 
-  return { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner };
+  return { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner, lifetimeTolls };
 }

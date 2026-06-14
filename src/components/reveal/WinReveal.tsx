@@ -61,6 +61,8 @@ interface WinRevealProps {
   payouts?: PayoutEntry[];
   /** Jackpot drop result, if the progressive jackpot popped this round */
   jackpot?: JackpotResult | null;
+  /** Reign Tolls the local player banked this round (shown distinct from the pot). */
+  reignTolls?: number;
   onPlayAgain: () => void;
 }
 
@@ -549,6 +551,7 @@ export function WinReveal({
   fusePreimage,
   payouts = [],
   jackpot = null,
+  reignTolls = 0,
   onPlayAgain,
 }: WinRevealProps) {
   const coinLayer   = useRef<HTMLDivElement>(null);
@@ -729,6 +732,33 @@ export function WinReveal({
                 </span>
                 <span className="font-display text-xl font-bold text-gold/70">SOL</span>
               </div>
+
+              {/* Pot vs Reign Tolls — the toll is additive to, and independent
+                  of, winning the fuse pot (Req 16.1). */}
+              {reignTolls > 0 && (
+                <div className="flex w-full flex-col gap-1.5 rounded-2xl border border-gold/20 bg-gold/[0.06] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] text-slate">Pot</span>
+                    <span className="font-mono text-xs font-bold tabular-nums text-white">
+                      {formatSol(amount, 3)} SOL
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] text-gold/80">Reign tolls</span>
+                    <span className="font-mono text-xs font-bold tabular-nums text-gold">
+                      +{formatSol(reignTolls, 3)} SOL
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between border-t border-white/[0.08] pt-1.5">
+                    <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-emerald">
+                      Total
+                    </span>
+                    <span className="font-mono text-sm font-black tabular-nums text-emerald">
+                      {formatSol(amount + reignTolls, 3)} SOL
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Jackpot drop — shown immediately, it's the headline moment */}
               {jackpot && (

@@ -35,6 +35,8 @@ interface GameScreenProps {
   onGoToWalletWars?: () => void;
   /** Player's lifetime wins — drives the one-time Wallet Wars nudge. */
   totalWins?: number;
+  /** Reign Toll — local player's lifetime banked tolls (from localStorage). */
+  lifetimeTolls?: number;
 }
 
 // ── Fuse + Escalating Fee card — replaces CostEscalationCard ──────────────────
@@ -236,7 +238,7 @@ const JackpotTicker = memo(function JackpotTicker({ amount }: { amount: number }
 });
 
 // ── Main GameScreen ────────────────────────────────────────────────────────────
-export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner, cardTheme, displayName, onGoToWalletWars, totalWins = 0 }: GameScreenProps) {
+export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", ownedItems = [], pumpFakeBalance = null, onActivateWalletTracker, onActivateFuseBurner, cardTheme, displayName, onGoToWalletWars, totalWins = 0, lifetimeTolls = 0 }: GameScreenProps) {
   const critical = state.roundFeeMultiplier > 1.8 && !state.isRoundOver;
   const walletTrackerActive = ownedItems.includes("wallet_tracker");
   const ownsFuseBurner = ownedItems.includes("fuse_burner");
@@ -336,6 +338,7 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
                 critical={critical}
                 theme={cardTheme}
                 displayName={displayName}
+                roundTollsBanked={state.roundTollsBanked}
               />
             </div>
 
@@ -384,6 +387,8 @@ export function GameScreen({ state, onYoink, cooldownLeft, roomId = "arena", own
               biggestBag={state.biggestBag}
               totalDistributed={state.totalDistributed}
               playerCount={state.playerCount}
+              roundTollsBanked={state.roundTollsBanked}
+              lifetimeTolls={lifetimeTolls}
             />
             <FuseCard
               roundFeeMultiplier={state.roundFeeMultiplier}

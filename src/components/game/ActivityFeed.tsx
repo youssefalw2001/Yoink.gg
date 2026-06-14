@@ -39,7 +39,12 @@ export const ActivityFeed = memo(function ActivityFeed({ events }: ActivityFeedP
       <FeedHeader count={events.length} />
       <div className="no-scrollbar flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
         <AnimatePresence initial={false} mode="popLayout">
-          {events.map((ev) => (
+          {events.map((ev, idx) => {
+            // The dethroned ("previous") King is the new king of the next-older
+            // event in the feed. Unknown for the oldest visible row.
+            const prevKing = events[idx + 1]?.wallet;
+            const showToll = (ev.tollPaid ?? 0) > 0;
+            return (
             <motion.div
               key={ev.id}
               layout
@@ -87,6 +92,13 @@ export const ActivityFeed = memo(function ActivityFeed({ events }: ActivityFeedP
                     bag {formatSol(ev.bagAfter, 3)} SOL
                   </span>
                 </div>
+                {/* Reign Toll flow — gold secondary line when a toll was paid */}
+                {showToll && (
+                  <span className="flex items-center gap-1 font-mono text-[10px] font-bold text-gold">
+                    ↳ +{formatSol(ev.tollPaid ?? 0, 3)} SOL toll
+                    {prevKing ? <> → {truncateAddress(prevKing)}</> : null}
+                  </span>
+                )}
               </div>
 
               {/* timestamp */}
@@ -94,7 +106,8 @@ export const ActivityFeed = memo(function ActivityFeed({ events }: ActivityFeedP
                 {timeAgo(ev.ts)}
               </span>
             </motion.div>
-          ))}
+            );
+          })}
         </AnimatePresence>
       </div>
     </div>

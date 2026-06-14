@@ -26,6 +26,12 @@ export interface King {
   heldFor: number;
   isYou: boolean;
   id: string;
+  /**
+   * Reign Toll — SOL banked by this King across the round (the per-tier toll
+   * slice of every yoink that dethroned them). Optional + defaults to 0 so
+   * existing/seeded `King` objects stay compatible. Validation: `>= 0`.
+   */
+  tollsBanked?: number;
 }
 
 export interface YoinkEvent {
@@ -36,6 +42,12 @@ export interface YoinkEvent {
   bagAfter: number;
   drainAmount: number;
   ts: number;
+  /**
+   * Reign Toll credited to the dethroned King on THIS yoink (for the feed
+   * display). Optional + defaults to 0 for free yoinks and back-compat.
+   * Validation: `>= 0`, equal to `cost · tollBps/10000`.
+   */
+  tollPaid?: number;
 }
 
 export interface LeaderboardEntry {
@@ -117,6 +129,11 @@ export interface GameState {
   jackpotResult: JackpotResult | null;
   /** Full payout split for the finished round (King + podium + held pool). */
   payouts: PayoutEntry[];
+  /**
+   * Reign Toll — the local player's tolls banked THIS round (sum of `tollPaid`
+   * over every yoink that dethroned them). Resets to 0 each round. `>= 0`.
+   */
+  roundTollsBanked: number;
 }
 
 export const GAME_CONFIG = {
@@ -135,6 +152,19 @@ export const GAME_CONFIG = {
   RAKE_BPS: 1_000,
   JACKPOT_BPS: 500,
   DRAIN_BPS: 200,
+
+  /**
+   * Reign Toll — per-room toll rate in basis points, carved out of the bag
+   * share (BAG_BPS(room) = BAG_BPS − TOLL_BPS_BY_ROOM[room]). Kept in lock-step
+   * with `bagMath.TOLL_BPS_BY_ROOM` (the pure source of truth used for all
+   * settlement math). Strictly increasing across tiers.
+   */
+  TOLL_BPS_BY_ROOM: {
+    pit:   400,
+    grind: 600,
+    arena: 700,
+    court: 800,
+  } as Record<string, number>,
 
   DRAIN_TIERS: [
     { minBag: 0,  maxBag: 5,   bps: 100 },

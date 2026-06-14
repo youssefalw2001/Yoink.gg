@@ -39,7 +39,6 @@ export function YoinkButton({
   youAreKing = false,
   cost,
   cooldownLeft,
-  yoinkCount,
   roundFeeMultiplier = 1,
 }: YoinkButtonProps) {
   const [bursts, setBursts] = useState<number[]>([]);
@@ -80,7 +79,7 @@ export function YoinkButton({
   let sublabel: string | null = null;
 
   if (youAreKing) {
-    label = "You hold the bag — defend it";
+    label = "You hold the bag — defend it · banking tolls";
   } else if (onCooldown) {
     const secs = (cooldownLeft / 1000).toFixed(1);
     label    = `Anti-snipe cooldown — ${secs}s`;
@@ -91,8 +90,10 @@ export function YoinkButton({
       sublabel = `Fee blazing — ${roundFeeMultiplier.toFixed(1)}× base. Act now or pay more.`;
     } else if (isHot) {
       sublabel = `Fee heating up — ${((roundFeeMultiplier - 1) * 100).toFixed(0)}% above base cost`;
-    } else if (yoinkCount > 0) {
-      sublabel = `+${(FUSE_CONFIG.FEE_STEP * 100).toFixed(0)}% per YOINK this round`;
+    } else {
+      // Reign Toll value prop — taking the throne lets you bank a toll on every
+      // future dethrone (Req 14.1).
+      sublabel = "Take the throne — then bank a toll every time they take it back.";
     }
   }
 

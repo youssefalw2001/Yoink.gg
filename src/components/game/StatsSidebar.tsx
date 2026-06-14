@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { motion } from "framer-motion";
-import { Hash, Crown, Coins, Users } from "lucide-react";
+import { Hash, Crown, Coins, Users, Landmark } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { usePrefersReducedMotion } from "@/components/walletwars/useReducedMotion";
 import { formatSol } from "@/lib/utils";
 
 interface StatsSidebarProps {
@@ -9,6 +10,10 @@ interface StatsSidebarProps {
   biggestBag: number;
   totalDistributed: number;
   playerCount: number;
+  /** Reign Toll — local player's tolls banked this round. */
+  roundTollsBanked?: number;
+  /** Reign Toll — local player's lifetime banked tolls (from localStorage). */
+  lifetimeTolls?: number;
 }
 
 function StatRow({
@@ -43,12 +48,62 @@ function StatRow({
   );
 }
 
+/**
+ * Reign Tolls row — shows this round's banked tolls and the lifetime total,
+ * with the lifetime number animating upward (scale pop) whenever it grows.
+ */
+function ReignTollsRow({
+  round,
+  lifetime,
+  animate,
+}: {
+  round: number;
+  lifetime: number;
+  animate: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-3">
+      <span className="flex items-center gap-2.5 text-xs text-slate">
+        <Landmark className="h-4 w-4 text-dim" aria-hidden />
+        Reign Tolls
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-sm font-bold tabular-nums text-gold">
+          {formatSol(round, 3)}
+        </span>
+        <span className="font-mono text-[10px] text-dim">round</span>
+        <span className="text-dim">·</span>
+        {animate ? (
+          <motion.span
+            key={lifetime.toFixed(3)}
+            initial={{ scale: 1.2, opacity: 0.6 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 420, damping: 18 }}
+            className="font-mono text-sm font-bold tabular-nums text-gold/80"
+            style={{ willChange: "transform" }}
+          >
+            {formatSol(lifetime, 3)}
+          </motion.span>
+        ) : (
+          <span className="font-mono text-sm font-bold tabular-nums text-gold/80">
+            {formatSol(lifetime, 3)}
+          </span>
+        )}
+        <span className="font-mono text-[10px] text-dim">lifetime</span>
+      </span>
+    </div>
+  );
+}
+
 export const StatsSidebar = memo(function StatsSidebar({
   roundNumber,
   biggestBag,
   totalDistributed,
   playerCount,
+  roundTollsBanked = 0,
+  lifetimeTolls = 0,
 }: StatsSidebarProps) {
+  const reducedMotion = usePrefersReducedMotion();
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -88,6 +143,11 @@ export const StatsSidebar = memo(function StatsSidebar({
               value={playerCount.toLocaleString("en-US")}
               accent="#00E676"
               live
+            />
+            <ReignTollsRow
+              round={roundTollsBanked}
+              lifetime={lifetimeTolls}
+              animate={!reducedMotion}
             />
           </div>
         </div>
