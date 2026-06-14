@@ -7,10 +7,12 @@
  *   3. TIER SELECTOR   — weight classes with live counts + empty states
  *   4. TARGET CARDS    — scannable raid targets in the selected tier
  *   5. BOUNTY BOARD    — promoted phantom-accent targeting
- *   6. WAR FEED        — live raid stream (social proof / FOMO)
+ *   6. WAR FEED        — live siege stream (social proof / FOMO)
+ *   7. WAR BOARDS      — season-scoped fee-farming / survival leaderboards
  *
- * Game logic is UNCHANGED: fixed 50/50 odds, matched stakes, 15% rake, tier
- * thresholds, and all devnet simulation live in lib/walletWarsState.ts.
+ * Game logic lives in lib/walletWarsState.ts (the "Siege the Vault" engine):
+ * asymmetric defender-vs-raider, a cheap attempt fee, published per-tier crack
+ * odds, and partial-slice prizes. ESCROW_ENABLED stays false (local sim).
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,14 +22,15 @@ import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import {
   useWalletWars, TIERS, tierIndexForAmount,
-  type SiegeResolution, type Stash,
+  type SiegeResolution, type Vault as VaultModel,
 } from "@/lib/walletWarsState";
 import { useWallet } from "@/lib/wallet";
 import { formatSol, truncateAddress } from "@/lib/utils";
-import { StashCard } from "./StashCard";
-import { YourStashPanel } from "./YourStashPanel";
-import { RaidModal } from "./RaidModal";
+import { VaultCard } from "./VaultCard";
+import { YourVaultPanel } from "./YourVaultPanel";
+import { SiegeModal } from "./SiegeModal";
 import { WarFeed } from "./WarFeed";
+import { WalletWarsLeaderboard } from "./WalletWarsLeaderboard";
 import {
   ProvablyFairBadge, StatusBar, BountyBoard, FeeToast, WarOnboarding,
   type FeeToastData,
@@ -76,7 +79,7 @@ export function WalletWarsScreen({
   avatarVariant?: number | null;
   avatarColor?: string | null;
 }) {
-  const { state, openVault, cashOut, siege, placeBounty, repeatTaxMult } = useWalletWars();
+  const { state, openVault, cashOut, withdrawBanked, setCompound, siege, placeBounty, repeatTaxMult } = useWalletWars();
   const { walletBalance, publicKey } = useWallet();
 
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
@@ -118,7 +121,7 @@ export function WalletWarsScreen({
     if (banked) {
       lastFeeTsRef.current = banked.ts;
       setFeeToast({ id: banked.ts, amount: banked.amount, from: banked.raider });
-      setLastAction(`Stash survived — banked +${formatSol(banked.amount, 3)} SOL from ${truncateAddress(banked.raider, 4, 4)}`);
+      setLastAction(`Vault survived — banked +${formatSol(banked.amount, 3)} SOL from ${truncateAddress(banked.raider, 4, 4)}`);
       const t = window.setTimeout(() => setFeeToast(null), 3200);
       return () => clearTimeout(t);
     }
@@ -134,8 +137,8 @@ export function WalletWarsScreen({
     [state.stashes, raidTargetId],
   );
 
-  // You can raid a stash only inside your own weight class, when unshielded.
-  function canRaidStash(s: Stash): boolean {
+  // You can siege a vault only inside your own weight class, when unshielded.
+  function canRaidStash(s: VaultModel): boolean {
     if (!state.you) return false;
     if (tierIndexForAmount(s.amount) !== tierIndexForAmount(state.you.amount)) return false;
     return Date.now() >= s.shieldUntil;
@@ -177,7 +180,7 @@ export function WalletWarsScreen({
   // Default status text when nothing has happened yet.
   const statusText =
     lastAction ??
-    (state.you ? "Stash open — pick a target in your tier to raid" : "No raids yet — open a stash to start earning");
+    (state.you ? "Vault open — pick a target in your tier to siege" : "No sieges yet — open a vault to start earning");
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
@@ -227,11 +230,13 @@ export function WalletWarsScreen({
       <div className="flex flex-col gap-5">
 
         {/* 1 — YOUR POSITION */}
-        <YourStashPanel
+        <YourVaultPanel
           you={state.you}
           walletBalance={walletBalance}
           onOpen={openVault}
           onClose={cashOut}
+          onWithdrawBanked={withdrawBanked}
+          onToggleCompound={setCompound}
           displayName={displayName}
           avatarSeed={avatarSeed}
           avatarVariant={avatarVariant}
@@ -295,7 +300,7 @@ export function WalletWarsScreen({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <AnimatePresence mode="popLayout">
                 {boardForTier.map((s) => (
-                  <StashCard key={s.id} stash={s} canRaid={canRaidTier} onRaid={handleRaidClick} />
+                  <VaultCard key={s.id} vault={s} canRaid={canRaidTier} onRaid={handleRaidClick} />
                 ))}
               </AnimatePresence>
             </div>
@@ -325,14 +330,22 @@ export function WalletWarsScreen({
             />
           </div>
         </SpotlightCard>
+
+        {/* 7 — WAR BOARDS (season-scoped leaderboards) */}
+        <WalletWarsLeaderboard
+          stashes={state.stashes}
+          you={state.you}
+          biggestHeist={state.biggestHeist}
+          displayName={displayName}
+        />
       </div>
 
-      {/* ── RAID MODAL ── */}
+      {/* ── SIEGE MODAL ── */}
       <AnimatePresence>
         {target && state.you && targetRaidable && (
-          <RaidModal
+          <SiegeModal
             target={target}
-            yourStash={state.you.amount}
+            yourVault={state.you.amount}
             taxMult={repeatTaxMult(target.id)}
             onCommit={handleSiegeCommit}
             onPlaceBounty={(amt) => placeBounty(target.id, amt)}

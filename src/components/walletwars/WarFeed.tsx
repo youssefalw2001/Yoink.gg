@@ -9,6 +9,7 @@ import { Radio } from "lucide-react";
 import type { RaidEvent } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { PurgeAvatar } from "./PurgeAvatar";
+import { usePrefersReducedMotion } from "./useReducedMotion";
 
 function nameOf(wallet: string, isYou: boolean, playerName: string) {
   if (isYou) return playerName || "You";
@@ -30,17 +31,19 @@ export const WarFeed = memo(function WarFeed({
   playerAvatarVariant = null,
   playerAvatarColor = null,
 }: WarFeedProps) {
+  const reduced = usePrefersReducedMotion();
   return (
     <div className="flex flex-col">
       <div className="mb-2.5 flex items-center gap-2 px-1">
         <Radio className="h-3.5 w-3.5 text-emerald" aria-hidden />
-        <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">Live raids</h3>
+        <h3 className="font-mono text-[10px] uppercase tracking-[0.3em] text-slate">Live sieges</h3>
       </div>
 
       <div className="no-scrollbar flex max-h-[420px] flex-col gap-1.5 overflow-y-auto pr-1">
         {events.length === 0 && (
-          <div className="flex h-20 items-center justify-center font-mono text-xs text-dim">
-            Waiting for the first raid…
+          <div className="flex h-20 flex-col items-center justify-center gap-1 text-center font-mono text-xs text-dim">
+            <span>No sieges yet — the board is quiet.</span>
+            <span className="text-[10px] text-dim/70">Open a vault or crack one to light it up.</span>
           </div>
         )}
         <AnimatePresence initial={false} mode="popLayout">
@@ -48,20 +51,26 @@ export const WarFeed = memo(function WarFeed({
             const refund = e.kind === "refund";
             const win = e.outcome === "win";
             const involvesYou = e.raiderIsYou || e.targetIsYou;
+            // Cracks (wins) land with a celebratory pop; bounces slide in calmly.
+            const entrance = win && !refund && !reduced
+              ? { initial: { opacity: 0, scale: 0.8, y: -12 }, animate: { opacity: 1, scale: [0.8, 1.06, 1], y: 0 } }
+              : { initial: { opacity: 0, y: -10, scale: 0.97 }, animate: { opacity: 1, y: 0, scale: 1 } };
             return (
               <motion.div
                 key={e.id}
                 layout
-                initial={{ opacity: 0, y: -10, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
+                initial={entrance.initial}
+                animate={entrance.animate}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: "spring", stiffness: 420, damping: 36 }}
                 className="flex items-center gap-2.5 rounded-xl px-3 py-2"
                 style={{
                   background: involvesYou
                     ? "rgba(255,215,0,0.06)"
-                    : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${involvesYou ? "rgba(255,215,0,0.16)" : "rgba(255,255,255,0.04)"}`,
+                    : win && !refund
+                      ? "rgba(255,153,0,0.05)"
+                      : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${involvesYou ? "rgba(255,215,0,0.16)" : win && !refund ? "rgba(255,153,0,0.14)" : "rgba(255,255,255,0.04)"}`,
                 }}
               >
                 <span className="relative shrink-0">

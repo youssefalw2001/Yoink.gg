@@ -19,7 +19,8 @@ import {
   ShieldCheck, Target, Crosshair, Vault, Swords, ChevronRight,
   X, Sparkles, TrendingUp, ShieldAlert,
 } from "lucide-react";
-import type { Stash } from "@/lib/walletWarsState";
+import type { Vault as VaultModel } from "@/lib/walletWarsState";
+import { isEscrowLive } from "@/lib/walletWarsChain";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { PurgeAvatar } from "./PurgeAvatar";
 
@@ -31,6 +32,7 @@ const reduced = () =>
 
 export function ProvablyFairBadge() {
   const [open, setOpen] = useState(false);
+  const live = isEscrowLive();
   return (
     <div className="flex flex-col items-center">
       <button
@@ -40,7 +42,7 @@ export function ProvablyFairBadge() {
         aria-expanded={open}
       >
         <ShieldCheck className="h-3 w-3 text-emerald" aria-hidden />
-        Provably Fair · Devnet · Sim Stakes
+        {live ? "Provably Fair · On-Chain" : "Provably Fair · Client-Side Sim"}
       </button>
       <AnimatePresence>
         {open && (
@@ -51,8 +53,19 @@ export function ProvablyFairBadge() {
             transition={{ duration: 0.2 }}
             className="mt-2 max-w-md overflow-hidden text-center font-mono text-[10px] leading-relaxed text-dim"
           >
-            Every raid outcome is determined by hash(seed) &lt; 0.5 — verifiable on-chain.
-            No house manipulation possible. The seed is revealed with every result.
+            {live ? (
+              <>
+                Each siege is settled on-chain: a win is <span className="text-slate">hash(seed) &lt; p</span>,
+                the published per-tier crack chance. The seed is revealed with every result so anyone can recompute it.
+              </>
+            ) : (
+              <>
+                Stakes are simulated locally (devnet) — no real SOL moves while escrow is off.
+                Every siege still runs the real provable-fairness check: a win is{" "}
+                <span className="text-slate">roll(seed) &lt; p</span>, the published per-tier crack chance.
+                The seed and roll are revealed with each result so you can verify it yourself.
+              </>
+            )}
           </motion.p>
         )}
       </AnimatePresence>
@@ -111,8 +124,8 @@ export function FeeToast({ toast }: { toast: FeeToastData | null }) {
 // ─── Bounty board — promoted phantom-accent targeting ────────────────────────────
 
 interface BountyBoardProps {
-  stashes: Stash[];
-  canRaid: (s: Stash) => boolean;
+  stashes: VaultModel[];
+  canRaid: (s: VaultModel) => boolean;
   onCrack: (id: string) => void;
 }
 
@@ -179,20 +192,20 @@ const SLIDES = [
   {
     icon: Vault,
     color: "#7000FF",
-    title: "STAKE SOL",
-    body: "Open a stash. Your SOL is the prize — and your war chest.",
+    title: "OPEN A VAULT",
+    body: "Stake SOL to become a target. Your corpus is the prize — and your war chest.",
   },
   {
     icon: Swords,
     color: "#FF2200",
-    title: "RAID OR BE RAIDED",
-    body: "50/50 odds for everyone. Win their SOL. Survive and bank their fees.",
+    title: "SIEGE OR GET SIEGED",
+    body: "Pay a small fee to siege a vault — it's all you risk. Survive raids and bank their fees.",
   },
   {
     icon: ShieldCheck,
     color: "#00E676",
-    title: "SHIELDS PROTECT YOU",
-    body: "After every raid you get a window to breathe before anyone can hit you again.",
+    title: "CHEAP FEE IN, BIG CRACK OUT",
+    body: "A rare crack pays a fat slice (~10× the fee). After every siege a shield protects the vault.",
   },
 ] as const;
 
@@ -327,7 +340,7 @@ export function WarOnboarding({ onDone }: { onDone: () => void }) {
                     You cracked it!
                   </span>
                   <p className="font-mono text-xs text-slate">
-                    That's a win — you'd take their matched wager (minus the house rake).
+                    That's a crack — you'd take a fat slice of their vault (~10× your fee), minus the house rake.
                   </p>
                 </>
               ) : (
@@ -339,7 +352,7 @@ export function WarOnboarding({ onDone }: { onDone: () => void }) {
                     Bounced
                   </span>
                   <p className="font-mono text-xs text-slate">
-                    That's a miss — you'd forfeit your wager. 50/50 every time. Now you know the feel.
+                    That's a bounce — you'd only lose the small fee, and it banks the defender. Cheap to try again.
                   </p>
                 </>
               )}
