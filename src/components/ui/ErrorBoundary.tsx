@@ -11,7 +11,17 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
-interface Props { children: ReactNode; }
+interface Props {
+  children: ReactNode;
+  /**
+   * Optional graceful fallback. When provided, it is rendered instead of the
+   * full-screen diagnostic — used to scope a crash to a single screen (e.g.
+   * Wallet Wars) so the rest of the app (header, nav) keeps working instead of
+   * the whole tree blanking out. `reset` clears the error and re-mounts the
+   * wrapped subtree without reloading the page.
+   */
+  fallback?: (error: Error, reset: () => void) => ReactNode;
+}
 interface State { error: Error | null; componentStack: string | null; }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -26,6 +36,10 @@ export class ErrorBoundary extends Component<Props, State> {
     // eslint-disable-next-line no-console
     console.error("YOINK.GG crashed:", error, info?.componentStack);
   }
+
+  private reset = () => {
+    this.setState({ error: null, componentStack: null });
+  };
 
   private details(): string {
     const { error, componentStack } = this.state;
@@ -43,6 +57,12 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       const { error, componentStack } = this.state;
+
+      // Scoped graceful fallback (keeps the rest of the app alive).
+      if (this.props.fallback) {
+        return this.props.fallback(error, this.reset);
+      }
+
       // First meaningful frame of the component stack — names the culprit.
       const culprit = (componentStack ?? "")
         .split("\n")

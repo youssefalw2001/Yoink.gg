@@ -10,6 +10,7 @@ import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
 import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { WinReveal } from "@/components/reveal/WinReveal";
 import { ProfileModal } from "@/components/profile/ProfileModal";
 import { LevelUpToast } from "@/components/ui/XPBar";
@@ -387,11 +388,40 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <WalletWarsScreen
-                      displayName={raw.displayName}
-                      avatarVariant={raw.avatarVariant}
-                      avatarColor={raw.avatarColor}
-                    />
+                    <ErrorBoundary
+                      fallback={(error, reset) => (
+                        <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6">
+                          <div
+                            className="flex flex-col items-center gap-4 rounded-[24px] px-6 py-10 text-center"
+                            style={{ background: "rgba(255,34,0,0.06)", border: "1px solid rgba(255,34,0,0.18)" }}
+                          >
+                            <span className="font-display text-lg font-black uppercase tracking-[0.16em] text-blood">
+                              Wallet Wars hit a snag
+                            </span>
+                            <p className="max-w-sm font-mono text-[11px] leading-relaxed text-slate">
+                              Something went wrong rendering this screen — your stake is safe (stakes
+                              are simulated). Reload Wallet Wars to jump back in.
+                            </p>
+                            <p className="max-w-sm break-words font-mono text-[10px] text-dim">
+                              {error?.message || "Unexpected error."}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={reset}
+                              className="gold-button flex items-center justify-center gap-2 px-6 py-3 text-sm"
+                            >
+                              Reload Wallet Wars
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    >
+                      <WalletWarsScreen
+                        displayName={raw.displayName}
+                        avatarVariant={raw.avatarVariant}
+                        avatarColor={raw.avatarColor}
+                      />
+                    </ErrorBoundary>
                   </motion.div>
                 )}
 
