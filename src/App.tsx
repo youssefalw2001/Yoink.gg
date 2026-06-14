@@ -47,7 +47,7 @@ export default function App() {
   // Rolling instance manager — runs in background regardless of current page
   const { syncInstance, getInstancesForRoom } = useRoomInstances();
 
-  const { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner } = useGameState(
+  const { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner, lifetimeTolls } = useGameState(
     roomId ?? "arena",
   );
 
@@ -374,6 +374,7 @@ export default function App() {
                       displayName={raw.displayName}
                       onGoToWalletWars={() => handleNavigate("walletwars")}
                       totalWins={progress.totalWins}
+                      lifetimeTolls={lifetimeTolls}
                     />
                   </motion.div>
                 )}
@@ -450,6 +451,7 @@ export default function App() {
               fusePreimage={state.fusePreimage}
               payouts={state.payouts}
               jackpot={state.jackpotResult}
+              reignTolls={state.roundTollsBanked}
               onPlayAgain={playAgain}
             />
 

@@ -1,10 +1,12 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { KingCardShader } from "@/components/ui/KingCardShader";
 import { AnimatedKingAvatar } from "@/components/ui/AnimatedKingAvatar";
-import { truncateAddress } from "@/lib/utils";
+import { usePrefersReducedMotion } from "@/components/walletwars/useReducedMotion";
+import { tollsChipModel } from "@/components/game/kingCardTolls";
+import { truncateAddress, formatSol } from "@/lib/utils";
 
 interface KingCardProps {
   king: string;
@@ -13,6 +15,8 @@ interface KingCardProps {
   critical: boolean;
   theme?: string;  // 'theme_blood' | 'theme_phantom' | 'crown_animated' | 'default'
   displayName?: string;
+  /** Reign Toll — the local player's tolls banked this round (drives the chip). */
+  roundTollsBanked?: number;
 }
 
 const THEME_COLORS: Record<string, { spot: string; border: string; shadow: string; flame: string }> = {
@@ -44,8 +48,32 @@ const FLAMES = [
   { left: "86%", delay: "0.35s", dur: "2.8s" },
 ];
 
-export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical, theme, displayName }: KingCardProps) {
+export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical, theme, displayName, roundTollsBanked = 0 }: KingCardProps) {
   const key = `${king}-${isYou}`;
+  const reducedMotion = usePrefersReducedMotion();
+  const chip = tollsChipModel(roundTollsBanked, reducedMotion);
+
+  // Dethrone fly-up — when the LOCAL player loses the throne and banked a toll,
+  // a "+{toll} SOL" gold token rises and fades from the avatar (Req 12.4).
+  const [flyUp, setFlyUp] = useState<{ id: number; amount: number } | null>(null);
+  const prevRef = useRef({ isYou, tolls: roundTollsBanked });
+  useEffect(() => {
+    const prev = prevRef.current;
+    if (prev.isYou && !isYou) {
+      const delta = +(roundTollsBanked - prev.tolls).toFixed(6);
+      if (delta > 0) {
+        const token = { id: Date.now(), amount: delta };
+        setFlyUp(token);
+        const ms = reducedMotion ? 1000 : 1300;
+        const t = setTimeout(() => {
+          setFlyUp((cur) => (cur && cur.id === token.id ? null : cur));
+        }, ms);
+        prevRef.current = { isYou, tolls: roundTollsBanked };
+        return () => clearTimeout(t);
+      }
+    }
+    prevRef.current = { isYou, tolls: roundTollsBanked };
+  }, [isYou, roundTollsBanked, reducedMotion]);
 
   // Theme colours — critical (blood) always overrides any cosmetic theme
   const tc = !critical && theme && theme in THEME_COLORS ? THEME_COLORS[theme] : null;
@@ -57,6 +85,32 @@ export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical,
 
   return (
     <div className="relative flex w-full items-center justify-center sm:mx-auto sm:max-w-sm">
+      {/* Reign Toll dethrone fly-up — "+{toll} SOL" gold token rising + fading */}
+      <AnimatePresence>
+        {flyUp && (
+          reducedMotion ? (
+            <span
+              key={flyUp.id}
+              className="pointer-events-none absolute top-2 left-1/2 z-30 -translate-x-1/2 rounded-full border border-gold/40 bg-gold/15 px-3 py-1 font-mono text-xs font-bold tabular-nums text-gold"
+            >
+              +{formatSol(flyUp.amount, 3)} SOL toll banked
+            </span>
+          ) : (
+            <motion.span
+              key={flyUp.id}
+              initial={{ y: 0, opacity: 1, scale: 0.9 }}
+              animate={{ y: -28, opacity: 0, scale: 1.05 }}
+              transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+              className="pointer-events-none absolute top-2 left-1/2 z-30 -translate-x-1/2 font-mono text-sm font-black tabular-nums text-gold"
+              style={{ willChange: "transform, opacity", textShadow: "0 0 12px rgba(255,215,0,0.8)" }}
+              aria-hidden
+            >
+              +{formatSol(flyUp.amount, 3)} SOL
+            </motion.span>
+          )
+        )}
+      </AnimatePresence>
+
       {/* Orbiting crown — crown_animated cosmetic theme */}
       {theme === "crown_animated" && (
         <div className="pointer-events-none absolute -top-5 left-1/2 z-20 -translate-x-1/2">
@@ -151,9 +205,29 @@ export const KingCard = memo(function KingCard({ king, isYou, heldFor, critical,
                 </div>
 
                 {isYou && (
-                  <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald">
-                    defend the throne
-                  </span>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-emerald">
+                      Hold the throne · bank tolls
+                    </span>
+                    {chip.show && (
+                      chip.animate ? (
+                        <motion.span
+                          key={roundTollsBanked.toFixed(3)}
+                          initial={{ scale: 1.18, opacity: 0.6 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 420, damping: 18 }}
+                          className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 font-mono text-[11px] font-bold tabular-nums text-gold"
+                          style={{ willChange: "transform" }}
+                        >
+                          {chip.label}
+                        </motion.span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 font-mono text-[11px] font-bold tabular-nums text-gold">
+                          {chip.label}
+                        </span>
+                      )
+                    )}
+                  </div>
                 )}
               </div>
 
