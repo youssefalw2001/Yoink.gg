@@ -616,6 +616,21 @@ export function ShopScreen({
             {CATEGORY_META[activeTab].description}
           </p>
 
+          {/* Cosmetics are status only — never touch siege odds or payouts. */}
+          {activeTab === "cosmetics" && (
+            <div
+              className="mt-3 flex items-center gap-2 rounded-xl px-3.5 py-2.5"
+              style={{ background: "rgba(0,230,118,0.06)", border: "1px solid rgba(0,230,118,0.18)" }}
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-emerald" aria-hidden />
+              <span className="font-mono text-[11px] leading-relaxed text-slate">
+                <span className="font-bold text-emerald">Visual only.</span> Status cosmetics flex your standing
+                in Wallet Wars — they never change your crack odds, fees, or payouts. The published per-tier odds
+                are the same for everyone.
+              </span>
+            </div>
+          )}
+
           {/* ── Items grid ──────────────────────────────────────────────── */}
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
             {items.map((item, i) => (

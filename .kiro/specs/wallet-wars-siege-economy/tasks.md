@@ -148,17 +148,17 @@ Task 1 is foundational; nothing that moves SOL is wired until its math is proven
   - [x]* 6.1 Unit test — quota decrement, UTC reset, and zero-quota refusal
     - _Requirements: 14.4, 14.5, 14.6_
 
-- [ ] 7. UI updates (Framer Motion only)
-  - [ ] 7.1 `RaidModal → SiegeModal`
+- [x] 7. UI updates (Framer Motion only)
+  - [x] 7.1 `RaidModal → SiegeModal`
     - Show the attempt fee, published tier odds `p`, and prize slice; never fail silently (surface cooldown/shield/tier/affordability blocks); reveal `seed`, `roll`, and the `roll < p` comparison with an honest provably-fair badge
     - _Requirements: 2.1, 22.4, 22.6_
-  - [ ] 7.2 `StashCard → VaultCard`
+  - [x] 7.2 `StashCard → VaultCard`
     - Render a heat badge (`HOT`/`ON FIRE`), a live shield countdown, and the published per-tier odds
     - _Requirements: 10.2, 20.1, 22.3_
-  - [ ] 7.3 `YourStashPanel → YourVaultPanel`
+  - [x] 7.3 `YourStashPanel → YourVaultPanel`
     - Banked-fee ticker, survival streak, auto-compound toggle, manual withdraw-banked, and cash-out
     - _Requirements: 11.1, 11.2, 9.5_
-  - [ ] 7.4 WarFeed + leaderboards + shop cosmetics
+  - [x] 7.4 WarFeed + leaderboards + shop cosmetics
     - Emit siege events (bounce/crack) in `WarFeed`; add fees-farmed, longest-vault, biggest-vault, and biggest-heist boards scoped to seasons with reset support; surface status cosmetics in `ShopScreen` as visual-only
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 13.1, 13.2_
 

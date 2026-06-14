@@ -614,6 +614,12 @@ export function withdrawBankedState(state: WarState): { amount: number; state: W
   return { amount, state: { ...state, you: { ...state.you, banked: 0 } } };
 }
 
+/** Toggle the player's auto-compound flag (folds banked → corpus on settle). */
+export function setCompoundState(state: WarState, compound: boolean): WarState {
+  if (!state.you || state.you.compound === compound) return state;
+  return { ...state, you: { ...state.you, compound } };
+}
+
 // ── Persistence (Task 4: v3 → v4 migration) ───────────────────────────────────
 
 /** Current persisted schema key. */
@@ -800,6 +806,11 @@ export function useWalletWars() {
     return amount;
   }, []);
 
+  /** Toggle auto-compounding of banked fees into the corpus (Requirement 11.1). */
+  const setCompound = useCallback((compound: boolean) => {
+    setState((prev) => setCompoundState(prev, compound));
+  }, []);
+
   /** Siege a target. Returns a typed resolution — never a bare null. */
   const siege = useCallback((targetId: string): SiegeResolution => {
     const at = now();
@@ -980,5 +991,5 @@ export function useWalletWars() {
     return () => clearInterval(interval);
   }, []);
 
-  return { state, openVault, cashOut, withdrawBanked, siege, placeBounty, repeatTaxMult };
+  return { state, openVault, cashOut, withdrawBanked, setCompound, siege, placeBounty, repeatTaxMult };
 }
