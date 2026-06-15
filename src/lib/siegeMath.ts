@@ -285,3 +285,104 @@ export function evDefender(p: TierParams): number {
 export function evHouse(p: TierParams): number {
   return p.houseFeeCut * p.feeRate + p.winChance * p.housePrizeRake * p.sliceRate;
 }
+
+
+// ── Variable-Risk Vaults — risk profiles + EV-preserving param resolution ─────
+
+/**
+ * The three published risk profiles, chosen at vault-open time and LOCKED to the
+ * vault for its entire lifetime. A profile only ever selects a *published, fixed*
+ * crack chance `p'` (and the defender-EV-preserving fee `f'` derived from it); it
+ * NEVER auto-varies odds by streak, heat, age, or balance. Provable fairness is
+ * untouched: the win check stays `roll < p_vault` against this published `p'`.
+ */
+export type RiskProfile = "fortified" | "standard" | "exposed";
+
+/** Static description of a risk profile (the single source of truth for κ). */
+export interface RiskProfileSpec {
+  id: RiskProfile;
+  /** Display label: "Fortified" | "Standard" | "Exposed". */
+  label: string;
+  /** κ — multiplier applied to the tier's base crack odds p. */
+  oddsFactor: number;
+  /** UI framing copy: low risk/low reward → high risk/high reward. */
+  blurb: string;
+}
+
+/**
+ * The published risk profiles. κ = 0.6 (Fortified) · 1.0 (Standard) · 1.5
+ * (Exposed). Standard's κ MUST stay exactly 1.0 — it is the algebraic identity
+ * of the base tier params and the migration target (see `resolveVaultParams`).
+ */
+export const RISK_PROFILES: Record<RiskProfile, RiskProfileSpec> = {
+  fortified: {
+    id: "fortified",
+    label: "Fortified",
+    oddsFactor: 0.6,
+    blurb: "Low risk · low reward — cracked rarely, bank small steady tolls over a long life.",
+  },
+  standard: {
+    id: "standard",
+    label: "Standard",
+    oddsFactor: 1.0,
+    blurb: "Balanced — the house baseline odds and toll for your tier.",
+  },
+  exposed: {
+    id: "exposed",
+    label: "Exposed",
+    oddsFactor: 1.5,
+    blurb: "High risk · high reward — cracked fast, but collect a big toll per survived siege.",
+  },
+};
+
+/** Render/selector order: low-risk → high-risk, left to right. */
+export const RISK_PROFILE_ORDER: readonly RiskProfile[] = ["fortified", "standard", "exposed"];
+
+/** The default profile applied by callers and by migration/normalisation. */
+export const DEFAULT_RISK_PROFILE: RiskProfile = "standard";
+
+/** Defensive clamp epsilon so effective odds stay strictly inside (0, 1). */
+const RISK_ODDS_EPS = 1e-9;
+
+/** True iff `x` is a valid `RiskProfile`. Used by migration/normalisation. */
+export function isRiskProfile(x: unknown): x is RiskProfile {
+  return x === "fortified" || x === "standard" || x === "exposed";
+}
+
+/**
+ * Resolve the EFFECTIVE `TierParams` for a base tier + risk profile.
+ *
+ * Adjusts ONLY `winChance (p)` and `feeRate (f)`; `sliceRate`, both house rakes,
+ * and `id` are carried through from `base`. Holds defender EV constant by
+ * construction: with `D = evDefender(base) = (1 − ρ_fee)·f − p·s`, the effective
+ * odds are `p' = clamp(p·κ, ε, 1−ε)` and the fee is `f' = (D + p'·s)/(1 − ρ_fee)`,
+ * so `evDefender(result) === D` whenever no clamp is applied.
+ *
+ * Standard (κ = 1) short-circuits to `base` exactly — the migration-safety
+ * identity. Pure, total, side-effect free.
+ */
+export function resolveVaultParams(base: TierParams, profile: RiskProfile): TierParams {
+  const kappa = RISK_PROFILES[profile].oddsFactor;
+  if (kappa === 1) return base; // Standard is the exact identity of the base tier.
+
+  const D = (1 - base.houseFeeCut) * base.feeRate - base.winChance * base.sliceRate; // evDefender(base)
+  const pRaw = base.winChance * kappa;
+  const p2 = Math.min(1 - RISK_ODDS_EPS, Math.max(RISK_ODDS_EPS, pRaw));
+  const f2 = (D + p2 * base.sliceRate) / (1 - base.houseFeeCut); // hold D constant
+  return {
+    id: base.id,
+    winChance: p2,
+    feeRate: f2,
+    sliceRate: base.sliceRate,
+    houseFeeCut: base.houseFeeCut,
+    housePrizeRake: base.housePrizeRake,
+  };
+}
+
+/**
+ * Convenience: resolve the effective params for a vault `amount` and `profile`.
+ * `= resolveVaultParams(tierParamsFor(amount), profile)`. Total for `amount ≥ 0`.
+ */
+export function vaultParamsFor(amount: number, profile: RiskProfile): TierParams {
+  return resolveVaultParams(tierParamsFor(amount), profile);
+}

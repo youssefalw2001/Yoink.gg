@@ -33,12 +33,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { randomPoolWallet } from "@/lib/wallets";
 import { isEscrowLive } from "@/lib/walletWarsChain";
 import {
-  tierParamsFor,
+  vaultParamsFor,
   feeMultiplierForStreak,
   computeFee,
   computePrize,
   heatScore,
   STREAK_CFG,
+  type RiskProfile,
+  DEFAULT_RISK_PROFILE,
+  isRiskProfile,
 } from "@/lib/siegeMath";
 
 export const WAR_CONFIG = {
@@ -123,6 +126,13 @@ export interface Vault {
   bountyPool: number;
   /** ms — bounty refund window. */
   bountyExpiry: number;
+  /**
+   * Published, IMMUTABLE risk profile chosen at open time (Variable-Risk
+   * Vaults). Selects this vault's fixed crack odds `p'` and the
+   * defender-EV-preserving fee `f'`. Never mutated after creation; defaults to
+   * `"standard"` (the base-tier identity) for migrated/legacy vaults.
+   */
+  riskProfile: RiskProfile;
 }
 
 /**
@@ -268,14 +278,32 @@ function amountInTier(t: Tier): number {
   const hi = t.max === Infinity ? t.min * 3.5 : t.max;
   return t.min + Math.random() * (hi - t.min);
 }
+
+/**
+ * Draw a risk profile from a weighted spread spanning all three profiles so the
+ * board demonstrates the full range of risk choices (Requirement 12.1). Weights:
+ * Fortified 0.34 · Standard 0.40 · Exposed 0.26.
+ */
+function randomRiskProfile(): RiskProfile {
+  const r = Math.random();
+  if (r < 0.34) return "fortified";
+  if (r < 0.74) return "standard";
+  return "exposed";
+}
+
 function makeBotVault(tier: Tier, at: number): Stash {
+  const amount = amountInTier(tier);
+  const survived = Math.floor(Math.random() * 12);
+  // Realistic accumulated banked so the board reads as ALIVE, not "0.00"
+  // everywhere (Requirement 16.1): roughly a tier-fee toll per survived siege.
+  const banked = +(survived * amount * 0.012 * (0.6 + Math.random() * 0.8) + 0.01).toFixed(4);
   return {
     id: uid("vault"),
     wallet: randomPoolWallet(),
     isYou: false,
-    amount: amountInTier(tier),
-    banked: Math.random() * 0.4,
-    survived: Math.floor(Math.random() * 12),
+    amount,
+    banked,
+    survived,
     cracked: Math.floor(Math.random() * 3),
     streak: Math.floor(Math.random() * STREAK_CFG.cap),
     openedAt: at - Math.floor(Math.random() * 1_800_000),
@@ -284,6 +312,7 @@ function makeBotVault(tier: Tier, at: number): Stash {
     compound: true,
     bountyPool: 0,
     bountyExpiry: 0,
+    riskProfile: randomRiskProfile(),
   };
 }
 function seedBoard(at: number): Stash[] {
@@ -334,7 +363,7 @@ function settleSiege(
   at: number,
   seed: string,
 ): SettleOutput {
-  const params = tierParamsFor(defender.amount);
+  const params = vaultParamsFor(defender.amount, defender.riskProfile);
   const mult = feeMultiplierForStreak(defender.streak, STREAK_CFG);
   const feeB = computeFee(defender.amount, params, mult, taxMult);
   const won = roll < params.winChance;
@@ -443,8 +472,17 @@ export function createInitialState(): WarState {
  * Open the player's vault. Corpus = stake; the vault is marked `isYou`, all
  * counters reset, `openedAt` = now, `compound` on. The player's own vault is
  * stored separately from `stashes`, so it is never in the targetable board.
+ *
+ * The chosen `profile` is published on the vault and IMMUTABLE for its lifetime
+ * (Variable-Risk Vaults). It defaults to `"standard"` (the base-tier identity)
+ * so existing call-sites and migrated saves behave exactly as today.
  */
-export function openVaultState(state: WarState, amount: number, at: number): WarState {
+export function openVaultState(
+  state: WarState,
+  amount: number,
+  profile: RiskProfile = DEFAULT_RISK_PROFILE,
+  at: number = now(),
+): WarState {
   if (state.you) return state;
   const you: Vault = {
     id: uid("you"),
@@ -461,6 +499,7 @@ export function openVaultState(state: WarState, amount: number, at: number): War
     compound: true,
     bountyPool: 0,
     bountyExpiry: 0,
+    riskProfile: isRiskProfile(profile) ? profile : DEFAULT_RISK_PROFILE,
   };
   return { ...state, you };
 }
@@ -515,8 +554,9 @@ export function resolveSiege(
     return reject({ kind: "tier_mismatch", yourTier, targetTier });
   }
 
-  // 5. affordability — fee is the only thing risked
-  const params = tierParamsFor(target.amount);
+  // 5. affordability — fee is the only thing risked. Use the target vault's
+  // profile-resolved params so the gate + feed toll match the settlement core.
+  const params = vaultParamsFor(target.amount, target.riskProfile);
   const mult = feeMultiplierForStreak(target.streak, STREAK_CFG);
   const feeB = computeFee(target.amount, params, mult, ctx.taxMult);
   if (feeB.fee > you.amount) {
@@ -669,6 +709,9 @@ function normalizeVault(v: Partial<Vault> | null, at: number): Vault | null {
     compound: typeof v.compound === "boolean" ? v.compound : true,
     bountyPool: Math.max(0, fin(v.bountyPool, 0)),
     bountyExpiry: fin(v.bountyExpiry, 0),
+    // Variable-Risk Vaults: default a missing/invalid profile to Standard (the
+    // base-tier identity) so legacy/normalised vaults keep today's economics.
+    riskProfile: isRiskProfile(v.riskProfile) ? v.riskProfile : DEFAULT_RISK_PROFILE,
   };
 }
 
@@ -703,6 +746,9 @@ export function migrateV3ToV4(raw: unknown, at: number): PersistedWar {
       compound: true,
       bountyPool: priorBounty,
       bountyExpiry: 0,
+      // Legacy v3 vaults predate risk profiles → default to Standard (identity),
+      // honouring any already-valid profile carried on the record.
+      riskProfile: isRiskProfile(youRaw.riskProfile) ? youRaw.riskProfile : DEFAULT_RISK_PROFILE,
     };
   }
 
@@ -795,8 +841,8 @@ export function useWalletWars() {
     return Math.min(WAR_CONFIG.REPEAT_TAX_CAP, recent.length * WAR_CONFIG.REPEAT_TAX_STEP);
   }, []);
 
-  const openVault = useCallback((amount: number) => {
-    setState((prev) => openVaultState(prev, amount, now()));
+  const openVault = useCallback((amount: number, profile: RiskProfile = DEFAULT_RISK_PROFILE) => {
+    setState((prev) => openVaultState(prev, amount, profile, now()));
   }, []);
 
   const cashOut = useCallback((): number => {
@@ -883,7 +929,7 @@ export function useWalletWars() {
           if (targets.length === 0) continue;
           const target = targets[Math.floor(Math.random() * targets.length)];
 
-          const params = tierParamsFor(target.amount);
+          const params = vaultParamsFor(target.amount, target.riskProfile);
           const mult = feeMultiplierForStreak(target.streak, STREAK_CFG);
           const feeB = computeFee(target.amount, params, mult, 0);
           if (feeB.fee > raider.amount) continue;
@@ -905,7 +951,7 @@ export function useWalletWars() {
           const sameTier = stashes.filter((t) => tierIndexForAmount(t.amount) === ti && ts >= t.shieldUntil);
           const attacker = sameTier[Math.floor(Math.random() * sameTier.length)];
           if (attacker) {
-            const params = tierParamsFor(you.amount);
+            const params = vaultParamsFor(you.amount, you.riskProfile);
             const mult = feeMultiplierForStreak(you.streak, STREAK_CFG);
             const feeB = computeFee(you.amount, params, mult, 0);
             if (feeB.fee <= attacker.amount) {

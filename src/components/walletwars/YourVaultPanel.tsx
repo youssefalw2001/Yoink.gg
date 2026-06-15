@@ -21,16 +21,20 @@ import {
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { OPEN_STAKES, type Vault as VaultType, tierForAmount } from "@/lib/walletWarsState";
-import { feeMultiplierForStreak, STREAK_CFG } from "@/lib/siegeMath";
+import {
+  feeMultiplierForStreak, STREAK_CFG,
+  type RiskProfile, DEFAULT_RISK_PROFILE,
+} from "@/lib/siegeMath";
 import { formatSol } from "@/lib/utils";
 import { playPurchase } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
 import { usePrefersReducedMotion } from "./useReducedMotion";
+import { profilePreviews, animateUnlessReduced } from "./riskProfilePresentation";
 
 interface YourVaultPanelProps {
   you: VaultType | null;
   walletBalance: number;
-  onOpen: (amount: number) => void;
+  onOpen: (amount: number, profile: RiskProfile) => void;
   onClose: () => void;
   onWithdrawBanked: () => void;
   onToggleCompound: (compound: boolean) => void;
@@ -101,49 +105,14 @@ export function YourVaultPanel({
     prevBankedRef.current = cur;
   }, [you?.banked]);
 
-  // ── Not staked yet → open-a-vault CTA ─────────────────────────────────────
+  // ── Not staked yet → open-a-vault CTA (stake + risk-profile selector) ─────
   if (!you) {
     return (
-      <SpotlightCard spotlightColor="rgba(112,0,255,0.16)" radius={280} className="premium-card rounded-[24px]">
-        <div className="flex flex-col gap-4 px-5 py-5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-phantom/30 bg-phantom/10">
-              <Vault className="h-5 w-5 text-phantom" aria-hidden />
-            </div>
-            <div>
-              <h3 className="font-display text-base font-black text-white">Open your vault</h3>
-              <p className="font-mono text-[10px] text-dim">Stake it · bait them · bank the fees</p>
-            </div>
-          </div>
-
-          <p className="font-mono text-[11px] leading-relaxed text-slate">
-            Lock SOL to become a target — the house at your own table. Every failed siege
-            banks you a toll, and the longer you survive the bigger every bounced raid pays.
-            Your stake sets your weight class; you can only siege vaults in the same tier.
-          </p>
-
-          <div className="grid grid-cols-4 gap-2">
-            {OPEN_STAKES.map((amt) => {
-              const tier = tierForAmount(amt);
-              return (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => { playPurchase(); onOpen(amt); }}
-                  className="flex flex-col items-center gap-0.5 rounded-xl border py-2.5 font-mono transition-colors hover:bg-white/[0.04]"
-                  style={{ background: `${tier.accent}0d`, borderColor: `${tier.accent}40` }}
-                >
-                  <span className="text-sm font-black tabular-nums text-white">{amt}</span>
-                  <span className="text-[8px] uppercase tracking-[0.08em]" style={{ color: tier.accent }}>{tier.label.replace("The ", "")}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-center font-mono text-[10px] text-dim">
-            Real balance: {formatSol(walletBalance, 2)} SOL · stakes are simulated (devnet)
-          </p>
-        </div>
-      </SpotlightCard>
+      <OpenVaultForm
+        walletBalance={walletBalance}
+        reduced={reduced}
+        onOpen={onOpen}
+      />
     );
   }
 
@@ -351,6 +320,154 @@ export function YourVaultPanel({
         </motion.button>
         <p className="-mt-1 flex items-center justify-center gap-1 text-center font-mono text-[10px] text-dim">
           <Plus className="h-3 w-3" aria-hidden /> Corpus + banked fees returns to your wallet · streak resets
+        </p>
+      </div>
+    </SpotlightCard>
+  );
+}
+
+
+/**
+ * Open-flow form: pick a stake, then a RISK PROFILE (Fortified → Standard →
+ * Exposed, rendered left→right as a low-risk/low-reward → high-risk/high-reward
+ * gradient). Each segment previews its own crack odds `p'` and fee `f'` for the
+ * entered stake via `vaultParamsFor`; Standard is the default. Selection animates
+ * with Framer Motion transform/opacity only, suppressed under reduced motion.
+ */
+function OpenVaultForm({
+  walletBalance,
+  reduced,
+  onOpen,
+}: {
+  walletBalance: number;
+  reduced: boolean;
+  onOpen: (amount: number, profile: RiskProfile) => void;
+}) {
+  const [stake, setStake] = useState<number>(OPEN_STAKES[0]);
+  const [profile, setProfile] = useState<RiskProfile>(DEFAULT_RISK_PROFILE);
+
+  const previews = profilePreviews(stake);
+  const selected = previews.find((p) => p.profile === profile) ?? previews[1];
+  const tier = tierForAmount(stake);
+
+  return (
+    <SpotlightCard spotlightColor="rgba(112,0,255,0.16)" radius={280} className="premium-card rounded-[24px]">
+      <div className="flex flex-col gap-4 px-5 py-5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-phantom/30 bg-phantom/10">
+            <Vault className="h-5 w-5 text-phantom" aria-hidden />
+          </div>
+          <div>
+            <h3 className="font-display text-base font-black text-white">Open your vault</h3>
+            <p className="font-mono text-[10px] text-dim">Stake it · pick your risk · bank the fees</p>
+          </div>
+        </div>
+
+        <p className="font-mono text-[11px] leading-relaxed text-slate">
+          Lock SOL to become a target — the house at your own table. Every failed siege banks you a
+          toll. Your stake sets your weight class; your risk profile sets how often you get cracked.
+        </p>
+
+        {/* stake presets — selectable */}
+        <div>
+          <span className="mb-1.5 block font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Stake</span>
+          <div className="grid grid-cols-4 gap-2">
+            {OPEN_STAKES.map((amt) => {
+              const t = tierForAmount(amt);
+              const active = amt === stake;
+              return (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => setStake(amt)}
+                  aria-pressed={active}
+                  className="flex flex-col items-center gap-0.5 rounded-xl border py-2.5 font-mono transition-colors hover:bg-white/[0.04]"
+                  style={{
+                    background: active ? `${t.accent}1f` : `${t.accent}0d`,
+                    borderColor: active ? `${t.accent}88` : `${t.accent}40`,
+                  }}
+                >
+                  <span className="text-sm font-black tabular-nums text-white">{amt}</span>
+                  <span className="text-[8px] uppercase tracking-[0.08em]" style={{ color: t.accent }}>
+                    {t.label.replace("The ", "")}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* risk-profile 3-segment selector — low→high gradient */}
+        <div>
+          <span className="mb-1.5 block font-mono text-[9px] uppercase tracking-[0.18em] text-dim">
+            Risk profile · low → high
+          </span>
+          <div className="grid grid-cols-3 gap-2">
+            {previews.map((p) => {
+              const active = p.profile === profile;
+              return (
+                <motion.button
+                  key={p.profile}
+                  type="button"
+                  onClick={() => setProfile(p.profile)}
+                  aria-pressed={active}
+                  whileHover={animateUnlessReduced(reduced, { scale: 1.03 })}
+                  whileTap={animateUnlessReduced(reduced, { scale: 0.97 })}
+                  animate={animateUnlessReduced(reduced, { opacity: active ? 1 : 0.62 })}
+                  transition={{ duration: 0.18 }}
+                  className="flex flex-col items-center gap-0.5 rounded-xl border py-2 font-mono transition-colors"
+                  style={{
+                    background: active ? `${p.accent}22` : "rgba(255,255,255,0.02)",
+                    borderColor: active ? `${p.accent}88` : "rgba(255,255,255,0.08)",
+                    willChange: "transform, opacity",
+                  }}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-[0.08em]" style={{ color: p.accent }}>
+                    {p.label}
+                  </span>
+                  <span className="text-[9px] tabular-nums text-slate">{p.crackPct} crack</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* preview of the selected profile for this stake */}
+        <div className="flex flex-col gap-2 rounded-xl px-3 py-2.5" style={{ background: `${selected.accent}0d`, border: `1px solid ${selected.accent}33` }}>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-mono text-[11px] text-slate">
+              <ShieldCheck className="h-3.5 w-3.5" style={{ color: selected.accent }} aria-hidden /> Crack odds
+            </span>
+            <span className="font-mono text-sm font-black tabular-nums" style={{ color: selected.accent }}>{selected.crackPct}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-mono text-[11px] text-slate">
+              <Coins className="h-3.5 w-3.5 text-emerald" aria-hidden /> Toll banked / failed siege
+            </span>
+            <span className="font-mono text-sm font-black tabular-nums text-emerald">+{formatSol(selected.feeSol, 4)}</span>
+          </div>
+          <p className="font-mono text-[10px] leading-relaxed text-dim">{selected.blurb}</p>
+        </div>
+
+        <motion.button
+          type="button"
+          onClick={() => { playPurchase(); onOpen(stake, profile); }}
+          whileTap={animateUnlessReduced(reduced, { scale: 0.97 })}
+          transition={{ duration: 0.12 }}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border py-3 font-display text-sm font-black uppercase tracking-[0.12em] transition-colors"
+          style={{
+            background: `${tier.accent}1a`,
+            borderColor: `${tier.accent}55`,
+            color: tier.accent,
+            willChange: "transform",
+          }}
+        >
+          <Vault className="h-4 w-4" aria-hidden />
+          Open {formatSol(stake, 2)} SOL · {selected.label}
+        </motion.button>
+
+        <p className="text-center font-mono text-[10px] text-dim">
+          Real balance: {formatSol(walletBalance, 2)} SOL · stakes are simulated (devnet)
         </p>
       </div>
     </SpotlightCard>

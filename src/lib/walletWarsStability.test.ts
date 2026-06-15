@@ -53,7 +53,7 @@ function seedForOutcome(win: boolean, pWin: number): string {
 /** Build a deterministic state with an open player vault + a same-tier target. */
 function stateWithTarget(at: number): { state: WarState; targetId: string } {
   let state = createInitialState();
-  state = openVaultState(state, 0.25, at); // 0.25 SOL → The Pit (tier 0)
+  state = openVaultState(state, 0.25, "standard", at); // 0.25 SOL → The Pit (tier 0)
   const youTier = tierIndexForAmount(state.you!.amount);
   const target = state.stashes.find(
     (s) => tierIndexForAmount(s.amount) === youTier && at >= s.shieldUntil,

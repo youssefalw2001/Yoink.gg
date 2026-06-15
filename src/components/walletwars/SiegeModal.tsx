@@ -32,12 +32,13 @@ import {
   type Vault, type SiegeResult, type SiegeResolution, type SiegeRejection,
 } from "@/lib/walletWarsState";
 import {
-  tierParamsFor, feeMultiplierForStreak, computeFee, computePrize, STREAK_CFG,
+  vaultParamsFor, feeMultiplierForStreak, computeFee, computePrize, STREAK_CFG,
 } from "@/lib/siegeMath";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { playYoink, playWin, playCooldownBlock, playPurchase, playTick } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
 import { usePrefersReducedMotion } from "./useReducedMotion";
+import { profileBadgeLabel, PROFILE_ACCENT } from "./riskProfilePresentation";
 
 interface SiegeModalProps {
   target: Vault;
@@ -102,8 +103,8 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
   const reduced = usePrefersReducedMotion();
   const tier = tierForAmount(yourVault);
 
-  // Siege economics, straight from the pure money math (no inline arithmetic).
-  const params = tierParamsFor(target.amount);
+  // Siege economics, from the target vault's OWN published risk-profile params.
+  const params = vaultParamsFor(target.amount, target.riskProfile);
   const mult = feeMultiplierForStreak(target.streak, STREAK_CFG);
   const feeB = computeFee(target.amount, params, mult, taxMult);
   const prizeB = computePrize(target.amount, params, mult);
@@ -196,6 +197,16 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
                 </span>
                 <div className="my-1"><PurgeAvatar seed={target.wallet} size={64} pulse /></div>
                 <span className="font-mono text-sm font-bold text-white">{truncateAddress(target.wallet, 4, 4)}</span>
+                <span
+                  className="rounded-full px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.12em]"
+                  style={{
+                    background: `${PROFILE_ACCENT[target.riskProfile]}1f`,
+                    border: `1px solid ${PROFILE_ACCENT[target.riskProfile]}66`,
+                    color: PROFILE_ACCENT[target.riskProfile],
+                  }}
+                >
+                  {profileBadgeLabel(target.riskProfile)}
+                </span>
                 <span className="font-display text-3xl font-black tabular-nums gold-text-gradient">
                   {formatSol(target.amount, 2)} <span className="text-base text-slate">SOL vault</span>
                 </span>
@@ -205,6 +216,27 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
                   </span>
                 )}
               </div>
+
+              {/* BOUNTY — promoted near the headline (shareable viral hook) */}
+              {bountyPresets.length > 0 && (
+                <div className="flex flex-col gap-1.5 rounded-2xl border border-gold/30 bg-gold/[0.08] px-3 py-2.5">
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-gold">
+                    <Target className="h-3 w-3" aria-hidden />
+                    {target.bountyPool > 0
+                      ? `Bounty pool ${formatSol(target.bountyPool, 2)} SOL — sweeten it`
+                      : "Pledge a bounty on them"}
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {bountyPresets.map((amt) => (
+                      <button key={amt} type="button" onClick={() => { if (onPlaceBounty(amt).ok) playPurchase(); else { playCooldownBlock(); setBlocked("Bounty declined — would drop you a tier or invalid amount"); } }}
+                        className="rounded-xl border border-gold/25 bg-gold/[0.07] py-2 font-mono text-xs font-bold tabular-nums text-gold transition-colors hover:bg-gold/15">
+                        +{formatSol(amt, 2)}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="font-mono text-[9px] text-dim">A bounty is a shareable prize — anyone who cracks them takes it.</span>
+                </div>
+              )}
 
               {/* The deal, at a glance: cheap fee in → big slice out */}
               <div className="flex items-stretch gap-2">
@@ -266,22 +298,6 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
                 <Zap className="h-3 w-3" style={{ color: quickRaid ? "#FFD700" : undefined }} aria-hidden />
                 Quick Siege {quickRaid ? "ON" : "OFF"} — skip the vault pick
               </button>
-
-              {bountyPresets.length > 0 && (
-                <div className="flex flex-col gap-1.5 border-t border-white/[0.06] pt-3">
-                  <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-slate">
-                    <Target className="h-3 w-3 text-gold" aria-hidden /> Pledge a bounty on them
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {bountyPresets.map((amt) => (
-                      <button key={amt} type="button" onClick={() => { if (onPlaceBounty(amt).ok) playPurchase(); else { playCooldownBlock(); setBlocked("Bounty declined — would drop you a tier or invalid amount"); } }}
-                        className="rounded-xl border border-gold/25 bg-gold/[0.07] py-2 font-mono text-xs font-bold tabular-nums text-gold transition-colors hover:bg-gold/15">
-                        +{formatSol(amt, 2)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </motion.div>
           )}
 
