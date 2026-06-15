@@ -51,6 +51,18 @@ export const WarFeed = memo(function WarFeed({
             const refund = e.kind === "refund";
             const win = e.outcome === "win";
             const involvesYou = e.raiderIsYou || e.targetIsYou;
+            // You-involved beats get an unmistakable left accent bar + "YOU" chip:
+            // gold when you raided, blood when your vault was cracked, emerald
+            // when you defended a bounce.
+            const youCracked = e.targetIsYou && win && !refund;
+            const youRaided = e.raiderIsYou && !refund;
+            const accentBar = youCracked
+              ? "#FF2200"
+              : youRaided
+                ? "#FFD700"
+                : e.targetIsYou
+                  ? "#00E676"
+                  : "#8892a4";
             // Cracks (wins) land with a celebratory pop; bounces slide in calmly.
             const entrance = win && !refund && !reduced
               ? { initial: { opacity: 0, scale: 0.8, y: -12 }, animate: { opacity: 1, scale: [0.8, 1.06, 1], y: 0 } }
@@ -66,11 +78,13 @@ export const WarFeed = memo(function WarFeed({
                 className="flex items-center gap-2.5 rounded-xl px-3 py-2"
                 style={{
                   background: involvesYou
-                    ? "rgba(255,215,0,0.06)"
+                    ? `${accentBar}1f`
                     : win && !refund
                       ? "rgba(255,153,0,0.05)"
                       : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${involvesYou ? "rgba(255,215,0,0.16)" : win && !refund ? "rgba(255,153,0,0.14)" : "rgba(255,255,255,0.04)"}`,
+                  border: `1px solid ${involvesYou ? `${accentBar}55` : win && !refund ? "rgba(255,153,0,0.14)" : "rgba(255,255,255,0.04)"}`,
+                  // Left accent bar applied after the shorthand so it overrides the left edge.
+                  ...(involvesYou ? { borderLeftWidth: 3, borderLeftColor: accentBar } : {}),
                 }}
               >
                 <span className="relative shrink-0">
@@ -82,32 +96,42 @@ export const WarFeed = memo(function WarFeed({
                   />
                   <span
                     className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0c0a14]"
-                    style={{ background: win ? "#FF9900" : "#00E676" }}
+                    style={{ background: refund ? "#7000FF" : win ? "#FF9900" : "#00E676" }}
                     aria-hidden
                   />
                 </span>
 
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-mono text-[11px]">
-                    {refund ? (
-                      <>
-                        <span style={{ color: "#7000FF", fontWeight: 700 }}>Bounty refunded</span>
-                        <span className="text-slate"> to </span>
-                        <span style={{ color: e.targetIsYou ? "#FFD700" : "#8892a4", fontWeight: 700 }}>
-                          {nameOf(e.target, e.targetIsYou, playerName)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{ color: e.raiderIsYou ? "#FFD700" : "#eef1f6", fontWeight: 700 }}>
-                          {nameOf(e.raider, e.raiderIsYou, playerName)}
-                        </span>
-                        <span className="text-slate">{win ? " cracked " : " bounced off "}</span>
-                        <span style={{ color: e.targetIsYou ? "#FF2200" : "#8892a4", fontWeight: 700 }}>
-                          {nameOf(e.target, e.targetIsYou, playerName)}
-                        </span>
-                      </>
+                  <span className="flex items-center gap-1.5 truncate font-mono text-[11px]">
+                    {involvesYou && (
+                      <span
+                        className="shrink-0 rounded px-1 py-px font-mono text-[8px] font-black uppercase tracking-[0.12em]"
+                        style={{ background: `${accentBar}26`, color: accentBar, border: `1px solid ${accentBar}66` }}
+                      >
+                        You
+                      </span>
                     )}
+                    <span className="truncate">
+                      {refund ? (
+                        <>
+                          <span style={{ color: "#7000FF", fontWeight: 700 }}>Bounty refunded</span>
+                          <span className="text-slate"> to </span>
+                          <span style={{ color: e.targetIsYou ? "#FFD700" : "#8892a4", fontWeight: 700 }}>
+                            {nameOf(e.target, e.targetIsYou, playerName)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: e.raiderIsYou ? "#FFD700" : "#eef1f6", fontWeight: 700 }}>
+                            {nameOf(e.raider, e.raiderIsYou, playerName)}
+                          </span>
+                          <span className="text-slate">{win ? " cracked " : " bounced off "}</span>
+                          <span style={{ color: e.targetIsYou ? "#FF2200" : "#8892a4", fontWeight: 700 }}>
+                            {nameOf(e.target, e.targetIsYou, playerName)}
+                          </span>
+                        </>
+                      )}
+                    </span>
                   </span>
                   <span className="font-mono text-[10px] text-dim">
                     {refund ? "unclaimed bounty returned" : win ? "snatched" : "defended"} · {formatSol(e.amount, 3)} SOL
