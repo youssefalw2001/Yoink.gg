@@ -7,6 +7,7 @@ import { SceneBackground } from "@/components/ui/SceneBackground";
 import { ConnectScreen } from "@/components/ui/ConnectScreen";
 import { GameScreen } from "@/components/game/GameScreen";
 import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
+import { BagComingSoonScreen } from "@/components/game/BagComingSoonScreen";
 import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
@@ -20,6 +21,7 @@ import { useRoomInstances } from "@/hooks/useRoomInstances";
 import { useFreeRound } from "@/hooks/useFreeRound";
 import { useWallet } from "@/lib/wallet";
 import { ROOMS, type RoomId } from "@/lib/rooms";
+import { BAG_COMING_SOON } from "@/lib/featureFlags";
 import { playerPayout } from "@/lib/payouts";
 import type { ShopItem } from "@/lib/shopItems";
 import {
@@ -272,8 +274,13 @@ export default function App() {
     handleRoomSelect("pit", pitInstanceKey);
   }
 
-  const showRoomSelect = page === "game" && roomId === null;
-  const showGame       = page === "game" && roomId !== null;
+  // ── Launch gate ───────────────────────────────────────────────────────────
+  // While BAG_COMING_SOON is true, "The Bag" (page === "game") shows a polished
+  // Coming Soon screen instead of the live RoomSelect/Game. Flipping the flag to
+  // false restores the live game exactly as before — no other changes needed.
+  const showBagComingSoon = page === "game" && BAG_COMING_SOON;
+  const showRoomSelect = page === "game" && roomId === null && !BAG_COMING_SOON;
+  const showGame       = page === "game" && roomId !== null && !BAG_COMING_SOON;
   const currentRoom    = roomId ? ROOMS[roomId] : null;
 
   const currentInstanceIndex = instanceKey
@@ -327,6 +334,19 @@ export default function App() {
 
             <main className="relative z-10 flex flex-1 flex-col">
               <AnimatePresence mode="wait">
+
+                {showBagComingSoon && (
+                  <motion.div
+                    key="bag-coming-soon"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    className="flex flex-1 flex-col"
+                  >
+                    <BagComingSoonScreen onGoToWalletWars={() => handleNavigate("walletwars")} />
+                  </motion.div>
+                )}
 
                 {showRoomSelect && (
                   <motion.div
