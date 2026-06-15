@@ -22,6 +22,7 @@ import {
   type Vault,
   openVaultState,
   resolveSiege,
+  setRiskProfileState,
   rollFromSeed,
   createInitialState,
 } from "./walletWarsState";
@@ -204,5 +205,47 @@ describe("openVaultState", () => {
     const base = openVaultState(createInitialState(), 5, "standard", 1);
     const again = openVaultState(base, 20, "standard", 2);
     expect(again.you!.amount).toBe(5);
+  });
+});
+
+
+// ── setRiskProfileState — Vault Lord terminal control (economy-neutral) ─────────
+
+describe("setRiskProfileState", () => {
+  it("changes the active vault's profile and is a no-op without a vault or on same value", () => {
+    const you = makeVault({ id: "you", wallet: "You", isYou: true, amount: 5, riskProfile: "standard" });
+    const s0 = bareState(you, []);
+
+    const s1 = setRiskProfileState(s0, "exposed");
+    expect(s1.you!.riskProfile).toBe("exposed");
+    expect(s1).not.toBe(s0); // new state on a real change
+
+    // No-op on the same value (referential stability).
+    expect(setRiskProfileState(s1, "exposed")).toBe(s1);
+
+    // No vault → unchanged.
+    const empty = bareState(null, []);
+    expect(setRiskProfileState(empty, "fortified")).toBe(empty);
+  });
+
+  it("only touches the profile field — corpus/banked/streak/etc. are preserved", () => {
+    const you = makeVault({
+      id: "you", wallet: "You", isYou: true, amount: 7, banked: 1.2, survived: 4,
+      streak: 4, feesEarned: 0.9, riskProfile: "standard",
+    });
+    const next = setRiskProfileState(bareState(you, []), "fortified").you!;
+    expect(next.riskProfile).toBe("fortified");
+    expect(next.amount).toBe(7);
+    expect(next.banked).toBe(1.2);
+    expect(next.survived).toBe(4);
+    expect(next.streak).toBe(4);
+    expect(next.feesEarned).toBe(0.9);
+  });
+
+  it("falls back to Standard for an invalid profile", () => {
+    const you = makeVault({ id: "you", wallet: "You", isYou: true, amount: 3, riskProfile: "exposed" });
+    // @ts-expect-error — exercising the runtime guard with an invalid value.
+    const next = setRiskProfileState(bareState(you, []), "bogus").you!;
+    expect(next.riskProfile).toBe("standard");
   });
 });

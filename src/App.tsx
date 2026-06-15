@@ -4,7 +4,7 @@ import { Header, type Page } from "@/components/layout/Header";
 import { LiveTicker } from "@/components/layout/LiveTicker";
 import { Footer } from "@/components/layout/Footer";
 import { SceneBackground } from "@/components/ui/SceneBackground";
-import { ConnectScreen } from "@/components/ui/ConnectScreen";
+import { LandingScreen } from "@/components/walletwars/LandingScreen";
 import { GameScreen } from "@/components/game/GameScreen";
 import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
 import { BagComingSoonScreen } from "@/components/game/BagComingSoonScreen";
@@ -304,7 +304,7 @@ export default function App() {
             transition={{ duration: 0.3 }}
             className="relative z-20"
           >
-            <ConnectScreen />
+            <LandingScreen />
           </motion.div>
         ) : (
           <motion.div
