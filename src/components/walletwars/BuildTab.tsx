@@ -20,10 +20,10 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Coins, Trophy, Flame, ShieldCheck, ShieldOff, Vault, LogOut, HandCoins, Repeat,
-  Target, Plus, TrendingUp, AlertTriangle, Crown, Gauge, Banknote,
+  Plus, TrendingUp, AlertTriangle, Crown, Gauge, Banknote,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import {
@@ -36,7 +36,7 @@ import {
   type RiskProfile,
 } from "@/lib/siegeMath";
 import { profilePreviews, PROFILE_ACCENT, profileBadgeLabel, animateUnlessReduced } from "./riskProfilePresentation";
-import { formatSol, truncateAddress } from "@/lib/utils";
+import { formatSol } from "@/lib/utils";
 import { playPurchase } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
 import { usePrefersReducedMotion } from "./useReducedMotion";
@@ -71,7 +71,6 @@ interface BuildTabProps {
   onWithdrawBanked: () => void;
   onToggleCompound: (compound: boolean) => void;
   onSetRiskProfile: (profile: RiskProfile) => void;
-  onPlaceBounty: (targetId: string, amount: number) => { ok: boolean };
   displayName?: string;
   avatarSeed?: string;
   avatarVariant?: number | null;
@@ -81,7 +80,7 @@ interface BuildTabProps {
 
 export function BuildTab({
   you, walletBalance, stashes, earnings, onOpen, onClose, onWithdrawBanked, onToggleCompound,
-  onSetRiskProfile, onPlaceBounty,
+  onSetRiskProfile,
   displayName = "", avatarSeed = "You", avatarVariant = null, avatarColor = null,
   raidRecord = { wins: 0, losses: 0 },
 }: BuildTabProps) {
@@ -108,8 +107,6 @@ export function BuildTab({
       ) : (
         <OpenVaultFlow walletBalance={walletBalance} reduced={reduced} onOpen={onOpen} />
       )}
-
-      <BountySection you={you} stashes={stashes} onPlaceBounty={onPlaceBounty} reduced={reduced} />
     </div>
   );
 }
@@ -486,105 +483,5 @@ function OpenVaultFlow({ walletBalance, reduced, onOpen }: { walletBalance: numb
   );
 }
 
-// ── 5 · Bounty section ───────────────────────────────────────────────────────────
+// ── 5 · Bounty section removed for launch (bounties disabled for now) ─────────────
 
-function BountySection({ you, stashes, onPlaceBounty, reduced }: {
-  you: VaultType | null; stashes: VaultType[]; onPlaceBounty: (id: string, amt: number) => { ok: boolean }; reduced: boolean;
-}) {
-  const [note, setNote] = useState<string | null>(null);
-
-  const bountied = useMemo(
-    () => stashes.filter((s) => !s.isYou && (s.bountyPool ?? 0) > 0).sort((a, b) => b.bountyPool - a.bountyPool).slice(0, 6),
-    [stashes],
-  );
-
-  // Suggested target to put a price on: hottest same-class vault (or overall biggest).
-  const target = useMemo(() => {
-    const pool = you ? stashes.filter((s) => !s.isYou && tierIndexForAmount(s.amount) === tierIndexForAmount(you.amount)) : stashes.filter((s) => !s.isYou);
-    return [...pool].sort((a, b) => b.amount - a.amount)[0] ?? null;
-  }, [stashes, you]);
-
-  const presets = you ? [tierForAmount(you.amount).minBet * 3, tierForAmount(you.amount).minBet * 6, tierForAmount(you.amount).minBet * 12].map((v) => +v.toFixed(3)) : [];
-
-  function place(amt: number) {
-    if (!you || !target) return;
-    const res = onPlaceBounty(target.id, amt);
-    if (res.ok) { playPurchase(); setNote(`Bounty +${formatSol(amt, 2)} SOL posted on ${truncateAddress(target.wallet, 4, 4)}`); }
-    else setNote("Bounty declined — it would drop you below your tier, or the amount is invalid.");
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 px-1">
-        <Target className="h-4 w-4 text-phantom" aria-hidden />
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-phantom">Bounties</h2>
-      </div>
-
-      {/* bounty exposure on your own vault */}
-      <div className="flex items-center justify-between rounded-2xl border border-phantom/20 bg-phantom/[0.05] px-3.5 py-2.5">
-        <span className="flex items-center gap-2 font-mono text-[11px] text-slate">
-          <Crown className="h-3.5 w-3.5 text-phantom" aria-hidden /> Price on your head
-        </span>
-        <span className="font-mono text-sm font-black tabular-nums text-phantom">
-          {you && you.bountyPool > 0 ? `${formatSol(you.bountyPool, 2)} SOL` : "None yet"}
-        </span>
-      </div>
-
-      {/* place a bounty on others */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-phantom/20 bg-phantom/[0.04] px-3.5 py-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate">
-          {target ? <>Put a price on <span className="text-white">{truncateAddress(target.wallet, 4, 4)}</span></> : "No targets to bounty yet"}
-        </span>
-        {you ? (
-          <div className="grid grid-cols-3 gap-2">
-            {presets.map((amt) => (
-              <motion.button
-                key={amt}
-                type="button"
-                onClick={() => place(amt)}
-                disabled={!target}
-                whileTap={target ? animateUnlessReduced(reduced, { scale: 0.96 }) : undefined}
-                className="rounded-xl border border-phantom/30 bg-phantom/[0.08] py-2 font-mono text-xs font-bold tabular-nums text-phantom transition-colors hover:bg-phantom/15 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ willChange: "transform" }}
-              >
-                +{formatSol(amt, 2)}
-              </motion.button>
-            ))}
-          </div>
-        ) : (
-          <p className="font-mono text-[10px] text-dim">Open a vault to fund bounties from your corpus.</p>
-        )}
-        <AnimatePresence>
-          {note && (
-            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="font-mono text-[10px] text-phantom">
-              {note}
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* live bounty board */}
-      <div className="flex flex-col gap-2">
-        <span className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-dim">Top active bounties</span>
-        {bountied.length === 0 ? (
-          <div className="rounded-2xl border border-phantom/15 bg-phantom/[0.04] px-4 py-3 text-center font-mono text-[11px] text-slate">
-            No bounties live right now — be the first to post one.
-          </div>
-        ) : (
-          bountied.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 rounded-2xl border border-phantom/25 bg-phantom/[0.06] px-3 py-2.5">
-              <PurgeAvatar seed={s.wallet} size={30} />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-mono text-xs font-bold text-white">{truncateAddress(s.wallet, 4, 4)}</span>
-                <span className="font-mono text-[10px] text-dim">{tierForAmount(s.amount).label}</span>
-              </div>
-              <span className="flex items-center gap-1 font-mono text-sm font-black tabular-nums text-phantom">
-                <Target className="h-3 w-3" aria-hidden /> {formatSol(s.bountyPool, 2)}
-              </span>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}

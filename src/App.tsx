@@ -8,9 +8,10 @@ import { LandingScreen } from "@/components/walletwars/LandingScreen";
 import { GameScreen } from "@/components/game/GameScreen";
 import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
 import { BagComingSoonScreen } from "@/components/game/BagComingSoonScreen";
-import { Leaderboard } from "@/components/leaderboard/Leaderboard";
 import { ShopScreen } from "@/components/shop/ShopScreen";
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
+import { WalletWarsLeaderboard } from "@/components/walletwars/WalletWarsLeaderboard";
+import { useWalletWars } from "@/lib/walletWarsState";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { WinReveal } from "@/components/reveal/WinReveal";
 import { ProfileModal } from "@/components/profile/ProfileModal";
@@ -20,8 +21,10 @@ import { usePlayerProgress } from "@/hooks/usePlayerProgress";
 import { useRoomInstances } from "@/hooks/useRoomInstances";
 import { useFreeRound } from "@/hooks/useFreeRound";
 import { useWallet } from "@/lib/wallet";
+import { formatSol } from "@/lib/utils";
+import { Crown, Trophy, Vault as VaultIcon } from "lucide-react";
 import { ROOMS, type RoomId } from "@/lib/rooms";
-import { BAG_COMING_SOON } from "@/lib/featureFlags";
+import { BAG_COMING_SOON, SHOP_ENABLED } from "@/lib/featureFlags";
 import { playerPayout } from "@/lib/payouts";
 import type { ShopItem } from "@/lib/shopItems";
 import {
@@ -50,9 +53,13 @@ export default function App() {
   // Rolling instance manager — runs in background regardless of current page
   const { syncInstance, getInstancesForRoom } = useRoomInstances();
 
-  const { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner, lifetimeTolls } = useGameState(
+  const { state, yoink, playAgain, cooldownLeft, activateFuseBurner, lifetimeTolls } = useGameState(
     roomId ?? "arena",
   );
+
+  // Wallet Wars engine — lifted here so both the Wallet Wars screen and the
+  // Hall of Kings (war boards) page read from a single shared state.
+  const war = useWalletWars();
 
   const {
     progress,
@@ -437,6 +444,7 @@ export default function App() {
                       )}
                     >
                       <WalletWarsScreen
+                        war={war}
                         displayName={raw.displayName}
                         avatarVariant={raw.avatarVariant}
                         avatarColor={raw.avatarColor}
@@ -452,18 +460,53 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                    className="px-4 py-10 sm:px-6"
+                    className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6"
                   >
-                    <Leaderboard
-                      entries={leaderboard}
-                      bagAmount={state.bagAmount}
-                      playerCount={state.playerCount}
-                      roundNumber={state.roundNumber}
+                    {/* Hall of Kings — Wallet Wars war boards (banner + live stats) */}
+                    <div
+                      className="mb-5 overflow-hidden rounded-[24px] px-6 py-6 text-center"
+                      style={{ background: "linear-gradient(150deg, #15100a 0%, #08080f 60%, #120a1f 100%)", border: "1px solid rgba(255,215,0,0.18)" }}
+                    >
+                      <div className="flex flex-col items-center gap-1.5">
+                        <Crown className="h-7 w-7 text-gold" aria-hidden style={{ filter: "drop-shadow(0 0 12px rgba(255,215,0,0.4))" }} />
+                        <h1 className="font-display text-2xl font-black uppercase tracking-[0.1em] text-white sm:text-3xl">
+                          Hall of <span className="gold-text-gradient">Kings</span>
+                        </h1>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate">
+                          The greatest Vault Lords &amp; Siege Runners on the board
+                        </p>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2.5">
+                          <VaultIcon className="h-3.5 w-3.5 text-phantom" aria-hidden />
+                          <span className="font-mono text-sm font-black tabular-nums text-white">
+                            {war.state.stashes.length + (war.state.you ? 1 : 0)}
+                          </span>
+                          <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">Active vaults</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2.5">
+                          <Trophy className="h-3.5 w-3.5 text-gold" aria-hidden />
+                          <span className="font-mono text-sm font-black tabular-nums text-gold">{formatSol(war.state.biggestHeist, 2)}</span>
+                          <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">Biggest heist</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2.5">
+                          <Crown className="h-3.5 w-3.5 text-emerald" aria-hidden />
+                          <span className="font-mono text-sm font-black tabular-nums text-emerald">{formatSol(war.state.totalBanked, 1)}</span>
+                          <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">House banked</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <WalletWarsLeaderboard
+                      stashes={war.state.stashes}
+                      you={war.state.you}
+                      biggestHeist={war.state.biggestHeist}
+                      displayName={raw.displayName}
                     />
                   </motion.div>
                 )}
 
-                {page === "shop" && (
+                {page === "shop" && SHOP_ENABLED && (
                   <motion.div
                     key="shop"
                     initial={{ opacity: 0, y: 12 }}
@@ -489,7 +532,7 @@ export default function App() {
             <Footer />
 
             <WinReveal
-              open={state.isRoundOver}
+              open={showGame && state.isRoundOver}
               winner={state.winner}
               isYou={state.winnerIsYou}
               amount={state.payouts[0]?.amount ?? state.bagAmount}
