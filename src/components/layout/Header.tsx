@@ -6,8 +6,8 @@ import { VoidEyeIcon, YoinkWordmark } from "@/components/ui/YoinkLogo";
 import { AnimatedNavIcon } from "@/components/ui/AnimatedBrandIcon";
 import { setVolume, getVolume } from "@/lib/sounds";
 import { cn, truncateAddress } from "@/lib/utils";
-import { NETWORK_LABEL } from "@/lib/solana";
 import { PurgeAvatar } from "@/components/walletwars/PurgeAvatar";
+import { TrustBadge } from "@/components/walletwars/TrustBadge";
 import type { PlayerProgress } from "@/lib/progression";
 import type { Room } from "@/lib/rooms";
 import { BAG_COMING_SOON } from "@/lib/featureFlags";
@@ -90,14 +90,8 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, i
             <YoinkWordmark size="md" />
           </button>
 
-          {/* Network badge — honest about devnet + simulated stakes */}
-          <span
-            className="hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald/25 bg-emerald/[0.08] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-emerald sm:flex"
-            title="Real wallet connection on Devnet. Gameplay stakes are simulated."
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald" aria-hidden />
-            {NETWORK_LABEL} · Sim stakes
-          </span>
+          {/* Provably-fair trust badge — always visible, opens an explainer modal */}
+          <TrustBadge />
 
           {/* Room badge — shown while a room is active */}
           <AnimatePresence>

@@ -33,7 +33,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock,
-  Zap, ShieldCheck, Share2, ArrowRight, SkipForward,
+  Zap, ShieldCheck, Share2, ArrowRight, SkipForward, RotateCcw, Search,
 } from "lucide-react";
 import {
   tierForAmount,
@@ -48,6 +48,7 @@ import { PurgeAvatar } from "./PurgeAvatar";
 import { usePrefersReducedMotion } from "./useReducedMotion";
 import { profileBadgeLabel, PROFILE_ACCENT } from "./riskProfilePresentation";
 import { nextPhaseAfterCommit } from "./siegeFeel";
+import { nearMissView, neededCopy, rolledCopy } from "./nearMiss";
 
 interface SiegeModalProps {
   target: Vault;
@@ -56,6 +57,8 @@ interface SiegeModalProps {
   onCommit: () => SiegeResolution;
   onPlaceBounty: (amount: number) => { ok: boolean };
   onClose: () => void;
+  /** Loop the runner into the next best target (Hunt). Falls back to onClose. */
+  onSiegeAgain?: () => void;
 }
 
 type Phase = "select" | "strain" | "result";
@@ -255,7 +258,110 @@ function StrainSequence({
   );
 }
 
-export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty, onClose }: SiegeModalProps) {
+/**
+ * WinTakeover — the full-screen gold takeover on a crack. VAULT CRACKED in
+ * Orbitron, the SOL won in mono, and a one-tap branded share card ("I just
+ * cracked [wallet] for X SOL on YOINK.GG"). Auto-dismisses after ~3s back to the
+ * updated Hunt stats. Reduced-motion safe.
+ */
+function WinTakeover({ result, reduced, onClose }: { result: SiegeResult; reduced: boolean; onClose: () => void }) {
+  // Auto-dismiss after 3s → back to the (updated) Hunt board.
+  useEffect(() => {
+    const id = window.setTimeout(onClose, 3000);
+    return () => window.clearTimeout(id);
+  }, [onClose]);
+
+  const shareText = `I just cracked ${truncateAddress(result.targetWallet, 4, 4)} for ${formatSol(result.seized, 3)} SOL on YOINK.GG Wallet Wars. yoink.gg`;
+  const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+
+  return (
+    <motion.div
+      key="win-takeover"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      className="fixed inset-0 z-[120] flex items-center justify-center px-5"
+      style={{ background: "radial-gradient(ellipse at center, rgba(255,215,0,0.18), rgba(8,8,15,0.97) 70%)", backdropFilter: "blur(14px)" }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Vault cracked"
+      onClick={onClose}
+    >
+      <div className="relative flex w-full max-w-sm flex-col items-center gap-5 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="relative flex items-center justify-center">
+          {!reduced && <CrackBurst />}
+          <motion.div
+            initial={{ scale: 0.4, rotate: -10 }}
+            animate={{ scale: [0.4, 1.2, 1], rotate: 0 }}
+            transition={{ duration: 0.55, ease: [0.34, 1.56, 0.64, 1] }}
+            className="flex h-20 w-20 items-center justify-center rounded-3xl border border-gold/40 bg-gold/15"
+            style={{ willChange: "transform" }}
+          >
+            <TrendingUp className="h-10 w-10 text-gold" aria-hidden />
+          </motion.div>
+        </div>
+
+        <h2 className="font-display font-black uppercase tracking-[0.08em] gold-text-gradient" style={{ fontSize: "clamp(2rem, 9vw, 3rem)", lineHeight: 1 }}>
+          Vault Cracked
+        </h2>
+
+        <span className="font-mono text-5xl font-black tabular-nums text-[#FF9900]" style={{ fontSize: "clamp(2.2rem, 10vw, 3.4rem)" }}>
+          +{formatSol(result.seized, 3)}
+        </span>
+        <span className="-mt-2 font-mono text-xs uppercase tracking-[0.2em] text-slate">SOL · cracked {truncateAddress(result.targetWallet, 4, 4)}</span>
+
+        {/* branded share card — dark void bg, gold text */}
+        <div className="w-full rounded-2xl px-4 py-3 text-left" style={{ background: "#08080F", border: "1px solid rgba(255,215,0,0.3)" }}>
+          <p className="font-display text-sm font-black leading-snug">
+            <span className="gold-text-gradient">I just cracked {truncateAddress(result.targetWallet, 4, 4)} for {formatSol(result.seized, 3)} SOL</span>
+            <span className="text-slate"> on </span>
+            <span className="text-white">YOINK.GG</span>
+          </p>
+        </div>
+
+        <a
+          href={shareUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="gold-button flex w-full items-center justify-center gap-2 py-3 text-sm"
+          style={{ borderRadius: 16 }}
+        >
+          <Share2 className="h-4 w-4" aria-hidden /> Share this heist
+        </a>
+        <span className="font-mono text-[10px] text-dim">Returning to your hunt…</span>
+      </div>
+    </motion.div>
+  );
+}
+
+/** Horizontal roll-vs-threshold meter for the near-miss screen. */
+function NearMissMeter({ view, reduced }: { view: ReturnType<typeof nearMissView>; reduced: boolean }) {
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <div className="relative h-3 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        {/* crack zone: everything below the threshold */}
+        <div className="absolute inset-y-0 left-0 rounded-l-full" style={{ width: `${view.thresholdFrac * 100}%`, background: "rgba(0,230,118,0.25)" }} aria-hidden />
+        {/* threshold line */}
+        <span className="absolute top-0 h-full w-[2px]" style={{ left: `${view.thresholdFrac * 100}%`, background: "#00E676" }} aria-hidden />
+        {/* roll marker */}
+        <motion.span
+          className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full"
+          style={{ background: view.cracked ? "#FFD700" : "#FF2200", willChange: "transform" }}
+          initial={reduced ? false : { left: "0%" }}
+          animate={{ left: `calc(${view.rollFrac * 100}% - 7px)` }}
+          transition={{ duration: reduced ? 0 : 0.6, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </div>
+      <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.12em]">
+        <span className="text-emerald">crack ≤ {view.threshold.toFixed(2)}</span>
+        <span className="text-blood">your roll {view.roll.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty, onClose, onSiegeAgain }: SiegeModalProps) {
   const reduced = usePrefersReducedMotion();
   const tier = tierForAmount(yourVault);
 
@@ -277,6 +383,15 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
   const [quickRaid, setQuickRaid] = useState(() => {
     try { return localStorage.getItem(QR_KEY) === "1"; } catch { return false; }
   });
+  // The near-miss (loss) screen holds for ~3s before its actions become live.
+  const [lossGateOpen, setLossGateOpen] = useState(false);
+  useEffect(() => {
+    if (phase === "result" && result && result.outcome === "loss") {
+      setLossGateOpen(false);
+      const id = window.setTimeout(() => setLossGateOpen(true), 3000);
+      return () => window.clearTimeout(id);
+    }
+  }, [phase, result]);
 
   // Backdrop-tap → skip the strain (registered by StrainSequence while mounted).
   const skipRef = useRef<(() => void) | null>(null);
@@ -322,6 +437,15 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
     const next = nextPhaseAfterCommit(res, { quickRaid, reducedMotion: reduced });
     if (next === "result") goResult(res.result);
     else setPhase("strain");
+  }
+
+  // ── WIN → full-screen gold takeover (auto-dismisses to the updated Hunt stats).
+  if (phase === "result" && result && result.outcome === "win") {
+    return (
+      <AnimatePresence>
+        <WinTakeover result={result} reduced={reduced} onClose={onClose} />
+      </AnimatePresence>
+    );
   }
 
   return (
@@ -466,73 +590,93 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
             />
           )}
 
-          {/* ── RESULT ── */}
-          {phase === "result" && result && (
-            <motion.div key="result"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={result.outcome === "win" && !reduced ? { opacity: 1, scale: 1, x: [0, -8, 8, -5, 5, 0] } : { opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 22 }}
-              className="relative flex flex-col items-center gap-4 py-4 text-center"
-            >
-              {result.outcome === "win" ? (
-                <>
-                  <div className="relative flex items-center justify-center">
-                    {!reduced && <CrackBurst />}
-                    <motion.div initial={{ scale: 0.4, rotate: -12 }} animate={{ scale: [0.4, 1.15, 1], rotate: 0 }} transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-                      className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-gold/40 bg-gold/15" style={{ willChange: "transform" }}>
-                      <TrendingUp className="h-8 w-8 text-gold" aria-hidden />
-                    </motion.div>
-                  </div>
-                  <span className="font-display text-3xl font-black uppercase tracking-[0.1em] gold-text-gradient">Cracked!</span>
-                  <span className="font-mono text-sm text-slate">You sliced {truncateAddress(result.targetWallet, 4, 4)}</span>
-                  <span className="font-display text-4xl font-black tabular-nums text-[#FF9900]">+{formatSol(result.seized, 3)}</span>
-                  <span className="font-mono text-[11px] text-dim">Your vault now {formatSol(result.yourVaultAfter, 3)} SOL</span>
-                  <a
-                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                      `I just cracked ${truncateAddress(result.targetWallet, 4, 4)} for ${formatSol(result.seized, 3)} SOL on YOINK.GG Wallet Wars. yoink.gg`,
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gold/30 bg-gold/10 py-2.5 font-display text-xs font-bold uppercase tracking-[0.12em] text-gold transition-colors hover:bg-gold/20"
-                  >
-                    <Share2 className="h-3.5 w-3.5" aria-hidden /> Share this heist
-                  </a>
-                </>
-              ) : (
-                <>
-                  <motion.div initial={{ scale: 1.1 }} animate={{ scale: [1.1, 0.96, 1] }} transition={{ duration: 0.4 }}
-                    className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald/25 bg-emerald/[0.08]" style={{ willChange: "transform" }}>
-                    <Lock className="h-8 w-8 text-emerald" aria-hidden />
-                  </motion.div>
-                  <span className="font-display text-3xl font-black uppercase tracking-[0.1em] text-slate">Vault held</span>
-                  <span className="flex items-center justify-center gap-1.5 font-mono text-sm font-bold text-emerald">
-                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> You only lost the fee
-                  </span>
-                  <span className="font-mono text-lg font-black tabular-nums text-blood">−{formatSol(result.lost, 3)}</span>
-                  <span className="font-mono text-[11px] text-dim">{truncateAddress(result.targetWallet, 4, 4)} banked your toll · re-up and go again.</span>
-                </>
-              )}
-
-              {/* provably-fair reveal: seed + roll + roll<p comparison */}
-              <div className="w-full rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-left">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-emerald">Provably fair</span>
-                  <span className="font-mono text-[10px] tabular-nums text-slate">
-                    roll {result.roll.toFixed(4)} {result.roll < result.pWin ? "<" : "≥"} p {result.pWin.toFixed(2)} → {result.roll < result.pWin ? "CRACK" : "HELD"}
-                  </span>
-                </div>
-                <p className="truncate font-mono text-[9px] text-dim">seed {result.seed}</p>
-              </div>
-
-              <motion.button type="button" onClick={onClose}
-                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.14 }}
-                className="mt-1 w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3 font-display text-sm font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/[0.1]"
-                style={{ willChange: "transform" }}
+          {/* ── RESULT · NEAR MISS (loss is information, not a dead end) ── */}
+          {phase === "result" && result && result.outcome === "loss" && (() => {
+            const view = nearMissView(result.roll, result.pWin);
+            return (
+              <motion.div key="result"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                className="relative flex flex-col items-center gap-4 py-2 text-center"
               >
-                Back to the board
-              </motion.button>
-            </motion.div>
-          )}
+                <motion.div
+                  initial={{ scale: 1.1 }} animate={{ scale: [1.1, 0.96, 1] }} transition={{ duration: reduced ? 0 : 0.4 }}
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate/30 bg-slate/10"
+                  style={{ willChange: "transform" }}
+                >
+                  <ShieldAlert className="h-7 w-7 text-slate" aria-hidden />
+                </motion.div>
+
+                {/* slate, NOT blood — it's information */}
+                <span className="font-display text-2xl font-black uppercase tracking-[0.14em] text-slate">Siege Failed</span>
+
+                {/* the roll vs the threshold, in plain language */}
+                <div className="flex flex-col gap-1">
+                  <span className="font-mono text-xs text-slate">{neededCopy(view)}.</span>
+                  <span className="font-mono text-sm font-bold text-white">{rolledCopy(view)}.</span>
+                </div>
+
+                {/* horizontal roll-vs-threshold meter (tension) */}
+                <NearMissMeter view={view} reduced={reduced} />
+
+                {/* how close, proportionally */}
+                <motion.span
+                  initial={reduced ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: reduced ? 0 : 0.4 }}
+                  className="font-display text-lg font-black tabular-nums"
+                  style={{ color: view.tension > 0.6 ? "#FF9900" : "#8892a4" }}
+                >
+                  You were {view.awayPct}% away from cracking it
+                </motion.span>
+
+                {/* fee → vault lord toll confirmation */}
+                <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <span className="font-mono text-[10px] text-slate">Fee paid → toll to {truncateAddress(result.targetWallet, 4, 4)}</span>
+                  <span className="font-mono text-sm font-black tabular-nums text-blood">−{formatSol(result.lost, 3)} SOL</span>
+                </div>
+
+                {/* provably-fair reveal */}
+                <div className="w-full rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-emerald">Provably fair</span>
+                    <span className="font-mono text-[10px] tabular-nums text-slate">
+                      roll {result.roll.toFixed(4)} ≥ p {result.pWin.toFixed(2)} → HELD
+                    </span>
+                  </div>
+                  <p className="truncate font-mono text-[9px] text-dim">seed {result.seed}</p>
+                </div>
+
+                {/* never a dead end: siege again / find new target (3s gate) */}
+                <div className="grid w-full grid-cols-2 gap-2">
+                  <motion.button
+                    type="button"
+                    onClick={() => { if (lossGateOpen) (onSiegeAgain ?? onClose)(); }}
+                    disabled={!lossGateOpen}
+                    whileTap={lossGateOpen ? { scale: 0.96 } : undefined}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-blood/40 bg-blood/15 py-3 font-display text-xs font-bold uppercase tracking-[0.1em] text-blood transition-colors hover:bg-blood/25 disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ willChange: "transform" }}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Siege again
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => { if (lossGateOpen) onClose(); }}
+                    disabled={!lossGateOpen}
+                    whileTap={lossGateOpen ? { scale: 0.96 } : undefined}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] py-3 font-display text-xs font-bold uppercase tracking-[0.1em] text-white transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ willChange: "transform" }}
+                  >
+                    <Search className="h-3.5 w-3.5" aria-hidden /> Find new target
+                  </motion.button>
+                </div>
+                {!lossGateOpen && (
+                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">Reading the roll…</span>
+                )}
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
       </motion.div>
     </motion.div>
