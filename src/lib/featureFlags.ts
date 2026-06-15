@@ -19,3 +19,14 @@
  * needed — all game/hooks/economy code is left intact and untouched.
  */
 export const BAG_COMING_SOON = true;
+
+
+/**
+ * ── SHOP_ENABLED ────────────────────────────────────────────────────────────
+ * Gates the "Armory" shop. Removed for launch — the nav entry is hidden and the
+ * shop page never renders while this is `false`. All shop code (ShopScreen,
+ * purchase plumbing, cosmetics) is left intact; flip to `true` to restore it
+ * exactly as before. Like every flag here, it only controls visibility — never
+ * economy, fairness, or payout logic.
+ */
+export const SHOP_ENABLED = false;

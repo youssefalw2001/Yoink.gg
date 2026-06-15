@@ -32,7 +32,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock,
+  X, Crosshair, Flame, TrendingUp, ShieldAlert, Lock,
   Zap, ShieldCheck, Share2, ArrowRight, SkipForward, RotateCcw, Search,
 } from "lucide-react";
 import {
@@ -43,7 +43,7 @@ import {
   vaultParamsFor, feeMultiplierForStreak, computeFee, computePrize, STREAK_CFG,
 } from "@/lib/siegeMath";
 import { formatSol, truncateAddress } from "@/lib/utils";
-import { playYoink, playWin, playCooldownBlock, playPurchase, playTick } from "@/lib/sounds";
+import { playYoink, playWin, playCooldownBlock, playTick } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
 import { usePrefersReducedMotion } from "./useReducedMotion";
 import { profileBadgeLabel, PROFILE_ACCENT } from "./riskProfilePresentation";
@@ -55,7 +55,6 @@ interface SiegeModalProps {
   yourVault: number;
   taxMult: number;
   onCommit: () => SiegeResolution;
-  onPlaceBounty: (amount: number) => { ok: boolean };
   onClose: () => void;
   /** Loop the runner into the next best target (Hunt). Falls back to onClose. */
   onSiegeAgain?: () => void;
@@ -289,6 +288,14 @@ function WinTakeover({ result, reduced, onClose }: { result: SiegeResult; reduce
       onClick={onClose}
     >
       <div className="relative flex w-full max-w-sm flex-col items-center gap-5 text-center" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute -top-2 right-0 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-slate transition-colors hover:text-white"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" aria-hidden />
+        </button>
         <div className="relative flex items-center justify-center">
           {!reduced && <CrackBurst />}
           <motion.div
@@ -361,7 +368,7 @@ function NearMissMeter({ view, reduced }: { view: ReturnType<typeof nearMissView
   );
 }
 
-export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty, onClose, onSiegeAgain }: SiegeModalProps) {
+export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSiegeAgain }: SiegeModalProps) {
   const reduced = usePrefersReducedMotion();
   const tier = tierForAmount(yourVault);
 
@@ -371,8 +378,7 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
   const feeB = computeFee(target.amount, params, mult, taxMult);
   const prizeB = computePrize(target.amount, params, mult);
   const pWin = params.winChance;
-  const bountyNet = target.bountyPool > 0 ? target.bountyPool * (1 - params.housePrizeRake) : 0;
-  const reward = prizeB.toRaider + bountyNet;
+  const reward = prizeB.toRaider;
   const canAfford = feeB.fee <= yourVault;
   // The headline multiple: a tiny fee for a ~10× crack.
   const rewardMultiple = feeB.fee > 0 ? reward / feeB.fee : 0;
@@ -395,9 +401,6 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
 
   // Backdrop-tap → skip the strain (registered by StrainSequence while mounted).
   const skipRef = useRef<(() => void) | null>(null);
-
-  const bountyPresets = [tier.minBet * 3, tier.minBet * 6, tier.minBet * 12]
-    .map((v) => +v.toFixed(3)).filter((v) => v <= yourVault);
 
   function toggleQuick() {
     setQuickRaid((v) => {
@@ -489,33 +492,7 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
                 <span className="font-display text-3xl font-black tabular-nums gold-text-gradient">
                   {formatSol(target.amount, 2)} <span className="text-base text-slate">SOL vault</span>
                 </span>
-                {target.bountyPool > 0 && (
-                  <span className="mt-0.5 flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 font-mono text-[10px] font-bold text-gold">
-                    <Target className="h-3 w-3" aria-hidden /> Bounty {formatSol(target.bountyPool, 2)} SOL
-                  </span>
-                )}
               </div>
-
-              {/* BOUNTY — promoted near the headline (shareable viral hook) */}
-              {bountyPresets.length > 0 && (
-                <div className="flex flex-col gap-1.5 rounded-2xl border border-gold/30 bg-gold/[0.08] px-3 py-2.5">
-                  <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-gold">
-                    <Target className="h-3 w-3" aria-hidden />
-                    {target.bountyPool > 0
-                      ? `Bounty pool ${formatSol(target.bountyPool, 2)} SOL — sweeten it`
-                      : "Pledge a bounty on them"}
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {bountyPresets.map((amt) => (
-                      <button key={amt} type="button" onClick={() => { if (onPlaceBounty(amt).ok) playPurchase(); else { playCooldownBlock(); setBlocked("Bounty declined — would drop you a tier or invalid amount"); } }}
-                        className="rounded-xl border border-gold/25 bg-gold/[0.07] py-2 font-mono text-xs font-bold tabular-nums text-gold transition-colors hover:bg-gold/15">
-                        +{formatSol(amt, 2)}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="font-mono text-[9px] text-dim">A bounty is a shareable prize — anyone who cracks them takes it.</span>
-                </div>
-              )}
 
               {/* The deal, at a glance: cheap fee in → big slice out */}
               <div className="flex items-stretch gap-2">

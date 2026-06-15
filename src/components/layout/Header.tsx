@@ -10,7 +10,7 @@ import { PurgeAvatar } from "@/components/walletwars/PurgeAvatar";
 import { TrustBadge } from "@/components/walletwars/TrustBadge";
 import type { PlayerProgress } from "@/lib/progression";
 import type { Room } from "@/lib/rooms";
-import { BAG_COMING_SOON } from "@/lib/featureFlags";
+import { BAG_COMING_SOON, SHOP_ENABLED } from "@/lib/featureFlags";
 import { useState } from "react";
 
 export type Page = "game" | "walletwars" | "leaderboard" | "shop";
@@ -33,13 +33,14 @@ interface HeaderProps {
   onOpenProfile?: () => void;
 }
 
-// Nav uses animated brand icons — draw on mount, re-draw on active change
+// Nav uses animated brand icons — draw on mount, re-draw on active change.
+// The Armory (shop) entry is hidden while SHOP_ENABLED is false (launch gate).
 const NAV = [
   { id: "walletwars"  as const, label: "Wallet Wars",   icon: "crownDagger" as const },
   { id: "game"        as const, label: "The Bag",      icon: "bag"         as const },
   { id: "leaderboard" as const, label: "Hall of Kings", icon: "throne"      as const },
   { id: "shop"        as const, label: "Armory",        icon: "rake"        as const },
-];
+].filter((n) => n.id !== "shop" || SHOP_ENABLED);
 
 // Small "SOON" badge shown on the gated nav entry while BAG_COMING_SOON is true.
 function SoonBadge() {

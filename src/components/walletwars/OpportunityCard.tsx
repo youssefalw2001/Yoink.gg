@@ -16,7 +16,7 @@
 
 import { memo, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Crosshair, Lock, Flame, Trophy, Percent, Target, Clock, ChevronDown } from "lucide-react";
+import { Crosshair, Lock, Flame, Trophy, Percent, Clock, ChevronDown } from "lucide-react";
 import { type Vault, tierForAmount, WAR_CONFIG } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { vaultEconomics, animateUnlessReduced } from "./riskProfilePresentation";
@@ -93,16 +93,6 @@ export const OpportunityCard = memo(function OpportunityCard({ vault, canRaid, o
           </div>
         </div>
       </div>
-
-      {/* bounty badge */}
-      {vault.bountyPool > 0 && (
-        <div className="flex items-center gap-1.5 rounded-lg border border-phantom/30 bg-phantom/[0.08] px-2.5 py-1.5">
-          <Target className="h-3 w-3 shrink-0 text-phantom" aria-hidden />
-          <span className="font-mono text-[10px] text-phantom">
-            <span className="font-bold">{formatSol(vault.bountyPool, 2)} SOL</span> bounty pool — crack them, take it
-          </span>
-        </div>
-      )}
 
       {/* size + odds */}
       <div className="flex items-end justify-between">

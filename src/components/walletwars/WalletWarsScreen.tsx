@@ -33,8 +33,6 @@ import { BuildTab } from "./BuildTab";
 import { HuntTab } from "./HuntTab";
 import { SiegeModal } from "./SiegeModal";
 import { WarFeed } from "./WarFeed";
-import { WalletWarsLeaderboard } from "./WalletWarsLeaderboard";
-import { FeeToast, type FeeToastData } from "./WalletWarsExtras";
 import { PositionStatusBar, type LastSiege } from "./PositionStatusBar";
 import { RoleOnboarding } from "./RoleOnboarding";
 import { useEarningsLedger } from "./useEarningsLedger";
@@ -43,25 +41,26 @@ const ONBOARD_KEY = "yoink_ww_onboarded_v2";
 
 type FeedView = "lords" | "runners";
 
-/** Pure war-feed split: Lords see fee-banking + survival; Runners see cracks + bounties. */
+/** Pure war-feed split: Lords see fee-banking + survival; Runners see cracks. */
 function filterFeed(events: RaidEvent[], view: FeedView): RaidEvent[] {
   return events.filter((e) => {
-    if (view === "runners") return e.outcome === "win" || (e.bounty ?? 0) > 0;
-    // lords
-    return e.kind === "refund" || (e.outcome === "loss" && !(e.bounty ?? 0));
+    if (view === "runners") return e.outcome === "win";
+    return e.kind === "refund" || e.outcome === "loss"; // lords: fee banking
   });
 }
 
 export function WalletWarsScreen({
+  war,
   displayName = "",
   avatarVariant = null,
   avatarColor = null,
 }: {
+  war: ReturnType<typeof useWalletWars>;
   displayName?: string;
   avatarVariant?: number | null;
   avatarColor?: string | null;
 }) {
-  const { state, openVault, cashOut, withdrawBanked, setCompound, setRiskProfile, siege, placeBounty, repeatTaxMult } = useWalletWars();
+  const { state, openVault, cashOut, withdrawBanked, setCompound, setRiskProfile, siege, repeatTaxMult } = war;
   const { walletBalance, publicKey } = useWallet();
 
   const avatarSeed = publicKey ?? (displayName || "You");
@@ -74,7 +73,6 @@ export function WalletWarsScreen({
   const [raidRecord, setRaidRecord] = useState({ wins: 0, losses: 0 });
   const [runnerStats, setRunnerStats] = useState<RunnerStats>(() => loadRunnerStats());
   const [lastSiege, setLastSiege] = useState<LastSiege | null>(null);
-  const [feeToast, setFeeToast] = useState<FeeToastData | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
@@ -96,17 +94,8 @@ export function WalletWarsScreen({
     setLastSiege(null);
   }
 
-  // ── Fee feedback: your vault survives a raid → emerald toast + banked status.
-  const [lastFeeTs, setLastFeeTs] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const banked = state.feed.find((e) => e.targetIsYou && e.outcome === "loss" && e.ts > lastFeeTs && e.kind !== "refund");
-    if (banked) {
-      setLastFeeTs(banked.ts);
-      setFeeToast({ id: banked.ts, amount: banked.amount, from: banked.raider });
-      const t = window.setTimeout(() => setFeeToast(null), 3200);
-      return () => clearTimeout(t);
-    }
-  }, [state.feed, lastFeeTs]);
+  // ── Fee feedback: your vault survives a raid → reflected in the status bar
+  // ("X SOL banked today") and the war feed. No popup toast (kept calm).
 
   const target = useMemo(() => state.stashes.find((s) => s.id === raidTargetId) ?? null, [state.stashes, raidTargetId]);
 
@@ -238,7 +227,6 @@ export function WalletWarsScreen({
               onWithdrawBanked={withdrawBanked}
               onToggleCompound={setCompound}
               onSetRiskProfile={setRiskProfile}
-              onPlaceBounty={placeBounty}
               displayName={displayName}
               avatarSeed={avatarSeed}
               avatarVariant={avatarVariant}
@@ -284,10 +272,7 @@ export function WalletWarsScreen({
         </SpotlightCard>
       </div>
 
-      {/* war boards */}
-      <div className="mt-5">
-        <WalletWarsLeaderboard stashes={state.stashes} you={state.you} biggestHeist={state.biggestHeist} displayName={displayName} />
-      </div>
+      {/* war boards live on the dedicated Hall of Kings page now */}
 
       {/* siege modal — stays mounted through strain/result (raidability is
           checked at open); a settled siege shields the target, so we must NOT
@@ -300,14 +285,11 @@ export function WalletWarsScreen({
             yourVault={state.you.amount}
             taxMult={repeatTaxMult(target.id)}
             onCommit={handleSiegeCommit}
-            onPlaceBounty={(amt) => placeBounty(target.id, amt)}
             onSiegeAgain={handleSiegeAgain}
             onClose={() => setRaidTargetId(null)}
           />
         )}
       </AnimatePresence>
-
-      <FeeToast toast={feeToast} />
     </div>
   );
 }
