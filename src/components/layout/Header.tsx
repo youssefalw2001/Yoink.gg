@@ -10,6 +10,7 @@ import { NETWORK_LABEL } from "@/lib/solana";
 import { PurgeAvatar } from "@/components/walletwars/PurgeAvatar";
 import type { PlayerProgress } from "@/lib/progression";
 import type { Room } from "@/lib/rooms";
+import { BAG_COMING_SOON } from "@/lib/featureFlags";
 import { useState } from "react";
 
 export type Page = "game" | "walletwars" | "leaderboard" | "shop";
@@ -39,6 +40,18 @@ const NAV = [
   { id: "leaderboard" as const, label: "Hall of Kings", icon: "throne"      as const },
   { id: "shop"        as const, label: "Armory",        icon: "rake"        as const },
 ];
+
+// Small "SOON" badge shown on the gated nav entry while BAG_COMING_SOON is true.
+function SoonBadge() {
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase leading-none tracking-[0.18em] text-gold"
+      style={{ background: "rgba(255,215,0,0.1)", border: "1px solid rgba(255,215,0,0.3)" }}
+    >
+      Soon
+    </span>
+  );
+}
 
 // Nav items use brand icons instead of generic lucide icons
 export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, instanceLabel, publicKey, onOpenProfile }: HeaderProps) {
@@ -135,6 +148,7 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, i
                   )}
                   <AnimatedNavIcon name={icon} size={16} active={active} />
                   {label}
+                  {id === "game" && BAG_COMING_SOON && <SoonBadge />}
                 </button>
               );
             })}
@@ -209,6 +223,7 @@ export function Header({ page, onNavigate, progress, currentRoom, onLeaveRoom, i
                   )}
                   <AnimatedNavIcon name={icon} size={16} active={active} />
                   <span>{label}</span>
+                  {id === "game" && BAG_COMING_SOON && <SoonBadge />}
                 </button>
               );
             })}
