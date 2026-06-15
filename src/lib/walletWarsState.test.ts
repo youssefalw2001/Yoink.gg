@@ -46,6 +46,7 @@ function makeVault(over: Partial<Vault>): Vault {
     bountyPool: 0,
     bountyExpiry: 0,
     riskProfile: "standard",
+    feesEarned: 0,
     ...over,
   };
 }
@@ -191,7 +192,8 @@ describe("openVaultState", () => {
     expect(opened.you!.banked).toBe(0);
     expect(opened.you!.streak).toBe(0);
     expect(opened.you!.seq).toBe(0);
-    expect(opened.you!.compound).toBe(true);
+    expect(opened.you!.compound).toBe(false);
+    expect(opened.you!.feesEarned).toBe(0);
     expect(opened.you!.openedAt).toBe(42);
     expect(opened.you!.riskProfile).toBe("standard");
     // The player's vault is held separately, never in the targetable board.

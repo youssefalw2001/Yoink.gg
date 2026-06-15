@@ -8,24 +8,32 @@
  *
  * NEVER FAILS SILENTLY: `onCommit` returns a typed `SiegeResolution`. A declined
  * siege (cooldown / shielded / self / tier-mismatch / insufficient-funds) plays
- * `playCooldownBlock` and renders an explicit in-modal banner — the modal STAYS
- * OPEN. (The parent also mirrors the reason into the StatusBar.)
+ * `playCooldownBlock`, renders an explicit in-modal banner, and the modal STAYS
+ * in `select` — a rejection NEVER plays the build-up. (The parent also mirrors
+ * the reason into the StatusBar.)
+ *
+ * THE SIEGE MOMENT (phase machine `select → strain → result`): on a committed,
+ * ACCEPTED siege the provably-fair outcome is sealed FIRST (by `onCommit()` →
+ * `siege()`), then a deliberate, SKIPPABLE `strain` build-up plays (~1.9s of the
+ * vault lock straining and cracking, a scrambling roll/seed readout that locks
+ * to the real sealed values at the breach) before the reveal. `Quick Siege` or
+ * `prefers-reduced-motion` bypass the build-up entirely (instant result). The
+ * strain is pure ceremony over an already-sealed roll — it never re-rolls.
  *
  * RESULT PHASE: reveals the seed, the roll, and the `roll < p` comparison. A WIN
- * fires a big celebratory crack burst (the shareable dopamine moment); a LOSS is
- * framed as survivable — "bounced — you only lost the fee."
+ * shatters the lock (celebratory crack burst — the shareable dopamine moment); a
+ * LOSS is framed as survivable — the lock holds, "you only lost the fee."
  *
  * FAIR: the crack chance is the FIXED, published per-tier win chance (never
- * varied by streak/heat/size). The vault pick is ceremony over an
- * already-sealed provably-fair roll; the seed is revealed for verification.
- * Animation is Framer Motion + transform/opacity and honours reduced motion.
+ * varied by streak/heat/size); the seed is revealed for verification. Animation
+ * is Framer Motion + transform/opacity and honours reduced motion.
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock, Vault as VaultIcon,
-  Zap, ShieldCheck, Share2, ArrowRight,
+  X, Crosshair, Flame, TrendingUp, ShieldAlert, Target, Lock,
+  Zap, ShieldCheck, Share2, ArrowRight, SkipForward,
 } from "lucide-react";
 import {
   tierForAmount,
@@ -39,6 +47,7 @@ import { playYoink, playWin, playCooldownBlock, playPurchase, playTick } from "@
 import { PurgeAvatar } from "./PurgeAvatar";
 import { usePrefersReducedMotion } from "./useReducedMotion";
 import { profileBadgeLabel, PROFILE_ACCENT } from "./riskProfilePresentation";
+import { nextPhaseAfterCommit } from "./siegeFeel";
 
 interface SiegeModalProps {
   target: Vault;
@@ -49,8 +58,12 @@ interface SiegeModalProps {
   onClose: () => void;
 }
 
-type Phase = "select" | "pick" | "result";
+type Phase = "select" | "strain" | "result";
 const QR_KEY = "yoink_ww_quickraid";
+
+/** Strain build-up timings (transform/opacity only). Breach locks the readout. */
+const STRAIN_MS = 1900;
+const STRAIN_BREACH_MS = 1500;
 
 /** Human-readable copy for a typed siege rejection (no silent failures). */
 function rejectionCopy(reason: SiegeRejection): string {
@@ -68,6 +81,13 @@ function rejectionCopy(reason: SiegeRejection): string {
     case "insufficient_funds":
       return `Fee ${formatSol(reason.required, 3)} SOL exceeds your ${formatSol(reason.available, 3)} SOL`;
   }
+}
+
+/** A throwaway scrambled hex string for the pre-breach seed readout. */
+function scrambleSeed(): string {
+  let s = "";
+  for (let i = 0; i < 16; i++) s += Math.floor(Math.random() * 16).toString(16);
+  return s;
 }
 
 /** Celebratory crack burst — a ring of shards flung outward (transform/opacity). */
@@ -99,6 +119,142 @@ function CrackBurst() {
   );
 }
 
+/**
+ * StrainSequence — the ~1.9s build → breach beat over an ALREADY-SEALED result.
+ *
+ * The lock strains and cracks (transform/opacity keyframes only); a scrambling
+ * roll/seed readout animates until the breach (~1500ms), then LOCKS to the real
+ * `result.roll` / `result.seed`. A persistent Skip button — and a backdrop tap
+ * wired by the parent via `skipRef` — clears the timer and jumps straight to the
+ * result with the SAME sealed outcome. Never re-rolls; never changes the result.
+ */
+function StrainSequence({
+  result, reduced, onDone, skipRef,
+}: {
+  result: SiegeResult;
+  reduced: boolean;
+  onDone: () => void;
+  skipRef: React.MutableRefObject<(() => void) | null>;
+}) {
+  const win = result.outcome === "win";
+  const [locked, setLocked] = useState(false);
+  const [scramble, setScramble] = useState<{ roll: number; seed: string }>(() => ({
+    roll: Math.random(), seed: scrambleSeed(),
+  }));
+
+  // Single owner of all timers so Skip / unmount cannot double-fire `onDone`.
+  const finishedRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    playTick(false);
+    const scrambleId = window.setInterval(() => {
+      setScramble({ roll: Math.random(), seed: scrambleSeed() });
+    }, 70);
+    const breachId = window.setTimeout(() => {
+      setLocked(true);
+      window.clearInterval(scrambleId);
+      playTick(true);
+    }, STRAIN_BREACH_MS);
+
+    const finish = () => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      window.clearInterval(scrambleId);
+      window.clearTimeout(breachId);
+      window.clearTimeout(doneId);
+      onDoneRef.current();
+    };
+    const doneId = window.setTimeout(finish, STRAIN_MS);
+
+    // Expose the (idempotent) skip to the parent for backdrop-tap.
+    skipRef.current = finish;
+    return () => {
+      window.clearInterval(scrambleId);
+      window.clearTimeout(breachId);
+      window.clearTimeout(doneId);
+      skipRef.current = null;
+    };
+  }, [skipRef]);
+
+  const shownRoll = locked ? result.roll : scramble.roll;
+  const shownSeed = locked ? result.seed : scramble.seed;
+  const breachColor = win ? "#FFD700" : "#FF2200";
+
+  return (
+    <motion.div
+      key="strain"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex flex-col items-center gap-5 py-6"
+    >
+      <span className="font-display text-lg font-black uppercase tracking-[0.18em] text-white">
+        {locked ? "Breach!" : "Straining the lock…"}
+      </span>
+
+      <div className="relative flex h-24 w-24 items-center justify-center">
+        {locked && win && !reduced && <CrackBurst />}
+        <motion.div
+          className="relative flex h-20 w-20 items-center justify-center rounded-2xl border"
+          style={{
+            borderColor: `${breachColor}66`,
+            background: `${breachColor}14`,
+            willChange: "transform",
+          }}
+          initial={{ scale: 1, rotate: 0, x: 0, y: 0 }}
+          animate={
+            reduced
+              ? { scale: 1 }
+              : {
+                  scale: [1, 1.05, 1.03, 1.07, 1.1, win ? 1.18 : 1],
+                  x: [0, -2, 2, -4, 3, 0],
+                  y: [0, 1, -1, 2, -2, 0],
+                  rotate: [0, -1, 1.5, -2, 2, 0],
+                }
+          }
+          transition={{ duration: STRAIN_MS / 1000, ease: "easeInOut" }}
+        >
+          {/* hairline crack overlay — fades in through the cracking sub-beat */}
+          <motion.span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-2xl"
+            style={{
+              background: `linear-gradient(115deg, transparent 46%, ${breachColor}aa 50%, transparent 54%)`,
+              willChange: "opacity",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: locked ? 1 : reduced ? 0 : [0, 0, 0.6, 1] }}
+            transition={{ duration: STRAIN_BREACH_MS / 1000, ease: "easeIn" }}
+          />
+          <Lock className="h-9 w-9" style={{ color: breachColor }} aria-hidden />
+        </motion.div>
+      </div>
+
+      {/* scrambling provably-fair readout — locks to the real sealed values */}
+      <div className="w-full rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-left">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-emerald">
+            {locked ? "Sealed" : "Rolling…"}
+          </span>
+          <span className="font-mono text-[10px] tabular-nums text-slate">
+            roll {shownRoll.toFixed(4)} {locked ? (result.roll < result.pWin ? "<" : "≥") : "·"} p {result.pWin.toFixed(2)}
+          </span>
+        </div>
+        <p className="truncate font-mono text-[9px] text-dim">seed {shownSeed}</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => skipRef.current?.()}
+        className="flex items-center justify-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-dim transition-colors hover:text-white"
+      >
+        <SkipForward className="h-3 w-3" aria-hidden /> Skip ▸
+      </button>
+      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">outcome already sealed by the seed</span>
+    </motion.div>
+  );
+}
+
 export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty, onClose }: SiegeModalProps) {
   const reduced = usePrefersReducedMotion();
   const tier = tierForAmount(yourVault);
@@ -117,12 +273,13 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
 
   const [phase, setPhase] = useState<Phase>("select");
   const [result, setResult] = useState<SiegeResult | null>(null);
-  const [picked, setPicked] = useState<number | null>(null);
-  const [loaded, setLoaded] = useState<number | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
   const [quickRaid, setQuickRaid] = useState(() => {
     try { return localStorage.getItem(QR_KEY) === "1"; } catch { return false; }
   });
+
+  // Backdrop-tap → skip the strain (registered by StrainSequence while mounted).
+  const skipRef = useRef<(() => void) | null>(null);
 
   const bountyPresets = [tier.minBet * 3, tier.minBet * 6, tier.minBet * 12]
     .map((v) => +v.toFixed(3)).filter((v) => v <= yourVault);
@@ -135,6 +292,12 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
     });
   }
 
+  /** Land on the reveal, playing the win sting once for a crack. */
+  const goResult = useCallback((r: SiegeResult) => {
+    setPhase("result");
+    if (r.outcome === "win") playWin();
+  }, []);
+
   function commit() {
     if (!canAfford) {
       playCooldownBlock();
@@ -142,33 +305,23 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
       return;
     }
     playYoink();
+    // Seal the provably-fair outcome FIRST. Any build-up plays over a result
+    // that is already decided.
     const res = onCommit();
     if (!res.ok) {
-      // Surface the typed reason instead of silently closing — modal stays open.
+      // Surface the typed reason instead of silently closing — a rejection
+      // STAYS in `select` and NEVER plays the build-up.
       playCooldownBlock();
       setBlocked(rejectionCopy(res.reason));
       return;
     }
     setBlocked(null);
     setResult(res.result);
-    if (quickRaid) {
-      setPhase("result");
-      if (res.result.outcome === "win") playWin();
-    } else {
-      setPhase("pick");
-    }
-  }
-
-  function pickVault(i: number) {
-    if (picked !== null || !result) return;
-    setPicked(i);
-    const others = [0, 1, 2].filter((x) => x !== i);
-    setLoaded(result.outcome === "win" ? i : others[Math.floor(Math.random() * others.length)]);
-    playTick(true);
-    window.setTimeout(() => {
-      setPhase("result");
-      if (result.outcome === "win") playWin();
-    }, reduced ? 300 : 1100);
+    // Decide the next phase purely (Property 9/10): a rejection never reaches
+    // here; Quick Siege or reduced motion skips the build-up.
+    const next = nextPhaseAfterCommit(res, { quickRaid, reducedMotion: reduced });
+    if (next === "result") goResult(res.result);
+    else setPhase("strain");
   }
 
   return (
@@ -177,11 +330,13 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
       style={{ background: "rgba(8,8,15,0.9)", backdropFilter: "blur(12px)" }}
       role="dialog" aria-modal="true" aria-label={`Siege ${truncateAddress(target.wallet)}`}
+      onClick={() => { if (phase === "strain") skipRef.current?.(); }}
     >
       <motion.div
         initial={{ scale: 0.92, y: 16, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: "spring", stiffness: 320, damping: 26 }}
         className="premium-card relative w-full max-w-sm rounded-[24px] px-6 py-7"
+        onClick={(e) => e.stopPropagation()}
       >
         <button type="button" onClick={onClose} className="absolute right-4 top-4 text-dim transition-colors hover:text-white" aria-label="Close">
           <X className="h-5 w-5" aria-hidden />
@@ -296,52 +451,19 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
 
               <button type="button" onClick={toggleQuick} className="flex items-center justify-center gap-1.5 font-mono text-[10px] text-dim transition-colors hover:text-white">
                 <Zap className="h-3 w-3" style={{ color: quickRaid ? "#FFD700" : undefined }} aria-hidden />
-                Quick Siege {quickRaid ? "ON" : "OFF"} — skip the vault pick
+                Quick Siege {quickRaid ? "ON" : "OFF"} — skip the build-up
               </button>
             </motion.div>
           )}
 
-          {/* ── PICK (Crack the Vault) ── */}
-          {phase === "pick" && (
-            <motion.div key="pick" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-5 py-4">
-              <span className="font-display text-lg font-black uppercase tracking-[0.18em] text-white">Crack the vault</span>
-              <span className="font-mono text-[11px] text-slate">{picked === null ? "Pick a vault — trust your gut" : (result?.outcome === "win" ? "Cracking…" : "Locked tight…")}</span>
-
-              <div className="grid w-full grid-cols-3 gap-3">
-                {[0, 1, 2].map((i) => {
-                  const isPicked = picked === i;
-                  const revealed = picked !== null;
-                  const isLoot   = loaded === i;
-                  const win      = result?.outcome === "win";
-                  const accent = !revealed ? "#8892a4"
-                    : isPicked ? (win ? "#FFD700" : "#FF2200")
-                    : isLoot ? "#FFD700" : "#3a3f4f";
-                  return (
-                    <motion.button
-                      key={i} type="button" disabled={revealed} onClick={() => pickVault(i)}
-                      whileHover={!revealed ? { scale: 1.05, y: -3 } : undefined}
-                      whileTap={!revealed ? { scale: 0.95 } : undefined}
-                      animate={isPicked && !reduced ? { rotate: [0, -6, 6, -4, 4, 0], scale: [1, 1.1, 1] } : { opacity: revealed && !isLoot ? 0.4 : 1 }}
-                      transition={{ duration: 0.5 }}
-                      className="flex aspect-square flex-col items-center justify-center gap-1 rounded-2xl border"
-                      style={{ borderColor: `${accent}66`, background: `${accent}14`, willChange: "transform" }}
-                      aria-label={`Vault ${i + 1}`}
-                    >
-                      {!revealed ? (
-                        <Lock className="h-7 w-7 text-slate" aria-hidden />
-                      ) : isPicked ? (
-                        win ? <TrendingUp className="h-7 w-7 text-gold" aria-hidden /> : <ShieldAlert className="h-7 w-7 text-blood" aria-hidden />
-                      ) : isLoot ? (
-                        <VaultIcon className="h-7 w-7 text-gold/70" aria-hidden />
-                      ) : (
-                        <Lock className="h-6 w-6 text-dim" aria-hidden />
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-dim">outcome already sealed by the seed</span>
-            </motion.div>
+          {/* ── STRAIN (build → breach over a sealed result) ── */}
+          {phase === "strain" && result && (
+            <StrainSequence
+              result={result}
+              reduced={reduced}
+              skipRef={skipRef}
+              onDone={() => goResult(result)}
+            />
           )}
 
           {/* ── RESULT ── */}
@@ -378,14 +500,16 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onPlaceBounty
                 </>
               ) : (
                 <>
-                  <motion.div initial={{ scale: 0.4 }} animate={{ scale: [0.4, 1.1, 1] }} transition={{ duration: 0.4 }}
-                    className="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate/30 bg-slate/10" style={{ willChange: "transform" }}>
-                    <ShieldAlert className="h-8 w-8 text-slate" aria-hidden />
+                  <motion.div initial={{ scale: 1.1 }} animate={{ scale: [1.1, 0.96, 1] }} transition={{ duration: 0.4 }}
+                    className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald/25 bg-emerald/[0.08]" style={{ willChange: "transform" }}>
+                    <Lock className="h-8 w-8 text-emerald" aria-hidden />
                   </motion.div>
-                  <span className="font-display text-3xl font-black uppercase tracking-[0.1em] text-slate">Bounced</span>
-                  <span className="font-mono text-sm text-slate">{truncateAddress(result.targetWallet, 4, 4)} held the vault</span>
-                  <span className="font-display text-3xl font-black tabular-nums text-blood">−{formatSol(result.lost, 3)}</span>
-                  <span className="font-mono text-[11px] text-dim">You only lost the fee — it banked their vault. Re-up and go again.</span>
+                  <span className="font-display text-3xl font-black uppercase tracking-[0.1em] text-slate">Vault held</span>
+                  <span className="flex items-center justify-center gap-1.5 font-mono text-sm font-bold text-emerald">
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> You only lost the fee
+                  </span>
+                  <span className="font-mono text-lg font-black tabular-nums text-blood">−{formatSol(result.lost, 3)}</span>
+                  <span className="font-mono text-[11px] text-dim">{truncateAddress(result.targetWallet, 4, 4)} banked your toll · re-up and go again.</span>
                 </>
               )}
 

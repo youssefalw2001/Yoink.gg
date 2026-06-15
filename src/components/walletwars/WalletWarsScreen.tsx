@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crosshair, Vault, Coins, Trophy } from "lucide-react";
+import { Crosshair, Vault, Coins, Trophy, ListRestart } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import {
@@ -79,7 +79,7 @@ export function WalletWarsScreen({
   avatarVariant?: number | null;
   avatarColor?: string | null;
 }) {
-  const { state, openVault, cashOut, withdrawBanked, setCompound, siege, placeBounty, repeatTaxMult } = useWalletWars();
+  const { state, openVault, cashOut, withdrawBanked, setCompound, siege, placeBounty, repeatTaxMult, resortBoard } = useWalletWars();
   const { walletBalance, publicKey } = useWallet();
 
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
@@ -290,6 +290,18 @@ export function WalletWarsScreen({
               </h2>
             </div>
             <span className="font-mono text-[10px] text-dim">{boardForTier.length} stashes</span>
+          </div>
+
+          {/* Re-rank board — the board holds position between explicit ranking
+              moments (mount / open / cashout); this re-sorts hottest-first now. */}
+          <div className="flex justify-end px-1">
+            <button
+              type="button"
+              onClick={resortBoard}
+              className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-slate transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              <ListRestart className="h-3 w-3" aria-hidden /> Re-rank board
+            </button>
           </div>
 
           {boardForTier.length === 0 ? (

@@ -47,8 +47,17 @@ import {
 export const WAR_CONFIG = {
   RAID_COOLDOWN_MS: 3_000,
   SHIELD_MS: 6_000,
-  TICK_MS: 1_500,
+  TICK_MS: 3_500,
   PER_TIER: 5,
+  /**
+   * Ambient bot cadence (FEEL ONLY — never affects odds or payouts). These gate
+   * HOW OFTEN a simulated siege happens; every event that does occur is still
+   * settled by the unchanged `settleSiege`/`siegeMath` path, so EV/odds per
+   * event are identical.
+   */
+  BOT_SIEGES_PER_TICK: 1,     // was effectively 1–2 (1 + coinflip)
+  BOT_TICK_ACTIVITY: 0.7,     // probability a given tick runs any ambient siege
+  BOT_SIEGE_YOU_CHANCE: 0.22, // was 0.5 — being raided is a notable beat, not constant
   /** Repeat-target surcharge: + this × baseFee per prior siege within the window. */
   REPEAT_TAX_STEP: 0.3,
   REPEAT_TAX_CAP: 1.2,
@@ -122,6 +131,13 @@ export interface Vault {
   seq: number;
   /** Auto-fold banked → amount on every settled siege. */
   compound: boolean;
+  /**
+   * Lifetime tolls banked, monotonic; incremented by `toDefenderOnFail` on every
+   * settled siege (win AND loss). NEVER zeroed by auto-compounding or by
+   * `withdrawBankedState`, and EXCLUDED from cash-out. Display only — moves no
+   * SOL, so it never affects conservation or the money math.
+   */
+  feesEarned: number;
   /** Community prize add-on (Bounty v2), escrowed separately from the corpus. */
   bountyPool: number;
   /** ms — bounty refund window. */
@@ -272,6 +288,16 @@ export function sortByHeat(stashes: Stash[], at: number): Stash[] {
   return [...stashes].sort((a, b) => heatScore(b, at) - heatScore(a, at));
 }
 
+/**
+ * Pure board transition: re-rank the visible board by heat at `at`. A PERMUTATION
+ * ONLY — the same multiset of vault ids is returned, with no vault created,
+ * destroyed, or economically mutated. Called only at explicit ranking moments
+ * (mount / Re-rank / open / cashout) so the board holds position between them.
+ */
+export function resortBoard(state: WarState, at: number): WarState {
+  return { ...state, stashes: sortByHeat(state.stashes, at) };
+}
+
 // ── Board generation ──────────────────────────────────────────────────────────
 
 function amountInTier(t: Tier): number {
@@ -309,10 +335,13 @@ function makeBotVault(tier: Tier, at: number): Stash {
     openedAt: at - Math.floor(Math.random() * 1_800_000),
     shieldUntil: 0,
     seq: 0,
-    compound: true,
+    compound: false,
     bountyPool: 0,
     bountyExpiry: 0,
     riskProfile: randomRiskProfile(),
+    // Seed lifetime fees from the already-accumulated banked so a freshly-seeded
+    // bot reads as having earned tolls over its life (display only).
+    feesEarned: banked,
   };
 }
 function seedBoard(at: number): Stash[] {
@@ -409,6 +438,9 @@ function settleSiege(
     ...defender,
     amount: defenderCorpus,
     banked: defenderBanked,
+    // Lifetime tolls: defender keeps `toDefenderOnFail` on EVERY settled siege
+    // (win and loss). Monotonic; independent of the compound fold above.
+    feesEarned: defender.feesEarned + feeB.toDefenderOnFail,
     survived,
     cracked,
     streak,
@@ -496,12 +528,14 @@ export function openVaultState(
     openedAt: at,
     shieldUntil: 0,
     seq: 0,
-    compound: true,
+    compound: false,
     bountyPool: 0,
     bountyExpiry: 0,
     riskProfile: isRiskProfile(profile) ? profile : DEFAULT_RISK_PROFILE,
+    feesEarned: 0,
   };
-  return { ...state, you };
+  // Opening is an explicit focus change → present a fresh heat ranking, then hold.
+  return { ...state, you, stashes: sortByHeat(state.stashes, at) };
 }
 
 export interface SiegeContext {
@@ -577,7 +611,10 @@ export function resolveSiege(
   const newState: WarState = {
     ...state,
     you: out.raider,
-    stashes: sortByHeat(newStashes, ctx.at),
+    // Update the sieged target in place — the board does NOT reshuffle when the
+    // player acts. Re-ranking happens only at explicit moments (mount / Re-rank /
+    // open / cashout) so cards hold position while being read.
+    stashes: newStashes,
     feed: [event, ...state.feed].slice(0, 40),
     totalBanked: state.totalBanked + out.houseDelta,
     biggestHeist:
@@ -641,10 +678,13 @@ export function resolveBounty(
 }
 
 /** Cash out: realise corpus + banked fees, clear the player's vault (streak resets with it). */
-export function cashOutState(state: WarState): { amount: number; state: WarState } {
+export function cashOutState(state: WarState, at: number = now()): { amount: number; state: WarState } {
   if (!state.you) return { amount: 0, state };
+  // Cash-out value is corpus + banked ONLY — `feesEarned` is a display-only
+  // lifetime counter and is deliberately excluded (no double-counting).
   const amount = state.you.amount + state.you.banked;
-  return { amount, state: { ...state, you: null } };
+  // Closing the vault is an explicit focus change → re-rank the board, then hold.
+  return { amount, state: { ...state, you: null, stashes: sortByHeat(state.stashes, at) } };
 }
 
 /** Withdraw banked fees without growing (or closing) the corpus. */
@@ -709,6 +749,9 @@ function normalizeVault(v: Partial<Vault> | null, at: number): Vault | null {
     compound: typeof v.compound === "boolean" ? v.compound : true,
     bountyPool: Math.max(0, fin(v.bountyPool, 0)),
     bountyExpiry: fin(v.bountyExpiry, 0),
+    // Lifetime fees: default to the stored banked when absent (a reasonable
+    // lower bound), else 0 — never NaN. Display only; never affects money math.
+    feesEarned: Math.max(0, fin(v.feesEarned, Math.max(0, fin(v.banked, 0)))),
     // Variable-Risk Vaults: default a missing/invalid profile to Standard (the
     // base-tier identity) so legacy/normalised vaults keep today's economics.
     riskProfile: isRiskProfile(v.riskProfile) ? v.riskProfile : DEFAULT_RISK_PROFILE,
@@ -746,6 +789,9 @@ export function migrateV3ToV4(raw: unknown, at: number): PersistedWar {
       compound: true,
       bountyPool: priorBounty,
       bountyExpiry: 0,
+      // Legacy v3 vaults predate the lifetime-fees counter → seed from banked
+      // (a safe lower bound), never NaN.
+      feesEarned: Math.max(0, fin(youRaw.feesEarned, Math.max(0, fin(youRaw.banked, 0)))),
       // Legacy v3 vaults predate risk profiles → default to Standard (identity),
       // honouring any already-valid profile carried on the record.
       riskProfile: isRiskProfile(youRaw.riskProfile) ? youRaw.riskProfile : DEFAULT_RISK_PROFILE,
@@ -863,6 +909,14 @@ export function useWalletWars() {
     setState((prev) => setCompoundState(prev, compound));
   }, []);
 
+  /**
+   * Re-rank the visible board by heat NOW (explicit "Re-rank board" affordance).
+   * A permutation only — no vault is mutated. The board otherwise holds position.
+   */
+  const resortBoardAction = useCallback(() => {
+    setState((prev) => resortBoard(prev, now()));
+  }, []);
+
   /** Siege a target. Returns a typed resolution — never a bare null. */
   const siege = useCallback((targetId: string): SiegeResolution => {
     const at = now();
@@ -919,7 +973,11 @@ export function useWalletWars() {
         let biggestHeist = prev.biggestHeist;
         const events: RaidEvent[] = [];
 
-        const siegeCount = 1 + (Math.random() > 0.5 ? 1 : 0);
+        // Ambient cadence (feel only): ~BOT_TICK_ACTIVITY chance to run
+        // BOT_SIEGES_PER_TICK ambient siege(s). Each settled siege still routes
+        // through the unchanged settleSiege/siegeMath path (odds/EV unchanged).
+        const siegeCount =
+          Math.random() < WAR_CONFIG.BOT_TICK_ACTIVITY ? WAR_CONFIG.BOT_SIEGES_PER_TICK : 0;
         for (let r = 0; r < siegeCount; r++) {
           const open = stashes.filter((t) => ts >= t.shieldUntil && t.amount > WAR_CONFIG.CORPUS_FLOOR);
           if (open.length < 2) break;
@@ -945,8 +1003,8 @@ export function useWalletWars() {
           );
         }
 
-        // A bot sieges YOU (same tier, unshielded).
-        if (you && ts >= you.shieldUntil && you.amount > WAR_CONFIG.CORPUS_FLOOR && Math.random() < 0.5) {
+        // A bot sieges YOU (same tier, unshielded) — a notable beat, not constant.
+        if (you && ts >= you.shieldUntil && you.amount > WAR_CONFIG.CORPUS_FLOOR && Math.random() < WAR_CONFIG.BOT_SIEGE_YOU_CHANCE) {
           const ti = tierIndexForAmount(you.amount);
           const sameTier = stashes.filter((t) => tierIndexForAmount(t.amount) === ti && ts >= t.shieldUntil);
           const attacker = sameTier[Math.floor(Math.random() * sameTier.length)];
@@ -1024,9 +1082,10 @@ export function useWalletWars() {
             : t,
         );
 
-        // Hottest-first board sort (visibility only — never changes odds).
-        stashes = sortByHeat(stashes, ts);
-
+        // Board order is SETTLED — no per-tick re-sort. Vault updates and
+        // depleted-vault replacement happen in place (same index), so every
+        // card holds its position between explicit ranking moments (mount /
+        // Re-rank / open / cashout). Heat BADGES still update live per card.
         const changed =
           events.length > 0 || stashes !== prev.stashes || you !== prev.you;
         if (!changed) return prev;
@@ -1051,5 +1110,5 @@ export function useWalletWars() {
     return () => clearInterval(interval);
   }, []);
 
-  return { state, openVault, cashOut, withdrawBanked, setCompound, siege, placeBounty, repeatTaxMult };
+  return { state, openVault, cashOut, withdrawBanked, setCompound, siege, placeBounty, repeatTaxMult, resortBoard: resortBoardAction };
 }

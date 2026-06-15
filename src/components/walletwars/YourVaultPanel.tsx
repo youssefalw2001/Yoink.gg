@@ -191,6 +191,16 @@ export function YourVaultPanel({
           </motion.span>
         </div>
 
+        {/* lifetime fees earned — monotonic, survives compounding + withdrawals */}
+        <div className="flex items-center justify-between rounded-xl border border-gold/[0.16] bg-gold/[0.05] px-3 py-2.5">
+          <span className="flex items-center gap-2 font-mono text-[11px] text-slate">
+            <Trophy className="h-3.5 w-3.5 text-gold" aria-hidden /> Lifetime fees earned
+          </span>
+          <span className="font-mono text-sm font-black tabular-nums text-gold">
+            {formatSol(you.feesEarned, 3)}
+          </span>
+        </div>
+
         {/* survival streak → fee/slice multiplier */}
         <div className="flex flex-col gap-1.5 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,153,0,0.05)", border: "1px solid rgba(255,153,0,0.14)" }}>
           <div className="flex items-center justify-between">
