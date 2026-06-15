@@ -45,6 +45,7 @@ function makeVault(over: Partial<Vault>): Vault {
     compound: true,
     bountyPool: 0,
     bountyExpiry: 0,
+    riskProfile: "standard",
     ...over,
   };
 }
@@ -183,7 +184,7 @@ describe("siege preconditions reject with a typed reason and no state change", (
 describe("openVaultState", () => {
   it("creates an owned vault with reset counters and excludes it from the board", () => {
     const base = createInitialState();
-    const opened = openVaultState(base, 5, 42);
+    const opened = openVaultState(base, 5, "standard", 42);
     expect(opened.you).not.toBeNull();
     expect(opened.you!.isYou).toBe(true);
     expect(opened.you!.amount).toBe(5);
@@ -192,13 +193,14 @@ describe("openVaultState", () => {
     expect(opened.you!.seq).toBe(0);
     expect(opened.you!.compound).toBe(true);
     expect(opened.you!.openedAt).toBe(42);
+    expect(opened.you!.riskProfile).toBe("standard");
     // The player's vault is held separately, never in the targetable board.
     expect(opened.stashes.some((v) => v.isYou)).toBe(false);
   });
 
   it("is a no-op when a vault is already open", () => {
-    const base = openVaultState(createInitialState(), 5, 1);
-    const again = openVaultState(base, 20, 2);
+    const base = openVaultState(createInitialState(), 5, "standard", 1);
+    const again = openVaultState(base, 20, "standard", 2);
     expect(again.you!.amount).toBe(5);
   });
 });

@@ -26,7 +26,7 @@ function makeVault(over: Partial<Vault>): Vault {
   return {
     id: "v", wallet: "0xbot", isYou: false, amount: 10, banked: 0, survived: 0,
     cracked: 0, streak: 0, openedAt: 0, shieldUntil: 0, seq: 0, compound: true,
-    bountyPool: 0, bountyExpiry: 0, ...over,
+    bountyPool: 0, bountyExpiry: 0, riskProfile: "standard", ...over,
   };
 }
 
