@@ -12,6 +12,7 @@ import { ShopScreen } from "@/components/shop/ShopScreen";
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
 import { WalletWarsLeaderboard } from "@/components/walletwars/WalletWarsLeaderboard";
 import { useWalletWars } from "@/lib/walletWarsState";
+import { useReferral } from "@/hooks/useReferral";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { WinReveal } from "@/components/reveal/WinReveal";
 import { ProfileModal } from "@/components/profile/ProfileModal";
@@ -60,6 +61,10 @@ export default function App() {
   // Wallet Wars engine — lifted here so both the Wallet Wars screen and the
   // Hall of Kings (war boards) page read from a single shared state.
   const war = useWalletWars();
+
+  // Referral ledger — captures the inbound ?ref attribution (set-once, by wallet)
+  // and powers the Crown tab. Lifted so the screen + nudges share one instance.
+  const referral = useReferral(publicKey ?? null);
 
   const {
     progress,
@@ -445,6 +450,7 @@ export default function App() {
                     >
                       <WalletWarsScreen
                         war={war}
+                        referral={referral}
                         displayName={raw.displayName}
                         avatarVariant={raw.avatarVariant}
                         avatarColor={raw.avatarColor}

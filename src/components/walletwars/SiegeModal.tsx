@@ -33,7 +33,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X, Crosshair, Flame, TrendingUp, ShieldAlert, Lock,
-  Zap, ShieldCheck, Share2, ArrowRight, SkipForward, RotateCcw, Search,
+  Zap, ShieldCheck, Share2, ArrowRight, SkipForward, RotateCcw, Search, Crown,
 } from "lucide-react";
 import {
   tierForAmount,
@@ -58,6 +58,8 @@ interface SiegeModalProps {
   onClose: () => void;
   /** Loop the runner into the next best target (Hunt). Falls back to onClose. */
   onSiegeAgain?: () => void;
+  /** Navigate to the Crown tab to invite a Runner (from the crack celebration). */
+  onInvite?: () => void;
 }
 
 type Phase = "select" | "strain" | "result";
@@ -263,7 +265,7 @@ function StrainSequence({
  * cracked [wallet] for X SOL on YOINK.GG"). Auto-dismisses after ~3s back to the
  * updated Hunt stats. Reduced-motion safe.
  */
-function WinTakeover({ result, reduced, onClose }: { result: SiegeResult; reduced: boolean; onClose: () => void }) {
+function WinTakeover({ result, reduced, onClose, onInvite }: { result: SiegeResult; reduced: boolean; onClose: () => void; onInvite?: () => void }) {
   // Auto-dismiss after 3s → back to the (updated) Hunt board.
   useEffect(() => {
     const id = window.setTimeout(onClose, 3000);
@@ -336,6 +338,18 @@ function WinTakeover({ result, reduced, onClose }: { result: SiegeResult; reduce
         >
           <Share2 className="h-4 w-4" aria-hidden /> Share this heist
         </a>
+
+        {/* invite nudge — before the auto-dismiss */}
+        {onInvite && (
+          <button
+            type="button"
+            onClick={onInvite}
+            className="flex items-center gap-1.5 font-mono text-[10px] text-slate transition-colors hover:text-gold"
+          >
+            <Crown className="h-3 w-3 text-gold" aria-hidden />
+            Know someone who'd crack this too? <span className="text-gold">Invite a Runner.</span>
+          </button>
+        )}
         <span className="font-mono text-[10px] text-dim">Returning to your hunt…</span>
       </div>
     </motion.div>
@@ -368,7 +382,7 @@ function NearMissMeter({ view, reduced }: { view: ReturnType<typeof nearMissView
   );
 }
 
-export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSiegeAgain }: SiegeModalProps) {
+export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSiegeAgain, onInvite }: SiegeModalProps) {
   const reduced = usePrefersReducedMotion();
   const tier = tierForAmount(yourVault);
 
@@ -446,7 +460,7 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
   if (phase === "result" && result && result.outcome === "win") {
     return (
       <AnimatePresence>
-        <WinTakeover result={result} reduced={reduced} onClose={onClose} />
+        <WinTakeover result={result} reduced={reduced} onClose={onClose} onInvite={onInvite} />
       </AnimatePresence>
     );
   }

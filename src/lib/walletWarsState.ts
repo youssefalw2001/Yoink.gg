@@ -48,6 +48,7 @@ import {
   lastActivityFromShield,
   GUARANTEED_ACTIVITY_MS,
 } from "@/lib/walletWarsActivity";
+import { splitHouseRake, referralTierForAmount, type ReferralTier } from "@/lib/referral";
 
 export const WAR_CONFIG = {
   RAID_COOLDOWN_MS: 3_000,
@@ -557,6 +558,26 @@ export interface SiegeContext {
   at: number;
   seed: string;
   taxMult: number;
+  /**
+   * Optional referral context for the RAIDER — the user whose siege generates
+   * the house rake. When their wallet carries a referrer tag, the house rake is
+   * split: the referrer's cut is carved out of the HOUSE's OWN share only
+   * (`splitHouseRake`), never from the raider's fee or the defender's toll.
+   * Absent → no split (house keeps 100%; byte-for-byte identical to today).
+   */
+  referral?: { referrer: string | null; earnedSoFar: number; largestStake: number };
+}
+
+/** Referral split outcome surfaced from a settled siege (for ledger accrual). */
+export interface ReferralOutcome {
+  /** SOL carved from the house rake to the referrer (0 when none/capped). */
+  cut: number;
+  /** The tier this transaction occurred in. */
+  tier: ReferralTier;
+  /** House rake retained after the cut (= houseRake − cut). */
+  houseKept: number;
+  /** True iff the cut was clamped by the per-user lifetime cap. */
+  capped: boolean;
 }
 
 /**
@@ -570,7 +591,7 @@ export function resolveSiege(
   state: WarState,
   targetId: string,
   ctx: SiegeContext,
-): { resolution: SiegeResolution; state: WarState } {
+): { resolution: SiegeResolution; state: WarState; referral?: ReferralOutcome } {
   const you = state.you;
   const reject = (reason: SiegeRejection) => ({ resolution: { ok: false as const, reason }, state });
 
@@ -623,6 +644,20 @@ export function resolveSiege(
   }
 
   const newStashes = state.stashes.map((t) => (t.id === targetId ? out.defender : t));
+
+  // ── Referral split — ATOMIC, inside the same settlement that computed the
+  // house rake. We split ONLY the house's own share (`out.houseDelta`); the
+  // raider's fee and the defender's toll are already fixed by frozen siegeMath
+  // and are never touched. With no referrer this is a no-op (house keeps 100%).
+  const refTier = referralTierForAmount(target.amount);
+  const split = splitHouseRake({
+    houseRake: out.houseDelta,
+    tier: refTier,
+    hasReferrer: !!ctx.referral?.referrer,
+    earnedSoFar: ctx.referral?.earnedSoFar ?? 0,
+    largestStake: ctx.referral?.largestStake ?? 0,
+  });
+
   const newState: WarState = {
     ...state,
     you: out.raider,
@@ -631,14 +666,21 @@ export function resolveSiege(
     // open / cashout) so cards hold position while being read.
     stashes: newStashes,
     feed: [event, ...state.feed].slice(0, 40),
-    totalBanked: state.totalBanked + out.houseDelta,
+    // House banks only its RETAINED share; any referrer cut is carved from this
+    // same amount (conservation-exact). `houseKept === houseDelta` when there is
+    // no referrer, so this is identical to the prior behavior in that case.
+    totalBanked: state.totalBanked + split.houseKept,
     biggestHeist:
       out.result.outcome === "win"
         ? Math.max(state.biggestHeist, out.result.seized)
         : state.biggestHeist,
     raidCooldownUntil: ctx.at + WAR_CONFIG.RAID_COOLDOWN_MS,
   };
-  return { resolution: { ok: true, result: out.result }, state: newState };
+  return {
+    resolution: { ok: true, result: out.result },
+    state: newState,
+    referral: { cut: split.referrerCut, tier: refTier, houseKept: split.houseKept, capped: split.capped },
+  };
 }
 
 /**
@@ -963,20 +1005,27 @@ export function useWalletWars() {
   }, []);
 
   /** Siege a target. Returns a typed resolution — never a bare null. */
-  const siege = useCallback((targetId: string): SiegeResolution => {
-    const at = now();
-    const seed = randomHex(16);
-    const taxMult = repeatTaxMult(targetId);
-    const { resolution, state: next } = resolveSiege(stateRef.current, targetId, { at, seed, taxMult });
-    if (resolution.ok) {
-      // Record the siege for repeat-tax accounting (outside the setState updater).
-      const log = raidLog.current.get(targetId) ?? [];
-      raidLog.current.set(targetId, [...log.filter((t) => at - t < WAR_CONFIG.REPEAT_WINDOW_MS), at]);
-      if (resolution.result.outcome === "win") bountyPlacers.current.delete(targetId);
-      setState(next);
-    }
-    return resolution;
-  }, [repeatTaxMult]);
+  /** Siege a target. Returns a typed resolution — never a bare null. The optional
+   * `referral` context lets the caller route a referrer's cut out of the house
+   * rake (split happens inside `resolveSiege`); the referral outcome is surfaced
+   * back for ledger accrual. */
+  const siege = useCallback(
+    (targetId: string, referral?: SiegeContext["referral"]): { resolution: SiegeResolution; referral?: ReferralOutcome } => {
+      const at = now();
+      const seed = randomHex(16);
+      const taxMult = repeatTaxMult(targetId);
+      const { resolution, state: next, referral: outcome } = resolveSiege(stateRef.current, targetId, { at, seed, taxMult, referral });
+      if (resolution.ok) {
+        // Record the siege for repeat-tax accounting (outside the setState updater).
+        const log = raidLog.current.get(targetId) ?? [];
+        raidLog.current.set(targetId, [...log.filter((t) => at - t < WAR_CONFIG.REPEAT_WINDOW_MS), at]);
+        if (resolution.result.outcome === "win") bountyPlacers.current.delete(targetId);
+        setState(next);
+      }
+      return { resolution, referral: outcome };
+    },
+    [repeatTaxMult],
+  );
 
   /** Place a bounty. Returns a typed resolution — never a bare false. */
   const placeBounty = useCallback((targetId: string, amount: number): BountyResolution => {

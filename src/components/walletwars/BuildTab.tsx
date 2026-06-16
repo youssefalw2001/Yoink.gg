@@ -22,7 +22,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Coins, Trophy, Flame, ShieldCheck, ShieldOff, Vault, LogOut, HandCoins, Repeat,
+  Coins, Flame, ShieldCheck, ShieldOff, Vault, LogOut, HandCoins, Repeat,
   Plus, TrendingUp, AlertTriangle, Crown, Gauge, Banknote,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
@@ -75,14 +75,12 @@ interface BuildTabProps {
   avatarSeed?: string;
   avatarVariant?: number | null;
   avatarColor?: string | null;
-  raidRecord?: { wins: number; losses: number };
 }
 
 export function BuildTab({
   you, walletBalance, stashes, earnings, onOpen, onClose, onWithdrawBanked, onToggleCompound,
   onSetRiskProfile,
   displayName = "", avatarSeed = "You", avatarVariant = null, avatarColor = null,
-  raidRecord = { wins: 0, losses: 0 },
 }: BuildTabProps) {
   const reduced = usePrefersReducedMotion();
 
@@ -99,7 +97,6 @@ export function BuildTab({
             avatarSeed={avatarSeed}
             avatarVariant={avatarVariant}
             avatarColor={avatarColor}
-            raidRecord={raidRecord}
           />
           <RiskProfileSwitcher you={you} reduced={reduced} onSetRiskProfile={onSetRiskProfile} />
           <VaultActions you={you} reduced={reduced} onClose={onClose} onWithdrawBanked={onWithdrawBanked} onToggleCompound={onToggleCompound} />
@@ -151,6 +148,9 @@ function EarningsHero({ earnings, reduced }: { earnings: { today: number; week: 
             <span className="font-mono text-sm font-bold tabular-nums text-slate">{formatSol(earnings.lifetime, 3)} SOL</span>
           </div>
         </div>
+        <span className="mt-2 block font-mono text-[9px] uppercase tracking-[0.16em] text-dim">
+          Across all vaults this wallet has ever held
+        </span>
       </div>
     </div>
   );
@@ -159,11 +159,10 @@ function EarningsHero({ earnings, reduced }: { earnings: { today: number; week: 
 // ── 2 · Vault status ─────────────────────────────────────────────────────────────
 
 function VaultStatusPanel({
-  you, stashes, reduced, displayName, avatarSeed, avatarVariant, avatarColor, raidRecord,
+  you, stashes, reduced, displayName, avatarSeed, avatarVariant, avatarColor,
 }: {
   you: VaultType; stashes: VaultType[]; reduced: boolean;
   displayName: string; avatarSeed: string; avatarVariant: number | null; avatarColor: string | null;
-  raidRecord: { wins: number; losses: number };
 }) {
   const tier = tierForAmount(you.amount);
   const tierIdx = tierIndexForAmount(you.amount);
@@ -195,7 +194,7 @@ function VaultStatusPanel({
             <PurgeAvatar seed={avatarSeed} size={40} pulse variant={avatarVariant} color={avatarColor} />
             <div>
               <h3 className="font-display text-sm font-black text-white">{displayName || "Your vault"}</h3>
-              <p className="font-mono text-[10px] text-dim">Live on the board · banking tolls</p>
+              <p className="font-mono text-[10px] text-dim">This vault · live on the board</p>
             </div>
           </div>
           <span className="flex items-center gap-1.5 rounded-full border border-emerald/20 bg-emerald/10 px-2 py-0.5 font-mono text-[10px] text-emerald">
@@ -247,23 +246,36 @@ function VaultStatusPanel({
           </div>
         </div>
 
-        {/* banked + lifetime + W/L */}
+        {/* defender-scoped record — this vault only */}
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Banked" value={`${formatSol(you.banked, 3)}`} color="#00E676" icon={<Coins className="h-3.5 w-3.5 text-emerald" aria-hidden />} />
-          <Stat label="Lifetime fees" value={`${formatSol(you.feesEarned, 3)}`} color="#FFD700" icon={<Trophy className="h-3.5 w-3.5 text-gold" aria-hidden />} />
-          <Stat label="Siege W/L" value={`${raidRecord.wins}/${raidRecord.losses}`} color="#eef1f6" icon={<TrendingUp className="h-3.5 w-3.5 text-slate" aria-hidden />} />
+          <Stat
+            label="Sieges Repelled"
+            value={`${you.survived}`}
+            sub={`earned ${formatSol(you.feesEarned, 3)} SOL`}
+            color="#FFD700"
+            icon={<ShieldCheck className="h-3.5 w-3.5 text-gold" aria-hidden />}
+          />
+          <Stat
+            label="Sieges Survived"
+            value={you.survived + you.cracked > 0 ? `${Math.round((you.survived / (you.survived + you.cracked)) * 100)}%` : "—"}
+            sub={`${you.cracked} cracked`}
+            color="#eef1f6"
+            icon={<TrendingUp className="h-3.5 w-3.5 text-slate" aria-hidden />}
+          />
         </div>
       </div>
     </SpotlightCard>
   );
 }
 
-function Stat({ label, value, color, icon }: { label: string; value: string; color: string; icon: React.ReactNode }) {
+function Stat({ label, value, color, icon, sub }: { label: string; value: string; color: string; icon: React.ReactNode; sub?: string }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] py-2">
+    <div className="flex flex-col items-center gap-0.5 rounded-xl bg-white/[0.03] px-1 py-2 text-center">
       {icon}
       <span className="font-mono text-sm font-bold tabular-nums" style={{ color }}>{value}</span>
       <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">{label}</span>
+      {sub && <span className="font-mono text-[8px] tabular-nums text-emerald/80">{sub}</span>}
     </div>
   );
 }
