@@ -106,8 +106,11 @@ export function WalletWarsScreen({
 
   function canRaidStash(s: VaultModel): boolean {
     if (!state.you) return false;
-    if (tierIndexForAmount(s.amount) !== tierIndexForAmount(state.you.amount)) return false;
-    return Date.now() >= s.shieldUntil;
+    // Raid up: you may siege your own tier or any HIGHER tier; never punch down.
+    if (tierIndexForAmount(s.amount) < tierIndexForAmount(state.you.amount)) return false;
+    if (Date.now() < s.shieldUntil) return false;
+    // Affordable: the target-scaled fee must fit your corpus (the natural governor).
+    return vaultEconomics(s).feeRisked <= state.you.amount;
   }
 
   // Best opportunity (for onboarding highlight) — highest value score on the board.
@@ -165,12 +168,13 @@ export function WalletWarsScreen({
     return resolution;
   }
 
-  /** Loop the runner into the next best raidable target (skip the just-shielded one). */
+  /** Loop the runner into the next best raidable target (same/higher tier, affordable, unshielded). */
   function handleSiegeAgain() {
     if (!state.you) { setRaidTargetId(null); return; }
     const myTier = tierIndexForAmount(state.you.amount);
+    const corpus = state.you.amount;
     const candidates = state.stashes
-      .filter((s) => !s.isYou && s.id !== raidTargetId && tierIndexForAmount(s.amount) === myTier && Date.now() >= s.shieldUntil)
+      .filter((s) => !s.isYou && s.id !== raidTargetId && tierIndexForAmount(s.amount) >= myTier && Date.now() >= s.shieldUntil && vaultEconomics(s).feeRisked <= corpus)
       .sort((a, b) => b.amount - a.amount);
     setRaidTargetId(candidates[0]?.id ?? null);
   }
