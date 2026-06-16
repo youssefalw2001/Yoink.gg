@@ -1,0 +1,43 @@
+# YOINK.GG — Supabase project configuration
+# https://supabase.com/docs/guides/cli/config
+
+[project]
+id = "yoink-gg"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["https://yoink.gg"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.external.solana]
+enabled = true
+
+# Edge Functions
+[functions.wallet-auth]
+verify_jwt = false
+
+[functions.settle-siege]
+verify_jwt = true
+
+[functions.telegram-auth]
+verify_jwt = false
+
+[realtime]
+enabled = true

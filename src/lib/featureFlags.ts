@@ -30,3 +30,39 @@ export const BAG_COMING_SOON = true;
  * economy, fairness, or payout logic.
  */
 export const SHOP_ENABLED = false;
+
+
+/**
+ * ── SUPABASE_ENABLED ────────────────────────────────────────────────────────
+ * Gates the Supabase backend integration. When false (default), the app runs
+ * entirely on the client-side simulation (localStorage + bot vaults). When true,
+ * the app connects to Supabase for:
+ *   - Server-authoritative siege settlement (commit-reveal provable fairness)
+ *   - Persistent multi-user vault state (real PvP)
+ *   - Wallet-based authentication (sign-in-with-Solana)
+ *   - Real-time board updates via Supabase Realtime
+ *   - Persistent referral attribution + ledger
+ *
+ * Requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to be set.
+ * The client simulation remains the FALLBACK when Supabase is unreachable.
+ */
+export const SUPABASE_ENABLED: boolean =
+  (import.meta.env.VITE_SUPABASE_ENABLED as string) === "true";
+
+
+/**
+ * ── TELEGRAM_ENABLED ────────────────────────────────────────────────────────
+ * Gates Telegram Mini App integration. When true AND running inside the
+ * Telegram WebApp environment, the app:
+ *   - Uses Telegram's native back button instead of the Header
+ *   - Enables haptic feedback on siege outcomes
+ *   - Uses Telegram-native share for referral links + crack celebrations
+ *   - Authenticates via Telegram initData (validated by the telegram-auth
+ *     Edge Function) as an alternative to wallet signature
+ *
+ * This is purely a DISTRIBUTION + UX layer. It never touches the economy,
+ * fairness, or settlement logic. The same Supabase backend serves both web
+ * and Telegram clients identically.
+ */
+export const TELEGRAM_ENABLED: boolean =
+  (import.meta.env.VITE_TELEGRAM_ENABLED as string) === "true";
