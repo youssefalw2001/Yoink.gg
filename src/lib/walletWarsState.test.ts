@@ -27,6 +27,7 @@ import {
   createInitialState,
 } from "./walletWarsState";
 import { tierParamsFor } from "./siegeMath";
+import { REFERRAL_BPS } from "./referral";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -247,5 +248,55 @@ describe("setRiskProfileState", () => {
     // @ts-expect-error — exercising the runtime guard with an invalid value.
     const next = setRiskProfileState(bareState(you, []), "bogus").you!;
     expect(next.riskProfile).toBe("standard");
+  });
+});
+
+
+// ── Referral split wired into resolveSiege (house-rake only; default-off) ───────
+
+describe("resolveSiege · referral split", () => {
+  const you = makeVault({ id: "you", wallet: "You", isYou: true, amount: 10, riskProfile: "standard" }); // arena
+  const target = makeVault({ id: "t", wallet: "0xTarget", isYou: false, amount: 10, riskProfile: "standard" });
+  const ctxBase = { at: 1000, seed: "fixed-seed-referral", taxMult: 0 };
+
+  it("no referral context → house keeps 100% (byte-for-byte identical to today)", () => {
+    const out = resolveSiege(bareState(you, [target]), "t", ctxBase);
+    expect(out.resolution.ok).toBe(true);
+    expect(out.referral!.cut).toBe(0);
+    // totalBanked grew by the full house rake (houseKept === houseDelta).
+    expect(out.state.totalBanked).toBeCloseTo(1000 + out.referral!.houseKept, 12);
+  });
+
+  it("with a referrer → cut carved ONLY from house rake; defender + raider identical", () => {
+    const noRef = resolveSiege(bareState(you, [target]), "t", ctxBase);
+    const withRef = resolveSiege(bareState(you, [target]), "t", {
+      ...ctxBase,
+      referral: { referrer: "0xReferrer", earnedSoFar: 0, largestStake: 1e9 },
+    });
+
+    const houseRake = noRef.referral!.houseKept; // cut is 0 with no referrer → this is the gross rake
+    expect(withRef.referral!.tier).toBe("arena");
+
+    // Conservation: cut + kept === original house rake, exactly.
+    expect(withRef.referral!.cut + withRef.referral!.houseKept).toBeCloseTo(houseRake, 12);
+    // Correct published percentage (arena = 22%).
+    expect(withRef.referral!.cut).toBeCloseTo((houseRake * REFERRAL_BPS.arena) / 10_000, 12);
+
+    // The referred user's experience is identical: defender + raider states match
+    // byte-for-byte whether or not a referrer is present.
+    expect(withRef.state.stashes[0]).toEqual(noRef.state.stashes[0]); // defender (toll, corpus, streak…)
+    expect(withRef.state.you).toEqual(noRef.state.you);               // raider (fee paid, balance)
+
+    // Only the house's banked share differs (it keeps less by exactly the cut).
+    expect(noRef.state.totalBanked - withRef.state.totalBanked).toBeCloseTo(withRef.referral!.cut, 12);
+  });
+
+  it("cap reached → reverts to 100% house (cut 0) even with a referrer", () => {
+    const out = resolveSiege(bareState(you, [target]), "t", {
+      ...ctxBase,
+      referral: { referrer: "0xReferrer", earnedSoFar: 999, largestStake: 0 }, // cap = 0 → no room
+    });
+    expect(out.referral!.cut).toBe(0);
+    expect(out.referral!.capped).toBe(true);
   });
 });

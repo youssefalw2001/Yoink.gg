@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { LineChart, Crosshair, Radio } from "lucide-react";
+import { LineChart, Crosshair, Radio, Crown } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import {
@@ -24,21 +24,25 @@ import {
 } from "@/lib/walletWarsState";
 import { useWallet } from "@/lib/wallet";
 import {
-  loadRole, saveRole, tabForRole, roleForTab, type WarTab,
+  loadRole, saveRole, tabForRole, roleForTab, type WarTab, type WarRole,
   loadRunnerStats, saveRunnerStats, recordSiege, type RunnerStats,
 } from "@/lib/walletWarsRole";
 import { opportunityScore } from "@/lib/walletWarsActivity";
 import { vaultEconomics } from "./riskProfilePresentation";
 import { BuildTab } from "./BuildTab";
 import { HuntTab } from "./HuntTab";
+import { CrownTab } from "./CrownTab";
 import { SiegeModal } from "./SiegeModal";
 import { WarFeed } from "./WarFeed";
 import { PositionStatusBar, type LastSiege } from "./PositionStatusBar";
 import { RoleOnboarding } from "./RoleOnboarding";
 import { useEarningsLedger } from "./useEarningsLedger";
+import { type UseReferral } from "@/hooks/useReferral";
 
 const ONBOARD_KEY = "yoink_ww_onboarded_v2";
 
+/** The three sub-tabs. Build/Hunt map to roles; Crown is role-agnostic. */
+type ScreenTab = WarTab | "crown";
 type FeedView = "lords" | "runners";
 
 /** Pure war-feed split: Lords see fee-banking + survival; Runners see cracks. */
@@ -51,11 +55,13 @@ function filterFeed(events: RaidEvent[], view: FeedView): RaidEvent[] {
 
 export function WalletWarsScreen({
   war,
+  referral,
   displayName = "",
   avatarVariant = null,
   avatarColor = null,
 }: {
   war: ReturnType<typeof useWalletWars>;
+  referral: UseReferral;
   displayName?: string;
   avatarVariant?: number | null;
   avatarColor?: string | null;
@@ -66,11 +72,10 @@ export function WalletWarsScreen({
   const avatarSeed = publicKey ?? (displayName || "You");
 
   // Which side are we playing? Default from the landing-card choice.
-  const [tab, setTab] = useState<WarTab>(() => tabForRole(loadRole() ?? "runner"));
-  const role = roleForTab(tab);
+  const [tab, setTab] = useState<ScreenTab>(() => tabForRole(loadRole() ?? "runner"));
+  const role: WarRole = tab === "crown" ? (loadRole() ?? "runner") : roleForTab(tab);
 
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
-  const [raidRecord, setRaidRecord] = useState({ wins: 0, losses: 0 });
   const [runnerStats, setRunnerStats] = useState<RunnerStats>(() => loadRunnerStats());
   const [lastSiege, setLastSiege] = useState<LastSiege | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -78,7 +83,7 @@ export function WalletWarsScreen({
 
   // War-feed filter follows the active tab by default; manual pills override.
   const [feedView, setFeedView] = useState<FeedView>(role === "lord" ? "lords" : "runners");
-  useEffect(() => { setFeedView(roleForTab(tab) === "lord" ? "lords" : "runners"); }, [tab]);
+  useEffect(() => { if (tab !== "crown") setFeedView(roleForTab(tab) === "lord" ? "lords" : "runners"); }, [tab]);
 
   // Single earnings ledger (avoid double-counting feesEarned deltas).
   const earnings = useEarningsLedger(state.you?.id ?? null, state.you?.feesEarned ?? 0);
@@ -88,9 +93,9 @@ export function WalletWarsScreen({
     try { if (localStorage.getItem(ONBOARD_KEY) !== "1") setShowOnboarding(true); } catch { /* private mode */ }
   }, []);
 
-  function switchTab(next: WarTab) {
+  function switchTab(next: ScreenTab) {
     setTab(next);
-    saveRole(roleForTab(next));
+    if (next !== "crown") saveRole(roleForTab(next));
     setLastSiege(null);
   }
 
@@ -144,18 +149,20 @@ export function WalletWarsScreen({
 
   function handleSiegeCommit(): SiegeResolution {
     if (!target) return { ok: false, reason: { kind: "self_siege" } };
-    const res = siege(target.id);
-    if (res.ok) {
-      const r = res.result;
-      setRaidRecord((rec) => (r.outcome === "win" ? { ...rec, wins: rec.wins + 1 } : { ...rec, losses: rec.losses + 1 }));
+    // Pass the player's referral context so any referrer cut is carved from the
+    // house rake INSIDE resolveSiege (the raider fee + defender toll are untouched).
+    const { resolution, referral: refOut } = siege(target.id, referral.myReferralContext());
+    if (resolution.ok) {
+      const r = resolution.result;
       setLastSiege({ outcome: r.outcome, roll: r.roll, needed: r.pWin, seized: r.seized });
       setRunnerStats((prev) => {
         const next = recordSiege(prev, r.outcome, r.seized);
         saveRunnerStats(next);
         return next;
       });
+      if (refOut && refOut.cut > 0) referral.recordSentToReferrer(refOut.cut);
     }
-    return res;
+    return resolution;
   }
 
   /** Loop the runner into the next best raidable target (skip the just-shielded one). */
@@ -169,7 +176,11 @@ export function WalletWarsScreen({
   }
 
   // Clear the lastSiege line when the player changes their vault posture.
-  function handleOpen(amount: number, profile: Parameters<typeof openVault>[1]) { setLastSiege(null); openVault(amount, profile); }
+  function handleOpen(amount: number, profile: Parameters<typeof openVault>[1]) {
+    setLastSiege(null);
+    referral.noteStake(amount); // updates the player's largest-stake cap basis
+    openVault(amount, profile);
+  }
   function handleClose() { setLastSiege(null); cashOut(); }
 
   const filteredFeed = useMemo(() => filterFeed(state.feed, feedView), [state.feed, feedView]);
@@ -196,10 +207,11 @@ export function WalletWarsScreen({
         </div>
       </div>
 
-      {/* BUILD / HUNT selector */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
+      {/* BUILD / HUNT / CROWN selector */}
+      <div className="mb-4 grid grid-cols-3 gap-2">
         <TabButton active={tab === "build"} onClick={() => switchTab("build")} accent="#7000FF" icon={<LineChart className="h-4 w-4" aria-hidden />} label="Build" sublabel="Vault Lord" />
         <TabButton active={tab === "hunt"} onClick={() => switchTab("hunt")} accent="#FF2200" icon={<Crosshair className="h-4 w-4" aria-hidden />} label="Hunt" sublabel="Siege Runner" />
+        <TabButton active={tab === "crown"} onClick={() => switchTab("crown")} accent="#FFD700" icon={<Crown className="h-4 w-4" aria-hidden />} label="Crown" sublabel="Referrals" />
       </div>
 
       {/* persistent position status bar */}
@@ -231,9 +243,8 @@ export function WalletWarsScreen({
               avatarSeed={avatarSeed}
               avatarVariant={avatarVariant}
               avatarColor={avatarColor}
-              raidRecord={raidRecord}
             />
-          ) : (
+          ) : tab === "hunt" ? (
             <HuntTab
               you={state.you}
               stashes={state.stashes}
@@ -243,9 +254,25 @@ export function WalletWarsScreen({
               onOpenVaultCta={() => switchTab("build")}
               highlightId={highlightId}
             />
+          ) : (
+            <CrownTab referral={referral} />
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Build-tab invite nudge — multiply your fee income via lifetime referrals */}
+      {tab === "build" && state.you && (
+        <button
+          type="button"
+          onClick={() => switchTab("crown")}
+          className="mt-3 flex w-full items-center gap-2 rounded-xl border border-gold/20 bg-gold/[0.05] px-3.5 py-2.5 text-left transition-colors hover:bg-gold/[0.1]"
+        >
+          <Crown className="h-3.5 w-3.5 shrink-0 text-gold" aria-hidden />
+          <span className="font-mono text-[10px] leading-relaxed text-slate">
+            Multiply this. <span className="text-gold">Invite a Lord</span> and earn lifetime rake from their fees too.
+          </span>
+        </button>
+      )}
 
       {/* war feed with dual filters */}
       <div className="mt-5">
@@ -287,6 +314,7 @@ export function WalletWarsScreen({
             onCommit={handleSiegeCommit}
             onSiegeAgain={handleSiegeAgain}
             onClose={() => setRaidTargetId(null)}
+            onInvite={() => { setRaidTargetId(null); switchTab("crown"); }}
           />
         )}
       </AnimatePresence>
