@@ -33,10 +33,18 @@ describe("nearMissView", () => {
   it("the worked example: needed 0.08, rolled 0.11", () => {
     const v = nearMissView(0.11, 0.08);
     expect(v.cracked).toBe(false);
-    // gap relative to threshold = (0.11-0.08)/0.08 = 0.375 → 38%
-    expect(v.awayPct).toBe(38);
+    // position across the miss zone = (0.11-0.08)/(1-0.08) = 0.0326 → 3%
+    expect(v.awayPct).toBe(3);
     expect(neededCopy(v)).toBe("You needed 0.08 or lower");
     expect(rolledCopy(v)).toBe("You rolled 0.11");
+  });
+
+  it("never exceeds 100% away, even on a wild miss (the 400%+ board bug)", () => {
+    for (const roll of [0.4, 0.6, 0.85, 0.999]) {
+      const v = nearMissView(roll, 0.08);
+      expect(v.awayPct).toBeGreaterThanOrEqual(0);
+      expect(v.awayPct).toBeLessThanOrEqual(100);
+    }
   });
 
   it("tension rises as the (failed) roll approaches the threshold", () => {

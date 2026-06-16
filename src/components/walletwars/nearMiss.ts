@@ -25,8 +25,9 @@ export interface NearMissView {
    */
   tension: number;
   /**
-   * "You were X% away from cracking it" — the miss gap relative to the
-   * threshold, as a whole percent. 0 for a crack. Capped for display sanity.
+   * "You were X% away from cracking it" — the roll's position across the MISS
+   * ZONE (threshold → 1), as a whole percent in [0,100]. 0 = right on the line
+   * (or a crack), 100 = the furthest possible miss. Always bounded.
    */
   awayPct: number;
   /** Roll marker position 0→1 on the rendered meter. */
@@ -48,7 +49,7 @@ function clamp(v: number, lo: number, hi: number): number {
  * The meter is auto-zoomed (since crack thresholds are small, 6–18%) so both the
  * threshold line and the roll marker are legible and their *gap* reads as
  * tension. `tension` is proportional closeness above the line relative to the
- * threshold; `awayPct` is that same gap as a whole percent.
+ * threshold; `awayPct` is the roll's bounded [0,100] position across the miss zone.
  */
 export function nearMissView(roll: number, pWin: number): NearMissView {
   const r = clamp(Number.isFinite(roll) ? roll : 1, 0, 1);
@@ -58,7 +59,12 @@ export function nearMissView(roll: number, pWin: number): NearMissView {
   // Gap above the line, relative to the threshold (0 = on the line).
   const rel = p > 0 ? (r - p) / p : r > 0 ? Infinity : 0;
   const tension = cracked ? 1 : clamp(1 - rel, 0, 1);
-  const awayPct = cracked ? 0 : Math.min(999, Math.round(Math.max(0, rel) * 100));
+  // "% away from cracking" is bounded to [0,100]: the position of the roll across
+  // the MISS ZONE (threshold → 1). 0% = right on the line, 100% = the furthest
+  // possible miss. (Relative-to-threshold would be unbounded — a 0.5 roll vs a
+  // 0.08 line is 525% over — which read as a nonsensical "400%+ loss" on the board.)
+  const missZone = Math.max(1 - p, 1e-9);
+  const awayPct = cracked ? 0 : Math.round(clamp((r - p) / missZone, 0, 1) * 100);
 
   // Auto-zoom so threshold + roll are both visible with breathing room.
   const meterMax = clamp(Math.max(p * 4, r * 1.15, 0.05), 0.01, 1);
