@@ -16,8 +16,8 @@
 
 import { memo, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Crosshair, Lock, Flame, Trophy, Percent, Clock, ChevronDown } from "lucide-react";
-import { type Vault, tierForAmount, WAR_CONFIG } from "@/lib/walletWarsState";
+import { Crosshair, Lock, Flame, Trophy, Percent, Clock, ChevronDown, ChevronsUp } from "lucide-react";
+import { type Vault, tierForAmount, tierIndexForAmount, WAR_CONFIG } from "@/lib/walletWarsState";
 import { formatSol, truncateAddress } from "@/lib/utils";
 import { vaultEconomics, animateUnlessReduced } from "./riskProfilePresentation";
 import { upsideMultiple, lastActivityFromShield, isIdleTarget } from "@/lib/walletWarsActivity";
@@ -33,7 +33,17 @@ interface OpportunityCardProps {
   now: number;
 }
 
-export const OpportunityCard = memo(function OpportunityCard({ vault, canRaid, onSiege, now }: OpportunityCardProps) {
+interface OpportunityCardProps {
+  vault: Vault;
+  canRaid: boolean;
+  onSiege: (id: string) => void;
+  /** Shared clock (ms) from the board so we don't run an interval per card. */
+  now: number;
+  /** The player's own vault — for raid-up labeling (punch-up badge / too-rich fee). */
+  you: Vault | null;
+}
+
+export const OpportunityCard = memo(function OpportunityCard({ vault, canRaid, onSiege, now, you }: OpportunityCardProps) {
   const reduced = usePrefersReducedMotion();
   const [expanded, setExpanded] = useState(false);
 
@@ -46,6 +56,10 @@ export const OpportunityCard = memo(function OpportunityCard({ vault, canRaid, o
   const shieldLeft = Math.max(0, vault.shieldUntil - now);
   const shielded = shieldLeft > 0;
   const idle = isIdleTarget(lastActivityFromShield(vault.shieldUntil, vault.openedAt, WAR_CONFIG.SHIELD_MS), now);
+
+  // Raid-up framing: a higher-tier target is a "punch up"; flag an unaffordable fee.
+  const isUp = !!you && tierIndexForAmount(vault.amount) > tierIndexForAmount(you.amount);
+  const tooExpensive = !!you && !shielded && !canRaid && econ.feeRisked > you.amount;
 
   const attempts = useMemo(() => syntheticAttempts(vault.id, econ.crackChance, 5), [vault.id, econ.crackChance]);
 
@@ -75,6 +89,11 @@ export const OpportunityCard = memo(function OpportunityCard({ vault, canRaid, o
             {econ.badge}
           </span>
           <div className="flex items-center gap-1">
+            {isUp && (
+              <span className="flex items-center gap-0.5 rounded-full border border-gold/40 bg-gold/10 px-1.5 py-0.5 font-mono text-[8px] font-black uppercase tracking-[0.08em] text-gold">
+                <ChevronsUp className="h-2.5 w-2.5" aria-hidden /> Punch up
+              </span>
+            )}
             {idle && !shielded && (
               <span className="flex items-center gap-0.5 rounded-full border border-slate/30 bg-slate/10 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.08em] text-slate">
                 <Clock className="h-2.5 w-2.5" aria-hidden /> Idle
@@ -171,8 +190,12 @@ export const OpportunityCard = memo(function OpportunityCard({ vault, canRaid, o
       >
         {shielded ? (
           <><Lock className="h-3.5 w-3.5" aria-hidden /> Shielded {Math.ceil(shieldLeft / 1000)}s</>
+        ) : tooExpensive ? (
+          <><Lock className="h-3.5 w-3.5" aria-hidden /> Fee {formatSol(econ.feeRisked, 3)} — grow your vault</>
         ) : !canRaid ? (
-          <><Lock className="h-3.5 w-3.5" aria-hidden /> {tierForAmount(vault.amount).label} — not your class</>
+          <><Lock className="h-3.5 w-3.5" aria-hidden /> {tierForAmount(vault.amount).label} — locked</>
+        ) : isUp ? (
+          <><ChevronsUp className="h-3.5 w-3.5" aria-hidden /> Punch up · siege</>
         ) : (
           <><Crosshair className="h-3.5 w-3.5" aria-hidden /> Siege this vault</>
         )}

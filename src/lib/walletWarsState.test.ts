@@ -300,3 +300,35 @@ describe("resolveSiege · referral split", () => {
     expect(out.referral!.capped).toBe(true);
   });
 });
+
+
+// ── Raid-up: punch up at higher tiers, never down ───────────────────────────────
+
+describe("resolveSiege · raid up (weight class = same-or-higher only)", () => {
+  const ctx = { at: 1000, seed: "raid-up-seed", taxMult: 0 };
+
+  it("ALLOWS sieging a higher tier (punch up)", () => {
+    const you = makeVault({ id: "you", isYou: true, amount: 0.5 }); // Pit
+    const target = makeVault({ id: "t", isYou: false, amount: 2 }); // Grind (higher)
+    const r = resolveSiege(bareState(you, [target]), "t", ctx);
+    expect(r.resolution.ok).toBe(true);
+  });
+
+  it("still REJECTS punching down at a smaller tier", () => {
+    const you = makeVault({ id: "you", isYou: true, amount: 2.5 }); // Grind
+    const target = makeVault({ id: "t", isYou: false, amount: 0.5 }); // Pit (lower)
+    const r = resolveSiege(bareState(you, [target]), "t", ctx);
+    expect(r.resolution.ok).toBe(false);
+    if (r.resolution.ok) return;
+    expect(r.resolution.reason.kind).toBe("tier_mismatch");
+  });
+
+  it("an UNAFFORDABLE punch-up is insufficient_funds (the natural governor), not tier", () => {
+    const you = makeVault({ id: "you", isYou: true, amount: 0.12 }); // tiny Pit
+    const target = makeVault({ id: "t", isYou: false, amount: 50 }); // Court; fee ≫ corpus
+    const r = resolveSiege(bareState(you, [target]), "t", ctx);
+    expect(r.resolution.ok).toBe(false);
+    if (r.resolution.ok) return;
+    expect(r.resolution.reason.kind).toBe("insufficient_funds");
+  });
+});

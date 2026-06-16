@@ -66,9 +66,16 @@ export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVau
   const level = runnerLevel(runnerStats);
   const winRate = runnerWinRate(runnerStats);
 
-  // Filter → rank by value score (hottest opportunity first).
+  // Filter → rank by value score (hottest opportunity first). Raid-up only: when
+  // you hold a vault, lower-tier targets are hidden (you can't punch down).
+  const myTier = you ? tierIndexForAmount(you.amount) : -1;
   const ranked = useMemo(() => {
-    const pool = stashes.filter((s) => !s.isYou && (filter === -1 || tierIndexForAmount(s.amount) === filter));
+    const pool = stashes.filter(
+      (s) =>
+        !s.isYou &&
+        (filter === -1 || tierIndexForAmount(s.amount) === filter) &&
+        (myTier < 0 || tierIndexForAmount(s.amount) >= myTier),
+    );
     return pool
       .map((s) => {
         const econ = vaultEconomics(s);
@@ -86,7 +93,7 @@ export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVau
         return { vault: s, score };
       })
       .sort((a, b) => b.score - a.score);
-  }, [stashes, filter, now]);
+  }, [stashes, filter, now, myTier]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -152,26 +159,30 @@ export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVau
           <div className="flex flex-1 flex-col">
             <span className="font-display text-xs font-black uppercase tracking-[0.08em] text-gold">Fund your sieges</span>
             <span className="font-mono text-[10px] leading-relaxed text-slate">
-              Open a vault in BUILD — your corpus pays the small siege fee and sets the weight class you can hunt.
+              Open a vault in BUILD — your corpus pays the siege fee and sets your floor. You can always punch up at bigger vaults.
             </span>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-gold" aria-hidden />
         </button>
       )}
 
-      {/* 2 — tier filter */}
+      {/* 2 — tier filter (raid-up: only your tier and above are targetable) */}
       <div className="flex flex-wrap gap-2">
-        <FilterPill label="All" count={stashes.filter((s) => !s.isYou).length} active={filter === -1} onClick={() => setFilter(-1)} accent="#FFD700" />
-        {TIERS.map((t, i) => (
-          <FilterPill
-            key={t.id}
-            label={t.label.replace("The ", "").replace("King's ", "")}
-            count={stashes.filter((s) => !s.isYou && tierIndexForAmount(s.amount) === i).length}
-            active={filter === i}
-            onClick={() => setFilter(i as TierFilter)}
-            accent={t.accent}
-          />
-        ))}
+        <FilterPill label="All" count={ranked.length} active={filter === -1} onClick={() => setFilter(-1)} accent="#FFD700" />
+        {TIERS.map((t, i) => {
+          if (myTier >= 0 && i < myTier) return null; // can't punch down → hide lower tiers
+          const count = stashes.filter((s) => !s.isYou && tierIndexForAmount(s.amount) === i).length;
+          return (
+            <FilterPill
+              key={t.id}
+              label={t.label.replace("The ", "").replace("King's ", "")}
+              count={count}
+              active={filter === i}
+              onClick={() => setFilter(i as TierFilter)}
+              accent={t.accent}
+            />
+          );
+        })}
       </div>
 
       {/* 3 — opportunity cards */}
@@ -186,7 +197,7 @@ export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVau
               key={vault.id}
               style={highlightId === vault.id ? { outline: "2px solid rgba(255,34,0,0.5)", outlineOffset: 2, borderRadius: 20 } : undefined}
             >
-              <OpportunityCard vault={vault} canRaid={canRaid(vault)} onSiege={onSiege} now={now} />
+              <OpportunityCard vault={vault} canRaid={canRaid(vault)} onSiege={onSiege} now={now} you={you} />
             </div>
           ))}
         </div>

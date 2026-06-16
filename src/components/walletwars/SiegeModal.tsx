@@ -384,7 +384,7 @@ function NearMissMeter({ view, reduced }: { view: ReturnType<typeof nearMissView
 
 export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSiegeAgain, onInvite }: SiegeModalProps) {
   const reduced = usePrefersReducedMotion();
-  const tier = tierForAmount(yourVault);
+  const tier = tierForAmount(target.amount); // the TARGET's weight class (raid-up shows the vault you're hitting)
 
   // Siege economics, from the target vault's OWN published risk-profile params.
   const params = vaultParamsFor(target.amount, target.riskProfile);

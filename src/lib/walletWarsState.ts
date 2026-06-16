@@ -617,10 +617,15 @@ export function resolveSiege(
     return reject({ kind: "self_siege" });
   }
 
-  // 4. tier mismatch (same weight class only)
+  // 4. weight class — RAID UP ALLOWED. You may siege your own tier or any
+  // HIGHER tier (punch up at bigger vaults); punching DOWN at smaller vaults is
+  // rejected (no whale-on-minnow griefing). Economy is unchanged: every fee /
+  // odds / slice / rake is derived from the TARGET's tier regardless, so a
+  // punch-up simply means paying a (larger) target-scaled fee for a (larger)
+  // target-scaled prize. Affordability is enforced next.
   const yourTier = tierIndexForAmount(you.amount);
   const targetTier = tierIndexForAmount(target.amount);
-  if (yourTier !== targetTier) {
+  if (targetTier < yourTier) {
     return reject({ kind: "tier_mismatch", yourTier, targetTier });
   }
 
