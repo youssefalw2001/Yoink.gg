@@ -20,6 +20,7 @@ import {
   Flame, Repeat, HandCoins, AlertTriangle,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { SimStakesNote } from "@/components/ui/PreviewBanner";
 import { OPEN_STAKES, type Vault as VaultType, tierForAmount } from "@/lib/walletWarsState";
 import {
   feeMultiplierForStreak, STREAK_CFG,
@@ -476,9 +477,7 @@ function OpenVaultForm({
           Open {formatSol(stake, 2)} SOL · {selected.label}
         </motion.button>
 
-        <p className="text-center font-mono text-[10px] text-dim">
-          Real balance: {formatSol(walletBalance, 2)} SOL · stakes are simulated (devnet)
-        </p>
+        <SimStakesNote walletBalance={walletBalance} />
       </div>
     </SpotlightCard>
   );

@@ -26,6 +26,7 @@ import {
   Plus, TrendingUp, AlertTriangle, Crown, Gauge, Banknote,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { SimStakesNote } from "@/components/ui/PreviewBanner";
 import {
   OPEN_STAKES, tierForAmount, tierIndexForAmount,
   type Vault as VaultType,
@@ -489,7 +490,7 @@ function OpenVaultFlow({ walletBalance, reduced, onOpen }: { walletBalance: numb
           <Vault className="h-4 w-4" aria-hidden /> Open {formatSol(stake, 2)} SOL · {selected.label}
         </motion.button>
 
-        <p className="text-center font-mono text-[10px] text-dim">Real balance: {formatSol(walletBalance, 2)} SOL · stakes are simulated (devnet)</p>
+        <SimStakesNote walletBalance={walletBalance} />
       </div>
     </SpotlightCard>
   );

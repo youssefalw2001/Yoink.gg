@@ -14,6 +14,7 @@ import { WalletWarsLeaderboard } from "@/components/walletwars/WalletWarsLeaderb
 import { useWalletWars } from "@/lib/walletWarsState";
 import { useReferral } from "@/hooks/useReferral";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { PreviewBanner } from "@/components/ui/PreviewBanner";
 import { WinReveal } from "@/components/reveal/WinReveal";
 import { ProfileModal } from "@/components/profile/ProfileModal";
 import { LevelUpToast } from "@/components/ui/XPBar";
@@ -37,7 +38,13 @@ import {
 } from "@/lib/sounds";
 
 export default function App() {
-  const { connected, publicKey }      = useWallet();
+  const { connected, publicKey, previewMode } = useWallet();
+  /**
+   * The app shell is unlocked by a real connection OR by guest/preview mode.
+   * Gameplay is simulated either way, so gating the whole experience behind a
+   * wallet install only cost us visitors with no way to evaluate the game first.
+   */
+  const hasAccess = connected || previewMode;
   const [page, setPage]               = useState<Page>("walletwars");
   const [roomId, setRoomId]           = useState<RoomId | null>(null);
   const [instanceKey, setInstanceKey] = useState<string | null>(null);
@@ -51,11 +58,22 @@ export default function App() {
    */
   const [pendingFreeYoink, setPendingFreeYoink] = useState(false);
 
+  /**
+   * The Bag engine and its matchmaking sim are only worth running when The Bag
+   * is actually reachable. Both hooks must still be CALLED unconditionally (React
+   * hook rules), so they take an `enabled` flag instead: while BAG_COMING_SOON is
+   * true this keeps a 150 ms render loop — plus 250 ms / 600 ms / 4 s / 5 s
+   * timers — from running behind the Wallet Wars screen for a game nobody can
+   * open. Flipping the flag restores the live game exactly as before.
+   */
+  const bagEngineEnabled = !BAG_COMING_SOON;
+
   // Rolling instance manager — runs in background regardless of current page
-  const { syncInstance, getInstancesForRoom } = useRoomInstances();
+  const { syncInstance, getInstancesForRoom } = useRoomInstances({ enabled: bagEngineEnabled });
 
   const { state, yoink, playAgain, cooldownLeft, activateFuseBurner, lifetimeTolls } = useGameState(
     roomId ?? "arena",
+    { enabled: bagEngineEnabled },
   );
 
   // Wallet Wars engine — lifted here so both the Wallet Wars screen and the
@@ -307,7 +325,7 @@ export default function App() {
       <SceneBackground danger={dangerActive} />
 
       <AnimatePresence mode="wait">
-        {!connected ? (
+        {!hasAccess ? (
           <motion.div
             key="connect"
             initial={{ opacity: 0 }}
@@ -338,11 +356,21 @@ export default function App() {
               publicKey={publicKey ?? null}
               onOpenProfile={() => setProfileOpen(true)}
             />
-            <LiveTicker
-              recentKings={state.recentKings}
-              currentKing={state.currentKing}
-              freeRound={freeRound}
-            />
+            {/* Guest indicator — renders only while previewMode is active. */}
+            <PreviewBanner />
+            {/*
+              The ticker is driven entirely by The Bag's king changes, so with the
+              Bag engine idle it would sit there looping six seeded fake yoinks for
+              the whole session. A visibly frozen "live" feed reads worse than no
+              feed, so it is mounted only when it has a real source.
+            */}
+            {bagEngineEnabled && (
+              <LiveTicker
+                recentKings={state.recentKings}
+                currentKing={state.currentKing}
+                freeRound={freeRound}
+              />
+            )}
 
             <main className="relative z-10 flex flex-1 flex-col">
               <AnimatePresence mode="wait">

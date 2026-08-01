@@ -51,7 +51,21 @@ function initInstances(): RoomInstance[] {
   );
 }
 
-export function useRoomInstances() {
+export interface UseRoomInstancesOptions {
+  /**
+   * Whether the matchmaking simulation should tick. When `false` the initial
+   * instance list is still returned (so room select renders instantly if the
+   * game is enabled later) but no drift/spawn/prune timer runs.
+   *
+   * `App.tsx` mounts this hook on every screen, so while The Bag is gated behind
+   * `BAG_COMING_SOON` this kept a 5 s interval churning state for a screen that
+   * could not be reached. Defaults to `true`.
+   */
+  enabled?: boolean;
+}
+
+export function useRoomInstances(options: UseRoomInstancesOptions = {}) {
+  const { enabled = true } = options;
   const [{ instances }, setInstances] = useState<InstancesState>(() => ({
     instances: initInstances(),
   }));
@@ -60,7 +74,11 @@ export function useRoomInstances() {
 
   // ── Drift player counts + auto-spawn + prune ───────────────────────────────
   useEffect(() => {
+    if (!enabled) return;
     const interval = setInterval(() => {
+      // Don't churn matchmaking state for a tab nobody is looking at.
+      if (typeof document !== "undefined" && document.hidden) return;
+
       const now = Date.now();
 
       setInstances((prev) => {
@@ -125,7 +143,7 @@ export function useRoomInstances() {
     }, 5_000);  // 5s — room counts don't need rapid updates
 
     return () => clearInterval(interval);
-  }, []);
+  }, [enabled]);
 
   // ── Public: select an instance for a joining player ───────────────────────
   const getInstanceForPlayer = useCallback(

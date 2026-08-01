@@ -3,7 +3,9 @@ import { ShieldCheck, ScrollText, BadgeCheck } from "lucide-react";
 const ITEMS = [
   { icon: BadgeCheck, label: "18+ Only" },
   { icon: ShieldCheck, label: "Gamble Responsibly" },
-  { icon: BadgeCheck, label: "Provably Fair (devnet)" },
+  // "Provably fair" implies trustless on-chain verification; while outcomes are
+  // computed client-side the honest claim is that they are verifiable.
+  { icon: BadgeCheck, label: "Verifiable Rolls (devnet)" },
   { icon: ScrollText, label: "Terms" },
 ];
 

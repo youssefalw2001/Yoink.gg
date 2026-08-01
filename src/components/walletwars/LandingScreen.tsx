@@ -24,7 +24,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Wallet, ShieldCheck, Key, LineChart, Crosshair, Loader, Coins, Trophy, Percent, Check,
+  Wallet, ShieldCheck, Key, LineChart, Crosshair, Loader, Coins, Trophy, Percent, Check, Eye,
 } from "lucide-react";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import { useWallet } from "@/lib/wallet";
@@ -158,7 +158,7 @@ function RoleCard({ role, selected, onSelect, accent, icon, headline, subtext, c
 }
 
 export function LandingScreen() {
-  const { connect, connecting } = useWallet();
+  const { connect, connecting, enterPreview } = useWallet();
   const reduced = usePrefersReducedMotion();
   const [role, setRole] = useState<WarRole | null>(null);
 
@@ -171,6 +171,16 @@ export function LandingScreen() {
     // Default to Siege Runner (the broad, action side) if they connect without picking.
     saveRole(role ?? "runner");
     void connect();
+  }
+
+  /**
+   * Guest path: stakes are simulated either way, so requiring a wallet before a
+   * visitor can even SEE the game costs us every user without one installed.
+   * The picked role is remembered so preview lands on the matching tab too.
+   */
+  function handlePreview() {
+    saveRole(role ?? "runner");
+    enterPreview();
   }
 
   return (
@@ -273,6 +283,17 @@ export function LandingScreen() {
               </>
             )}
           </motion.button>
+
+          {/* Guest path — no wallet required to look around. */}
+          <button
+            type="button"
+            onClick={handlePreview}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate transition-colors duration-150 hover:bg-white/[0.05] hover:text-white"
+            aria-label="Preview the app without connecting a wallet"
+          >
+            <Eye className="h-3.5 w-3.5" aria-hidden />
+            Preview without connecting
+          </button>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <span className="trust-chip">

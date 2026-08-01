@@ -1,0 +1,48 @@
+name: CI
+
+# Verifies every pull request and every push to a non-main branch. The deploy
+# workflow runs the same gate on main, so `main` is never green-by-omission.
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+# Least privilege: this workflow only ever needs to read the checkout.
+permissions:
+  contents: read
+
+concurrency:
+  # Keyed on the ref, so a PR branch and its pull_request event share one group
+  # and the suite is not run twice for the same commit.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # Building here catches the failure mode a typecheck cannot: a broken
+      # production bundle (e.g. the chunking constraints in vite.config.ts that
+      # keep the Solana/polyfill init order intact).
+      - name: Build
+        run: npm run build
