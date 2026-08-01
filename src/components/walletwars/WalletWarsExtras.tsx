@@ -42,7 +42,7 @@ export function ProvablyFairBadge() {
         aria-expanded={open}
       >
         <ShieldCheck className="h-3 w-3 text-emerald" aria-hidden />
-        {live ? "Provably Fair · On-Chain" : "Provably Fair · Client-Side Sim"}
+        {live ? "Provably Fair · On-Chain" : "Verifiable · Client-Side Sim"}
       </button>
       <AnimatePresence>
         {open && (

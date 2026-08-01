@@ -117,7 +117,26 @@ function makeInitial(roomId: RoomId): GameState {
   };
 }
 
-export function useGameState(roomId: RoomId = "arena") {
+export interface UseGameStateOptions {
+  /**
+   * Whether the engine should actually run. When `false` the hook returns the
+   * same (initial) state shape but starts NO timers — the round clock, bot
+   * simulation, player-count drift, cooldown ticker, jackpot autosave and fuse
+   * commitment all stay idle.
+   *
+   * This exists because The Bag is launch-gated behind `BAG_COMING_SOON`, yet
+   * `App.tsx` calls this hook unconditionally on every screen. Without the gate
+   * a 150 ms interval (plus 250 ms / 600 ms / 4 s intervals) kept re-rendering
+   * the whole app while the game it drives was not even reachable — pure battery
+   * and CPU cost on the flagship Wallet Wars screen.
+   *
+   * Defaults to `true`, so existing call-sites behave exactly as before.
+   */
+  enabled?: boolean;
+}
+
+export function useGameState(roomId: RoomId = "arena", options: UseGameStateOptions = {}) {
+  const { enabled = true } = options;
   const room = ROOMS[roomId];
 
   const [state, setState]           = useState<GameState>(() => makeInitial(roomId));
@@ -287,8 +306,17 @@ export function useGameState(roomId: RoomId = "arena") {
   // ── Core tick — 150ms (was 100ms, 33% fewer renders, still smooth) ──────────
   useEffect(() => {
     if (tickRef.current) clearInterval(tickRef.current);
+    // Launch gate: don't run the round clock for a game that isn't reachable.
+    if (!enabled) return;
 
     tickRef.current = setInterval(() => {
+      // Pause while the tab is hidden. Background timers are throttled hard by
+      // every browser, so ticking there does not produce a smooth countdown —
+      // it produces a frozen clock followed by a catch-up lurch. Pausing keeps
+      // the round coherent (bots pause too, so nobody gains an edge) and stops
+      // burning battery on a screen nobody is looking at.
+      if (typeof document !== "undefined" && document.hidden) return;
+
       const now = Date.now();
 
       setState((prev) => {
@@ -424,10 +452,11 @@ export function useGameState(roomId: RoomId = "arena") {
     }, 150);  // 150ms tick — was 100ms, 33% fewer renders, imperceptible difference
 
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
-  }, [applyYoink, room, roomId]);
+  }, [applyYoink, room, roomId, enabled]);
 
   // ── Seed player count ──────────────────────────────────────────────────────
   useEffect(() => {
+    if (!enabled) return;
     let count = 0;
     const interval = setInterval(() => {
       count += Math.floor(1 + Math.random() * 3);
@@ -441,27 +470,31 @@ export function useGameState(roomId: RoomId = "arena") {
       if (count >= GAME_CONFIG.MIN_PLAYERS + 2) clearInterval(interval);
     }, 600);
     return () => clearInterval(interval);
-  }, [roomId, room.maxPlayers]);
+  }, [roomId, room.maxPlayers, enabled]);
 
   // ── Cooldown timer — 250ms resolution (was 100ms, smooth enough) ────────────
   const [cooldownLeft, setCooldownLeft] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     const id = setInterval(() => {
       setCooldownLeft(Math.max(0, stateRef.current.playerCooldownUntil - Date.now()));
     }, 250);
     return () => clearInterval(id);
-  }, []);
+  }, [enabled]);
 
   // ── Persist the progressive jackpot periodically + on unmount, so the
   //    pool survives room switches and reloads (the always-climbing number).
   useEffect(() => {
+    // Nothing mutates the pool while the engine is idle, so there is nothing to
+    // persist — skip the autosave rather than rewriting an unchanged value.
+    if (!enabled) return;
     const id = setInterval(() => saveJackpot(stateRef.current.jackpotAmount), 4_000);
     return () => {
       clearInterval(id);
       saveJackpot(stateRef.current.jackpotAmount);
       saveTolls(lifetimeTollsRef.current);
     };
-  }, []);
+  }, [enabled]);
 
   const activateFuseBurner = useCallback(() => {
     setState((prev) => {
@@ -476,6 +509,7 @@ export function useGameState(roomId: RoomId = "arena") {
   // end so the commit can be verified (see lib/vrf.ts). This is an honest
   // commit–reveal, NOT trustless VRF — that requires the on-chain program.
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     commitFuse(stateRef.current.roundNumber, state.fuseSeconds)
       .then(({ commitHash, preimage }) => {
@@ -485,7 +519,7 @@ export function useGameState(roomId: RoomId = "arena") {
       })
       .catch(() => {/* non-critical */});
     return () => { cancelled = true; };
-  }, [state.fuseSeconds, state.roundNumber]);
+  }, [state.fuseSeconds, state.roundNumber, enabled]);
 
   return { state, leaderboard, yoink, playAgain, cooldownLeft, activateFuseBurner, lifetimeTolls };
 }

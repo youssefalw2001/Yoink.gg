@@ -2,9 +2,14 @@
  * TrustBadge — always-visible header trust signal (NOT a disclaimer).
  *
  * Shows "Provably Fair · {Network} · Sim Stakes". Tapping it opens a modal that
- * explains, in plain language, why every siege outcome is verifiable and why no
- * manipulation is possible — and links to the published `siegeMath.ts` so anyone
- * can read the exact crack thresholds and money math themselves.
+ * explains, in plain language, exactly how far the fairness guarantee goes in the
+ * CURRENT build — including what it does not yet cover — and links to the
+ * published `siegeMath.ts` so anyone can read the crack thresholds and money math
+ * themselves.
+ *
+ * The copy is gated on `isEscrowLive()`: while escrow is off it never claims
+ * on-chain settlement or that manipulation is impossible, because the seed is
+ * generated client-side (launch-hardening Req 3).
  *
  * Self-contained (owns its own modal state) so it can live in the shared Header
  * without threading state through the app. GPU-safe, reduced-motion aware,
@@ -22,21 +27,48 @@ import { usePrefersReducedMotion } from "./useReducedMotion";
 /** Public source link for the frozen siege money-math + crack thresholds. */
 const SIEGE_MATH_URL = "https://github.com/youssefalw2001/Yoink.gg/blob/main/src/lib/siegeMath.ts";
 
-const POINTS = [
+/**
+ * Fairness claims for the CURRENT simulation build (launch-hardening Req 3).
+ *
+ * Deliberately does NOT claim on-chain verifiability or that manipulation is
+ * impossible: `ESCROW_ENABLED` is false and the seed is generated client-side, so
+ * either claim would be false. The third point states that limitation outright —
+ * an honest boundary earns more trust than an overclaim a user can disprove.
+ */
+const POINTS_SIM = [
   {
     icon: Hash,
-    title: "Published seed hash",
-    body: "Every siege outcome is determined by a seed that is revealed with the result. You can recompute the roll yourself.",
+    title: "Revealed seed",
+    body: "Every siege outcome comes from a seed that is revealed with the result. You can recompute the roll yourself and check it matches.",
   },
   {
     icon: Lock,
-    title: "Fixed crack threshold",
-    body: "The crack chance is fixed and published per tier and risk profile. A siege wins only if the roll lands below that line.",
+    title: "Fixed, published odds",
+    body: "The crack chance is fixed and published per tier and risk profile before you commit. A siege wins only if the roll lands below that line.",
   },
   {
     icon: Eye,
-    title: "Verify every result",
-    body: "Because the seed, the roll, and the threshold are all shown, no outcome can be faked or quietly changed. No manipulation is possible.",
+    title: "What this build does NOT do yet",
+    body: "Outcomes are computed in your browser from a locally generated seed — not settled on-chain. So this is verifiable, but not yet trustless. No real SOL is at stake, and on-chain settlement is what will close that gap.",
+  },
+] as const;
+
+/** Claims permitted only once real escrow + on-chain settlement are live (Req 3.5). */
+const POINTS_LIVE = [
+  {
+    icon: Hash,
+    title: "On-chain seed",
+    body: "Every siege outcome comes from a seed committed and revealed on-chain. You can recompute the roll from public data.",
+  },
+  {
+    icon: Lock,
+    title: "Fixed, published odds",
+    body: "The crack chance is fixed and published per tier and risk profile before you commit. A siege wins only if the roll lands below that line.",
+  },
+  {
+    icon: Eye,
+    title: "Settled by the program",
+    body: "Payouts are executed by the on-chain program, so the seed, the roll, and the threshold are all independently auditable.",
   },
 ] as const;
 
@@ -45,6 +77,14 @@ export function TrustBadge() {
   const reduced = usePrefersReducedMotion();
   const live = isEscrowLive();
   const settlement = live ? "On-Chain" : "Sim Stakes";
+  const points = live ? POINTS_LIVE : POINTS_SIM;
+  /**
+   * "Provably fair" is a term of art that implies trustless, on-chain
+   * verification. While outcomes are computed in the browser the accurate claim is
+   * the weaker one — and it would be self-defeating to headline a stronger claim
+   * directly above a panel explaining the build does not meet it.
+   */
+  const headline = live ? "Provably Fair" : "Verifiable";
 
   return (
     <>
@@ -58,7 +98,7 @@ export function TrustBadge() {
         title="Provably fair — tap to see how it works"
       >
         <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-        <span className="hidden sm:inline">Provably Fair · {NETWORK_LABEL} · {settlement}</span>
+        <span className="hidden sm:inline">{headline} · {NETWORK_LABEL} · {settlement}</span>
         <span className="sm:hidden">Fair</span>
       </button>
 
@@ -99,7 +139,7 @@ export function TrustBadge() {
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald/40 bg-emerald/15">
                       <ShieldCheck className="h-6 w-6 text-emerald" aria-hidden />
                     </span>
-                    <h2 className="font-display text-xl font-black uppercase tracking-[0.08em] text-white">Provably Fair</h2>
+                    <h2 className="font-display text-xl font-black uppercase tracking-[0.08em] text-white">{headline}</h2>
                     <p className="font-mono text-[11px] leading-relaxed text-slate">
                       {live
                         ? "Sieges settle on-chain. Outcomes are verifiable by anyone."
@@ -108,7 +148,7 @@ export function TrustBadge() {
                   </div>
 
                   <div className="mt-5 flex flex-col gap-2.5">
-                    {POINTS.map(({ icon: Icon, title, body }) => (
+                    {points.map(({ icon: Icon, title, body }) => (
                       <div key={title} className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
                         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-emerald/25 bg-emerald/[0.08]">
                           <Icon className="h-3.5 w-3.5 text-emerald" aria-hidden />

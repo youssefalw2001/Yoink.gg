@@ -1,6 +1,11 @@
 /**
  * YOINK.GG — ConnectScreen
  *
+ * NOTE: currently UNUSED. `App.tsx` renders `walletwars/LandingScreen` as the
+ * pre-connect gate (it also carries the Preview Mode entry point). This component
+ * is kept as the Bag-flavoured alternative gate for when The Bag launches; if it
+ * is ever reinstated it must also offer the `enterPreview` guest path.
+ *
  * Full-page gate shown before wallet is connected.
  *
  * ARCHITECTURAL DECISIONS:
@@ -41,9 +46,11 @@ const VALUE_PROPS = [
     color:  "#FF2200",
   },
   {
+    // Honest framing: nothing settles on-chain yet (ESCROW_ENABLED is false), so
+    // this must not advertise "Real SOL" or on-chain finality.
     icon:  <TrendingUp className="h-5 w-5 text-gold" aria-hidden />,
-    title: "Real SOL",
-    desc:  "Sub-second finality",
+    title: "Sim Stakes",
+    desc:  "Devnet · no real funds",
     border: "rgba(255,215,0,0.18)",
     color:  "#FFD700",
   },

@@ -48,6 +48,18 @@ import {
   lastActivityFromShield,
   GUARANTEED_ACTIVITY_MS,
 } from "@/lib/walletWarsActivity";
+import {
+  newTabId,
+  parseLease,
+  decideLeadership,
+  canReleaseLease,
+  isLeaseStale,
+  nextLease,
+  parseSyncedWar,
+  adoptRemoteWar,
+  LEASE_KEY,
+  LEASE_RENEW_MS,
+} from "@/lib/walletWarsSync";
 import { splitHouseRake, referralTierForAmount, type ReferralTier } from "@/lib/referral";
 
 export const WAR_CONFIG = {
@@ -962,7 +974,166 @@ export function useWalletWars() {
   // Player bounty placements (targetId → placer vault id) for refund routing.
   const bountyPlacers = useRef<Map<string, string>>(new Map());
 
-  useEffect(() => { savePersisted(state); }, [state.you, state.totalBanked, state.biggestHeist]);
+  // ── Multi-tab coordination (launch-hardening Req 6) ─────────────────────────
+  // Every tab used to run its own sim AND persist to the same key, so the last
+  // writer could silently erase an open vault. Now exactly one tab holds a
+  // lease: only the LEADER mutates/persists the player's vault, and leadership
+  // follows focus so the tab the user is acting in is always authoritative.
+  const tabId = useRef<string>(newTabId());
+  /**
+   * Leadership is held BOTH as a ref (read synchronously inside timers, where a
+   * state snapshot would be stale) and as React state (so effects — notably the
+   * persist effect — re-run when leadership changes). `setLeader` keeps them in
+   * lockstep and no-ops when the value is unchanged.
+   */
+  const isLeader = useRef<boolean>(false);
+  const [isLeaderState, setIsLeaderState] = useState(false);
+  const setLeader = useCallback((next: boolean) => {
+    if (isLeader.current === next) return;
+    isLeader.current = next;
+    setIsLeaderState(next);
+  }, []);
+
+  /**
+   * Claim (or renew) leadership if the lease is free, stale, or already ours.
+   * Returns whether this tab is the leader afterwards. Never throws — if storage
+   * is unavailable we assume leadership, which degrades to exactly the old
+   * single-tab behaviour.
+   */
+  /**
+   * Adopt the persisted record into local state. Used when this tab is promoted
+   * to leader, so it takes over from the record the previous leader left rather
+   * than overwriting it with a stale local vault.
+   */
+  const adoptPersisted = useCallback(() => {
+    const p = loadWarFromStorage(safeLocalStorage(), now());
+    if (!p) return;
+    setState((prev) => {
+      const merged = adoptRemoteWar<Vault | null>(
+        { you: prev.you, totalBanked: prev.totalBanked, biggestHeist: prev.biggestHeist },
+        { you: p.you, totalBanked: p.totalBanked, biggestHeist: p.biggestHeist },
+      );
+      return { ...prev, you: merged.you, totalBanked: merged.totalBanked, biggestHeist: merged.biggestHeist };
+    });
+  }, []);
+
+  /**
+   * Evaluate and execute this tab's leadership intent.
+   *
+   * @param forced  an explicit user signal (mount / focus / player action). Only
+   *                one tab can be focused or clicked, so a forced claim takes the
+   *                lease outright — this is what guarantees the tab the user acts
+   *                in is the tab that persists.
+   * @param adopt   re-read the persisted record when this call PROMOTES us. Set
+   *                for mount/focus, but never for a player action: the action's
+   *                own state update must not race an adopt behind it.
+   *
+   * Never throws — if storage is unavailable we assume leadership, which degrades
+   * to exactly the old single-tab behaviour.
+   */
+  const claimLeadership = useCallback((forced: boolean, adopt = false): boolean => {
+    const storage = safeLocalStorage();
+    if (!storage) { setLeader(true); return true; }
+    let promoted = false;
+    try {
+      const at = now();
+      const intent = decideLeadership({
+        lease: parseLease(storage.getItem(LEASE_KEY)),
+        selfId: tabId.current,
+        at,
+        hidden: typeof document !== "undefined" && document.hidden,
+        forced,
+      });
+      if (intent === "stand_down") {
+        setLeader(false);
+      } else {
+        storage.setItem(LEASE_KEY, JSON.stringify(nextLease(tabId.current, at)));
+        promoted = !isLeader.current;
+        setLeader(true);
+      }
+    } catch {
+      setLeader(true); // storage blocked mid-session → behave as before
+    }
+    if (promoted && adopt) adoptPersisted();
+    return isLeader.current;
+  }, [setLeader, adoptPersisted]);
+
+  // Claim on mount (this tab is the one the user just opened), renew on a timer,
+  // and take over whenever the user focuses or returns to this tab.
+  useEffect(() => {
+    claimLeadership(true, true);
+    const renew = setInterval(() => claimLeadership(false), LEASE_RENEW_MS);
+    const onFocus = () => { claimLeadership(true, true); };
+    const onVisible = () => { if (!document.hidden) claimLeadership(true, true); };
+    /**
+     * Release on unload so another tab takes over immediately instead of waiting
+     * out the TTL. `pagehide` is used because React cleanup does NOT run on a
+     * reload or tab close, which would otherwise leave the next page load reading
+     * a still-live lease and demoting itself for up to `LEASE_TTL_MS`.
+     */
+    const release = () => {
+      try {
+        const storage = safeLocalStorage();
+        if (!storage) return;
+        // Ownership check: a tab that slept through its TTL and was taken over
+        // must not clobber the new leader's live record on the way out.
+        if (!canReleaseLease(parseLease(storage.getItem(LEASE_KEY)), tabId.current)) return;
+        storage.setItem(LEASE_KEY, JSON.stringify(nextLease(tabId.current, 0)));
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pagehide", release);
+    return () => {
+      clearInterval(renew);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", release);
+      release();
+    };
+  }, [claimLeadership]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      // Another tab took the lease → demote immediately rather than waiting for
+      // our next renew, during which we would treat its writes as stale echoes.
+      if (e.key === LEASE_KEY) {
+        const lease = parseLease(e.newValue);
+        if (lease && lease.id !== tabId.current && !isLeaseStale(lease, now())) setLeader(false);
+        return;
+      }
+      // A follower adopts the leader's vault whenever the leader persists.
+      // `storage` events only fire in OTHER tabs, which is exactly the signal we want.
+      if (e.key !== STORAGE_KEY) return;
+      if (isLeader.current) return; // we are authoritative; ignore echoes
+      const remote = parseSyncedWar<Partial<Vault> | null>(e.newValue);
+      if (!remote) return;
+      setState((prev) => {
+        const merged = adoptRemoteWar<Partial<Vault> | null>(
+          { you: prev.you, totalBanked: prev.totalBanked, biggestHeist: prev.biggestHeist },
+          remote,
+        );
+        return {
+          ...prev,
+          // Normalise through the engine's own loader so a foreign record can
+          // never inject NaN/undefined into the money math.
+          you: normalizeVault((merged.you ?? null) as Partial<Vault> | null, now()),
+          totalBanked: merged.totalBanked,
+          biggestHeist: merged.biggestHeist,
+        };
+      });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [setLeader]);
+
+  // Only the leader persists — this is what makes the vault safe across tabs.
+  // `isLeaderState` is a dependency (not just the ref) so that being PROMOTED
+  // flushes the current state instead of waiting for the next unrelated mutation.
+  useEffect(() => {
+    if (!isLeaderState) return;
+    savePersisted(state);
+  }, [state.you, state.totalBanked, state.biggestHeist, isLeaderState]);
 
   const repeatTaxMult = useCallback((targetId: string): number => {
     const ts = raidLog.current.get(targetId) ?? [];
@@ -970,27 +1141,34 @@ export function useWalletWars() {
     return Math.min(WAR_CONFIG.REPEAT_TAX_CAP, recent.length * WAR_CONFIG.REPEAT_TAX_STEP);
   }, []);
 
+  // Every player action takes leadership first: the tab the user is acting in
+  // becomes the authoritative writer, so their action can never be clobbered by
+  // a background tab (launch-hardening Req 6.3/6.4).
   const openVault = useCallback((amount: number, profile: RiskProfile = DEFAULT_RISK_PROFILE) => {
+    claimLeadership(true);
     setState((prev) => openVaultState(prev, amount, profile, now()));
-  }, []);
+  }, [claimLeadership]);
 
   const cashOut = useCallback((): number => {
+    claimLeadership(true);
     const { amount, state: next } = cashOutState(stateRef.current);
     bountyPlacers.current.clear();
     setState(next);
     return amount;
-  }, []);
+  }, [claimLeadership]);
 
   const withdrawBanked = useCallback((): number => {
+    claimLeadership(true);
     const { amount, state: next } = withdrawBankedState(stateRef.current);
     if (amount > 0) setState(next);
     return amount;
-  }, []);
+  }, [claimLeadership]);
 
   /** Toggle auto-compounding of banked fees into the corpus (Requirement 11.1). */
   const setCompound = useCallback((compound: boolean) => {
+    claimLeadership(true);
     setState((prev) => setCompoundState(prev, compound));
-  }, []);
+  }, [claimLeadership]);
 
   /**
    * Change the active vault's risk profile (Vault Lord terminal). Takes effect
@@ -998,8 +1176,9 @@ export function useWalletWars() {
    * κ via `vaultParamsFor` at siege time; no economy math changes here.
    */
   const setRiskProfile = useCallback((profile: RiskProfile) => {
+    claimLeadership(true);
     setState((prev) => setRiskProfileState(prev, profile));
-  }, []);
+  }, [claimLeadership]);
 
   /**
    * Re-rank the visible board by heat NOW (explicit "Re-rank board" affordance).
@@ -1016,6 +1195,7 @@ export function useWalletWars() {
    * back for ledger accrual. */
   const siege = useCallback(
     (targetId: string, referral?: SiegeContext["referral"]): { resolution: SiegeResolution; referral?: ReferralOutcome } => {
+      claimLeadership(true);
       const at = now();
       const seed = randomHex(16);
       const taxMult = repeatTaxMult(targetId);
@@ -1029,11 +1209,12 @@ export function useWalletWars() {
       }
       return { resolution, referral: outcome };
     },
-    [repeatTaxMult],
+    [repeatTaxMult, claimLeadership],
   );
 
   /** Place a bounty. Returns a typed resolution — never a bare false. */
   const placeBounty = useCallback((targetId: string, amount: number): BountyResolution => {
+    claimLeadership(true);
     const at = now();
     const you = stateRef.current.you;
     const { resolution, state: next } = resolveBounty(stateRef.current, targetId, amount, { at });
@@ -1042,11 +1223,15 @@ export function useWalletWars() {
       setState(next);
     }
     return resolution;
-  }, []);
+  }, [claimLeadership]);
 
   // ── Bot simulation (siege semantics: fee paid, defender banks, corpus sliced) ──
   useEffect(() => {
     const interval = setInterval(() => {
+      // Don't burn CPU/battery simulating a board nobody is looking at. A hidden
+      // tab also gets its timers heavily throttled, so ticking there produces
+      // lumpy catch-up bursts rather than the intended steady cadence.
+      if (typeof document !== "undefined" && document.hidden) return;
       // Defensive: an uncaught throw inside a timer escapes React's error
       // boundaries and can crash the whole tab/PWA. A single bad tick must
       // never take down the app — log and skip to the next tick instead.
@@ -1054,9 +1239,16 @@ export function useWalletWars() {
       const ts = now();
 
       // Pre-compute expired-bounty refunds (placer ledger read read-only here).
+      //
+      // LEADER ONLY, as a whole. Refund settlement is not a per-tab cosmetic: it
+      // moves the escrowed stake, clears `bountyPool`, and deletes the placer
+      // ledger entry. Gating only the branch that credits `you` would let a
+      // follower escheat the player's own refund to the house AND destroy the
+      // record needed to recover it, so the debit and the credit have to live
+      // behind the same gate.
       const cur = stateRef.current;
       const refundIds = new Set<string>();
-      const refunds = cur.stashes
+      const refunds = (isLeader.current ? cur.stashes : [])
         .filter((v) => v.bountyPool > 0 && v.bountyExpiry > 0 && v.bountyExpiry <= ts)
         .map((v) => {
           const placerId = bountyPlacers.current.get(v.id) ?? null;
@@ -1103,7 +1295,10 @@ export function useWalletWars() {
         }
 
         // A bot sieges YOU (same tier, unshielded) — a notable beat, not constant.
-        if (you && ts >= you.shieldUntil && you.amount > WAR_CONFIG.CORPUS_FLOOR && Math.random() < WAR_CONFIG.BOT_SIEGE_YOU_CHANCE) {
+        // LEADER ONLY: a follower tab keeps its ambient board alive but must never
+        // mutate the player's vault, or two tabs would settle sieges against the
+        // same vault and diverge (launch-hardening Req 6.3).
+        if (isLeader.current && you && ts >= you.shieldUntil && you.amount > WAR_CONFIG.CORPUS_FLOOR && Math.random() < WAR_CONFIG.BOT_SIEGE_YOU_CHANCE) {
           const ti = tierIndexForAmount(you.amount);
           const sameTier = stashes.filter((t) => tierIndexForAmount(t.amount) === ti && ts >= t.shieldUntil);
           const attacker = sameTier[Math.floor(Math.random() * sameTier.length)];
@@ -1160,8 +1355,8 @@ export function useWalletWars() {
 
           // Your vault also gets the guarantee: if it has gone quiet past the
           // threshold and is unshielded, a simulated raider bounces off it so
-          // you bank a toll even on a dead-quiet session.
-          if (you && ts >= you.shieldUntil && you.amount > WAR_CONFIG.CORPUS_FLOOR) {
+          // you bank a toll even on a dead-quiet session. LEADER ONLY (Req 6.3).
+          if (isLeader.current && you && ts >= you.shieldUntil && you.amount > WAR_CONFIG.CORPUS_FLOOR) {
             const youLast = lastActivityFromShield(you.shieldUntil, you.openedAt, WAR_CONFIG.SHIELD_MS);
             if (ts - youLast >= GUARANTEED_ACTIVITY_MS) {
               const ti = tierIndexForAmount(you.amount);
@@ -1191,6 +1386,8 @@ export function useWalletWars() {
           for (const rf of refunds) {
             totalBanked += rf.fee;
             let refundedTo = "house";
+            // Reached only in the leader (see the refund pre-computation above),
+            // so the player's own refund always finds its way home.
             if (rf.placerId && you && you.id === rf.placerId) {
               you = { ...you, amount: you.amount + rf.refund };
               refundedTo = you.wallet;

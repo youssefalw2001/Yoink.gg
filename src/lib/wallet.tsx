@@ -4,12 +4,15 @@
  * Connects a real Solana wallet (Phantom / Solflare / any Wallet-Standard
  * wallet) and reads the real on-chain balance. These actions move ZERO funds.
  *
- * The app's existing surface — useWallet() returning
- *   { connected, publicKey, connecting, walletBalance, previewMode, connect, disconnect, enterPreview }
- * — is preserved exactly, so every consumer keeps working unchanged.
+ * useWallet() returns
+ *   { connected, publicKey, connecting, walletBalance, previewMode,
+ *     connect, disconnect, enterPreview, exitPreview }
  *
- * PREVIEW MODE: allows full app access without a wallet connection.
- * All gameplay remains simulated. Entered via "Skip — preview the app".
+ * PREVIEW MODE: grants full app access without a wallet connection, entered from
+ * the landing screen via "Preview without connecting". Because all gameplay is
+ * simulated regardless, a guest gets the real experience — there is simply no
+ * wallet attached, so `publicKey` is null and `walletBalance` is 0. Connecting a
+ * real wallet exits preview automatically; the two are mutually exclusive.
  */
 
 import {
@@ -39,14 +42,45 @@ export interface WalletState {
   connecting:    boolean;
   /** Real on-chain SOL balance, fetched via RPC after connect. */
   walletBalance: number;
+  /**
+   * Guest state: the visitor is exploring the app WITHOUT a connected wallet.
+   * All gameplay is simulated either way, so preview mode grants the full app
+   * surface — it simply never has a wallet attached. Mutually exclusive with
+   * `connected`: connecting a real wallet exits preview automatically.
+   */
+  previewMode:   boolean;
   connect:       () => Promise<void>;
   disconnect:    () => void;
+  /** Enter guest/preview mode without connecting a wallet. */
+  enterPreview:  () => void;
+  /** Leave preview mode (back to the landing gate). */
+  exitPreview:   () => void;
 }
 
 const WalletCtx = createContext<WalletState | null>(null);
 
 const isReady = (rs: WalletReadyState) =>
   rs === WalletReadyState.Installed || rs === WalletReadyState.Loadable;
+
+// ── Preview-mode persistence ─────────────────────────────────────────────────
+// Guarded like every other storage read in the app: private mode and blocked
+// storage must degrade to "not in preview", never throw on mount.
+const PREVIEW_KEY = "yoink_preview_v1";
+
+function loadPreview(): boolean {
+  try {
+    return localStorage.getItem(PREVIEW_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function savePreview(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(PREVIEW_KEY, "1");
+    else localStorage.removeItem(PREVIEW_KEY);
+  } catch { /* ignore */ }
+}
 
 /** Bridges the real wallet adapter to the app's useWallet() shape. */
 function WalletBridge({ children }: { children: ReactNode }) {
@@ -56,6 +90,9 @@ function WalletBridge({ children }: { children: ReactNode }) {
   } = useAdapterWallet();
   const { setVisible } = useWalletModal();
   const [walletBalance, setWalletBalance] = useState(0);
+  // Persisted so a guest who reloads (or reopens the PWA) is not thrown back to
+  // the gate while their vault, XP and referral ledger are all still on disk.
+  const [previewMode, setPreviewMode] = useState<boolean>(loadPreview);
 
   const wantConnect = useRef(false);
 
@@ -73,8 +110,21 @@ function WalletBridge({ children }: { children: ReactNode }) {
       } catch { /* RPC hiccup — keep last known balance */ }
     };
     fetchBalance();
-    const id = setInterval(fetchBalance, 20_000);
-    return () => { active = false; clearInterval(id); };
+    // Skip polling while the tab is hidden — an idle background tab hammering RPC
+    // every 20s wastes the user's bandwidth and our rate limit for a number
+    // nobody can see. Refetch immediately on return so the balance is never stale
+    // at the moment it actually matters.
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void fetchBalance();
+    }, 20_000);
+    const onVisible = () => { if (!document.hidden) void fetchBalance(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [pkStr]);
 
   // Finish the connect once a wallet is selected.
@@ -111,13 +161,26 @@ function WalletBridge({ children }: { children: ReactNode }) {
     adapterDisconnect().catch(() => {});
   }, [adapterDisconnect]);
 
+  const enterPreview = useCallback(() => { setPreviewMode(true); savePreview(true); }, []);
+  const exitPreview  = useCallback(() => { setPreviewMode(false); savePreview(false); }, []);
+
+  // A real connection always supersedes preview mode, so the two can never be
+  // reported as active at once.
+  useEffect(() => {
+    if (connected) { setPreviewMode(false); savePreview(false); }
+  }, [connected]);
+
   const value: WalletState = {
     connected,
     publicKey: pkStr,
     connecting,
     walletBalance,
+    // Never both: `connected` wins if the effect above has not run yet.
+    previewMode: previewMode && !connected,
     connect,
     disconnect,
+    enterPreview,
+    exitPreview,
   };
 
   return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;

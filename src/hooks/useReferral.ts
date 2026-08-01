@@ -149,6 +149,9 @@ export function useReferral(wallet: string | null): UseReferral {
   // little house rake in their tier and the player earns the audited cut.
   useEffect(() => {
     const id = setInterval(() => {
+      // Pause in a hidden tab: this writes to localStorage on every accrual, so
+      // an unattended background tab would otherwise keep churning the ledger.
+      if (typeof document !== "undefined" && document.hidden) return;
       setLedger((prev) => {
         let changed = false;
         const referred = prev.referred.map((u) => {
