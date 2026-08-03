@@ -68,14 +68,32 @@ export function prizeLabelForRank(rank: number): string | null {
   return `${tier.label} · +${tier.xpBonus.toLocaleString()} XP`;
 }
 
+/**
+ * Build the season leaderboard.
+ *
+ * ⚠️  DEMO ROSTER — the nine non-player rows below are invented. They are a
+ * hardcoded roster with randomised point totals, identical for every visitor,
+ * and they do NOT represent real players or real results.
+ *
+ * This is acceptable **only** while the platform is in simulation mode, and only
+ * because the UI labels it: `SeasonLeaderboard` renders an explicit "demo
+ * roster" note, and `PreviewBanner` states that stakes are simulated. An
+ * unlabelled fabricated leaderboard is fake traction, which is the single
+ * fastest way to lose a crypto audience's trust once someone diffs the source.
+ *
+ * BEFORE REAL-MONEY LAUNCH: this function must be replaced by a query against
+ * real settled sieges (the `supabase/` schema exists for exactly this). Do not
+ * ship invented rows next to real SOL.
+ */
 export function generateSeasonLeaderboard(playerWallet: string | null): SeasonEntry[] {
-  const fakeWallets = [
+  // Invented, non-player demo rows. See the ⚠️ note above.
+  const demoRosterWallets = [
     "7xKp...mR3q", "B9nL...vT8w", "Qw2Z...kH5f", "Nt6Y...pX1d",
     "Ek4V...jC9s", "Rg8W...uA2y", "Lm3S...bN7h", "Fd5J...oI4t",
     "Yc1O...zE6r", "Hb7T...gM0n",
   ];
 
-  const entries: Omit<SeasonEntry, "rank" | "prize">[] = fakeWallets.map((w, i) => {
+  const entries: Omit<SeasonEntry, "rank" | "prize">[] = demoRosterWallets.map((w, i) => {
     const basePoints = Math.floor(8500 / (i + 1) + Math.random() * 300);
     return {
       wallet: w, displayName: null, isYou: false,

@@ -70,10 +70,13 @@ const profileArb = fc.constantFrom<RiskProfile>(...PROFILES);
 
 describe("Property 1 — siegeMath economics are frozen", () => {
   it("publishes the exact tier parameters (fee/odds/slice/cuts)", () => {
-    expect(PIT_PARAMS).toEqual({ id: "pit", feeRate: 0.02, winChance: 0.12, sliceRate: 0.15, houseFeeCut: 0.01, housePrizeRake: 0.02 });
-    expect(GRIND_PARAMS).toEqual({ id: "grind", feeRate: 0.015, winChance: 0.1, sliceRate: 0.13, houseFeeCut: 0.06, housePrizeRake: 0.08 });
-    expect(ARENA_PARAMS).toEqual({ id: "arena", feeRate: 0.01, winChance: 0.08, sliceRate: 0.11, houseFeeCut: 0.12, housePrizeRake: 0.15 });
-    expect(COURT_PARAMS).toEqual({ id: "court", feeRate: 0.008, winChance: 0.06, sliceRate: 0.09, houseFeeCut: 0.15, housePrizeRake: 0.18 });
+    // v2 "sane hold" economy — see the balance note atop siegeMath.ts.
+    // `feeRate` (price) is unchanged from v1 in every tier; the hold fix is
+    // delivered via a larger `sliceRate` plus a flat 5% prize rake.
+    expect(PIT_PARAMS).toEqual({ id: "pit", feeRate: 0.02, winChance: 0.12, sliceRate: 0.155, houseFeeCut: 0.019, housePrizeRake: 0.05 });
+    expect(GRIND_PARAMS).toEqual({ id: "grind", feeRate: 0.015, winChance: 0.1, sliceRate: 0.142, houseFeeCut: 0.018, housePrizeRake: 0.05 });
+    expect(ARENA_PARAMS).toEqual({ id: "arena", feeRate: 0.01, winChance: 0.08, sliceRate: 0.12, houseFeeCut: 0.017, housePrizeRake: 0.05 });
+    expect(COURT_PARAMS).toEqual({ id: "court", feeRate: 0.008, winChance: 0.07, sliceRate: 0.11, houseFeeCut: 0.011, housePrizeRake: 0.05 });
     expect(TIER_PARAMS).toHaveLength(4);
     // Risk-profile factors + streak ramp + heat decay constant are unchanged.
     expect(RISK_PROFILES.fortified.oddsFactor).toBe(0.6);
@@ -86,15 +89,15 @@ describe("Property 1 — siegeMath economics are frozen", () => {
   it("computes fee/prize/EV to the exact published values (Pit @ V=1, m=1)", () => {
     const fee = computeFee(1, PIT_PARAMS, 1, 0);
     expect(fee.fee).toBeCloseTo(0.02, 12);
-    expect(fee.toDefenderOnFail).toBeCloseTo(0.0198, 12);
-    expect(fee.toHouseOnFail).toBeCloseTo(0.0002, 12);
+    expect(fee.toDefenderOnFail).toBeCloseTo(0.01962, 12);
+    expect(fee.toHouseOnFail).toBeCloseTo(0.00038, 12);
     const prize = computePrize(1, PIT_PARAMS, 1);
-    expect(prize.gross).toBeCloseTo(0.15, 12);
-    expect(prize.toRaider).toBeCloseTo(0.147, 12);
-    expect(prize.toHouse).toBeCloseTo(0.003, 12);
-    expect(evRaider(PIT_PARAMS)).toBeCloseTo(-0.00236, 12);
-    expect(evDefender(PIT_PARAMS)).toBeCloseTo(0.0018, 12);
-    expect(evHouse(PIT_PARAMS)).toBeCloseTo(0.00056, 12);
+    expect(prize.gross).toBeCloseTo(0.155, 12);
+    expect(prize.toRaider).toBeCloseTo(0.14725, 12);
+    expect(prize.toHouse).toBeCloseTo(0.00775, 12);
+    expect(evRaider(PIT_PARAMS)).toBeCloseTo(-0.00233, 12);
+    expect(evDefender(PIT_PARAMS)).toBeCloseTo(0.00102, 12);
+    expect(evHouse(PIT_PARAMS)).toBeCloseTo(0.00131, 12);
   });
 
   it("Standard profile is the exact identity; Fortified/Exposed preserve defender EV", () => {
