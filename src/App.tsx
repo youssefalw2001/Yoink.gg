@@ -1,21 +1,53 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Header, type Page } from "@/components/layout/Header";
 import { LiveTicker } from "@/components/layout/LiveTicker";
 import { Footer } from "@/components/layout/Footer";
 import { SceneBackground } from "@/components/ui/SceneBackground";
 import { LandingScreen } from "@/components/walletwars/LandingScreen";
-import { GameScreen } from "@/components/game/GameScreen";
-import { RoomSelectScreen } from "@/components/game/RoomSelectScreen";
 import { BagComingSoonScreen } from "@/components/game/BagComingSoonScreen";
-import { ShopScreen } from "@/components/shop/ShopScreen";
+
+/**
+ * ── CODE-SPLIT ROUTES ───────────────────────────────────────────────────────
+ *
+ * These four are deliberately lazy. Three of them are unreachable behind
+ * feature flags right now (`BAG_COMING_SOON = true` hides GameScreen and
+ * RoomSelectScreen; `SHOP_ENABLED = false` hides ShopScreen), yet as static
+ * imports they were still shipped in the initial chunk of every first paint —
+ * along with their exclusive dependencies:
+ *
+ *   GameScreen  → BagAmount → rough-notation + @react-spring/web
+ *   ShopScreen  → gsap
+ *   WinReveal   → gsap
+ *
+ * WinReveal is a post-win modal, so it is never needed for first paint either.
+ *
+ * This matters more than the raw kB suggests: a large share of traffic arrives
+ * through the Phantom / Solflare in-app browser on mobile, where every 100 kB
+ * of initial JS is a measurable bounce increase. Payload deferred here is
+ * payload no first-time visitor pays for.
+ *
+ * Each render site is wrapped in <Suspense fallback={null}> — safe because all
+ * four already mount conditionally inside an AnimatePresence transition.
+ */
+const GameScreen = lazy(() =>
+  import("@/components/game/GameScreen").then((m) => ({ default: m.GameScreen })),
+);
+const RoomSelectScreen = lazy(() =>
+  import("@/components/game/RoomSelectScreen").then((m) => ({ default: m.RoomSelectScreen })),
+);
+const ShopScreen = lazy(() =>
+  import("@/components/shop/ShopScreen").then((m) => ({ default: m.ShopScreen })),
+);
 import { WalletWarsScreen } from "@/components/walletwars/WalletWarsScreen";
 import { WalletWarsLeaderboard } from "@/components/walletwars/WalletWarsLeaderboard";
 import { useWalletWars } from "@/lib/walletWarsState";
 import { useReferral } from "@/hooks/useReferral";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { PreviewBanner } from "@/components/ui/PreviewBanner";
-import { WinReveal } from "@/components/reveal/WinReveal";
+const WinReveal = lazy(() =>
+  import("@/components/reveal/WinReveal").then((m) => ({ default: m.WinReveal })),
+);
 import { ProfileModal } from "@/components/profile/ProfileModal";
 import { LevelUpToast } from "@/components/ui/XPBar";
 import { useGameState } from "@/hooks/useGameState";
@@ -396,21 +428,23 @@ export default function App() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <RoomSelectScreen
-                      onSelect={handleRoomSelect}
-                      // Layer 1
-                      isFirstTimePlayer={canClaimFirstShot()}
-                      onClaimFirstShot={handleClaimFirstShot}
-                      // Layer 2
-                      canClaimDailyPitPass={canClaimDailyPitPass()}
-                      onClaimDailyPitPass={handleClaimDailyPitPass}
-                      // Layer 3
-                      freeRound={freeRound}
-                      onEnterFreeRound={handleEnterFreeRound}
-                      // Daily voucher
-                      canClaimLoginVoucher={canClaimLoginVoucher()}
-                      onClaimLoginVoucher={claimLoginVoucher}
-                    />
+                    <Suspense fallback={null}>
+                      <RoomSelectScreen
+                        onSelect={handleRoomSelect}
+                        // Layer 1
+                        isFirstTimePlayer={canClaimFirstShot()}
+                        onClaimFirstShot={handleClaimFirstShot}
+                        // Layer 2
+                        canClaimDailyPitPass={canClaimDailyPitPass()}
+                        onClaimDailyPitPass={handleClaimDailyPitPass}
+                        // Layer 3
+                        freeRound={freeRound}
+                        onEnterFreeRound={handleEnterFreeRound}
+                        // Daily voucher
+                        canClaimLoginVoucher={canClaimLoginVoucher()}
+                        onClaimLoginVoucher={claimLoginVoucher}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -422,21 +456,23 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25 }}
                   >
-                    <GameScreen
-                      state={state}
-                      onYoink={yoink}
-                      cooldownLeft={cooldownLeft}
-                      roomId={roomId ?? "arena"}
-                      ownedItems={raw.ownedItems}
-                      pumpFakeBalance={raw.pumpFakeBalance ?? null}
-                      onActivateWalletTracker={() => purchaseItem("wallet_tracker")}
-                      onActivateFuseBurner={() => { activateFuseBurner(); purchaseItem("fuse_burner"); }}
-                      cardTheme={raw.equippedCardTheme}
-                      displayName={raw.displayName}
-                      onGoToWalletWars={() => handleNavigate("walletwars")}
-                      totalWins={progress.totalWins}
-                      lifetimeTolls={lifetimeTolls}
-                    />
+                    <Suspense fallback={null}>
+                      <GameScreen
+                        state={state}
+                        onYoink={yoink}
+                        cooldownLeft={cooldownLeft}
+                        roomId={roomId ?? "arena"}
+                        ownedItems={raw.ownedItems}
+                        pumpFakeBalance={raw.pumpFakeBalance ?? null}
+                        onActivateWalletTracker={() => purchaseItem("wallet_tracker")}
+                        onActivateFuseBurner={() => { activateFuseBurner(); purchaseItem("fuse_burner"); }}
+                        cardTheme={raw.equippedCardTheme}
+                        displayName={raw.displayName}
+                        onGoToWalletWars={() => handleNavigate("walletwars")}
+                        totalWins={progress.totalWins}
+                        lifetimeTolls={lifetimeTolls}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -548,15 +584,17 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <ShopScreen
-                      progress={progress}
-                      ownedItems={raw.ownedItems}
-                      onBuy={handleBuy}
-                      referralCode={raw.referralCode}
-                      onGenerateCode={() => generateReferralCode(connected ? (publicKey ?? "anon") : "anon")}
-                      canClaimVoucher={canClaimLoginVoucher()}
-                      onClaimVoucher={claimLoginVoucher}
-                    />
+                    <Suspense fallback={null}>
+                      <ShopScreen
+                        progress={progress}
+                        ownedItems={raw.ownedItems}
+                        onBuy={handleBuy}
+                        referralCode={raw.referralCode}
+                        onGenerateCode={() => generateReferralCode(connected ? (publicKey ?? "anon") : "anon")}
+                        canClaimVoucher={canClaimLoginVoucher()}
+                        onClaimVoucher={claimLoginVoucher}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -565,22 +603,34 @@ export default function App() {
 
             <Footer />
 
-            <WinReveal
-              open={showGame && state.isRoundOver}
-              winner={state.winner}
-              isYou={state.winnerIsYou}
-              amount={state.payouts[0]?.amount ?? state.bagAmount}
-              round={state.roundNumber}
-              winnerHeldFor={state.kingHeldFor}
-              fallenKings={state.roundKings}
-              fuseSeconds={state.fuseSeconds}
-              fuseCommitHash={state.fuseCommitHash}
-              fusePreimage={state.fusePreimage}
-              payouts={state.payouts}
-              jackpot={state.jackpotResult}
-              reignTolls={state.roundTollsBanked}
-              onPlayAgain={playAgain}
-            />
+            {/*
+              Mount-gated on `showGame`, not just driven by `open`. A lazy
+              component still triggers its dynamic import the moment it renders,
+              so leaving this mounted unconditionally would fetch the WinReveal
+              chunk (and gsap) on every first paint — including for visitors who
+              never touch The Bag. `showGame` stays true for the whole round, so
+              the open/close transition is unaffected.
+            */}
+            {showGame && (
+              <Suspense fallback={null}>
+                <WinReveal
+                  open={state.isRoundOver}
+                  winner={state.winner}
+                  isYou={state.winnerIsYou}
+                  amount={state.payouts[0]?.amount ?? state.bagAmount}
+                  round={state.roundNumber}
+                  winnerHeldFor={state.kingHeldFor}
+                  fallenKings={state.roundKings}
+                  fuseSeconds={state.fuseSeconds}
+                  fuseCommitHash={state.fuseCommitHash}
+                  fusePreimage={state.fusePreimage}
+                  payouts={state.payouts}
+                  jackpot={state.jackpotResult}
+                  reignTolls={state.roundTollsBanked}
+                  onPlayAgain={playAgain}
+                />
+              </Suspense>
+            )}
 
             <LevelUpToast events={levelUpEvents} />
 

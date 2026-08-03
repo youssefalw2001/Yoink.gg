@@ -14,9 +14,22 @@ import path from "path";
  *
  * We ONLY split libraries that have ZERO dependency on Node globals at init:
  *   - react / react-dom  (universally safe to split)
- *   - animation libs      (framer-motion, gsap, animejs, ogl, react-spring)
+ *   - animation libs      (framer-motion, gsap, animejs, react-spring)
  * These cache independently across deploys and shrink the entry chunk,
  * while the Solana + polyfill init order stays identical to the working build.
+ *
+ * ── WHY THE ANIMATION LIBS ARE SPLIT INDIVIDUALLY ───────────────────────────
+ *
+ * These used to share a single "animation" chunk. That silently defeated all
+ * route-level code splitting: `framer-motion` is imported by ~41 modules
+ * including App.tsx, so the combined chunk was always fetched on first paint —
+ * and it dragged `gsap` and `@react-spring/web` along with it, even though
+ * their only consumers (ShopScreen, WinReveal, BagAmount) are lazy.
+ *
+ * A shared manual chunk is only ever as lazy as its most eager member. Giving
+ * each library its own chunk lets Rollup load it exactly when a route that
+ * needs it is actually requested. `rough-notation` is named here for the same
+ * reason: its sole consumer is BagAmount, behind the disabled Bag feature.
  */
 function manualChunks(id: string) {
   if (
@@ -26,15 +39,14 @@ function manualChunks(id: string) {
   ) {
     return "react";
   }
-  if (
-    id.includes("node_modules/framer-motion") ||
-    id.includes("node_modules/gsap") ||
-    id.includes("node_modules/animejs") ||
-    id.includes("node_modules/ogl") ||
-    id.includes("node_modules/@react-spring")
-  ) {
-    return "animation";
-  }
+  // Eager: used by ~41 modules including the app shell.
+  if (id.includes("node_modules/framer-motion")) return "framer-motion";
+  // Lazy: each of these has only code-split consumers, so each gets its own
+  // chunk and is fetched on demand rather than on first paint.
+  if (id.includes("node_modules/gsap")) return "gsap";
+  if (id.includes("node_modules/@react-spring")) return "react-spring";
+  if (id.includes("node_modules/rough-notation")) return "rough-notation";
+  if (id.includes("node_modules/animejs")) return "animejs";
   // EVERYTHING ELSE (solana, buffer, process, polyfills, app code) stays in
   // the entry chunk so polyfill globals initialize before Solana uses them.
 }
