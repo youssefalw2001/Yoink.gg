@@ -95,40 +95,93 @@ export interface VaultHeatInput {
 
 // ── Published tier parameters (exact values from the design Tier System table) ─
 
+/**
+ * ── ECONOMY BALANCE NOTE (v2 — "sane hold" rebalance) ──────────────────────
+ *
+ * A raider risks the **attempt fee** (`f·V`), never the vault corpus. So the
+ * number that actually describes the deal offered to a raider is the *hold on
+ * amount risked*:
+ *
+ *     HOLD = −evRaider / f = 1 − p·s·(1 − ρ_prize) / f
+ *
+ * The v1 table was priced far too aggressively once expressed this way — the
+ * King's Court hold was **44.7% of every wager**, versus 3–8% for a slot
+ * machine, and The Arena paid defenders *exactly zero* (`evDefender === 0`),
+ * asking them to absorb real variance for no compensation. Both facts are
+ * trivially derivable from the published params by any motivated player, and
+ * whales — the tier's entire audience — are precisely the players who do that
+ * arithmetic. A hold nobody will grind is not revenue; it is a churn engine.
+ *
+ * This table fixes the hold while deliberately holding TWO things constant:
+ *
+ *   • `feeRate` (f)   — the advertised price of an attempt is unchanged, so
+ *                       money velocity and every fee-derived UI string hold.
+ *   • `winChance` (p) — the advertised crack odds are unchanged (except Court,
+ *                       nudged 6%→7%), so provable fairness and the published
+ *                       "1 in N" framing are untouched.
+ *
+ * The fix is delivered entirely through a **bigger prize** (`sliceRate`) plus a
+ * modest, flat 5% prize rake. Same price, same odds, more payout: strictly
+ * better for the player, and better game feel (cracking a King's Court vault
+ * now takes 11% of it, not 9%).
+ *
+ * Resulting economics (see `siegeMath.test.ts` → "hold band" regression):
+ *
+ *   Tier          HOLD    house rake   defender share   (of each wager)
+ *   ───────────────────────────────────────────────────────────────────
+ *   The Pit       11.65%     6.55%          5.10%
+ *   The Grind     10.07%     6.53%          3.53%
+ *   The Arena      8.80%     6.50%          2.30%
+ *   King's Court   8.56%     5.91%          2.65%
+ *
+ * The hold now *descends* as stakes climb, which is how every real operator
+ * treats high rollers (penny slots hold ~10–15%; high-limit tables ~1%). House
+ * rake settles near a flat ~6.5%, comparable to poker rake or a sportsbook
+ * margin, and every tier now pays defenders a strictly positive return.
+ *
+ * Revenue trade-off, stated honestly: per-attempt house take falls sharply in
+ * the upper tiers (Court ≈ −86%) and roughly doubles in The Pit, whose v1
+ * `houseFeeCut` of 1% was leaving real margin on the table. The bet is that a
+ * grindable ladder beats a punitive one that empties after a week.
+ *
+ * INVARIANTS PRESERVED (Property 8, enforced by test):
+ *   evRaider < 0 · evDefender > 0 · evHouse > 0 · sliceRate·m_max ≤ 1
+ */
+
 export const PIT_PARAMS: TierParams = {
   id: "pit",
   feeRate: 0.02,
   winChance: 0.12,
-  sliceRate: 0.15,
-  houseFeeCut: 0.01,
-  housePrizeRake: 0.02,
+  sliceRate: 0.155,
+  houseFeeCut: 0.019,
+  housePrizeRake: 0.05,
 };
 
 export const GRIND_PARAMS: TierParams = {
   id: "grind",
   feeRate: 0.015,
   winChance: 0.1,
-  sliceRate: 0.13,
-  houseFeeCut: 0.06,
-  housePrizeRake: 0.08,
+  sliceRate: 0.142,
+  houseFeeCut: 0.018,
+  housePrizeRake: 0.05,
 };
 
 export const ARENA_PARAMS: TierParams = {
   id: "arena",
   feeRate: 0.01,
   winChance: 0.08,
-  sliceRate: 0.11,
-  houseFeeCut: 0.12,
-  housePrizeRake: 0.15,
+  sliceRate: 0.12,
+  houseFeeCut: 0.017,
+  housePrizeRake: 0.05,
 };
 
 export const COURT_PARAMS: TierParams = {
   id: "court",
   feeRate: 0.008,
-  winChance: 0.06,
-  sliceRate: 0.09,
-  houseFeeCut: 0.15,
-  housePrizeRake: 0.18,
+  winChance: 0.07,
+  sliceRate: 0.11,
+  houseFeeCut: 0.011,
+  housePrizeRake: 0.05,
 };
 
 /**

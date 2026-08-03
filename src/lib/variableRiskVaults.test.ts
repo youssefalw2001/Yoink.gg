@@ -197,28 +197,38 @@ describe("12-combo EV table matches the design values within tolerance", () => {
     evD: number;
     evH: number;
   }
-  // Published values from design.md's per-tier, per-profile EV table.
+  /**
+   * Per-tier × per-profile EV table, recomputed for the **v2 "sane hold"**
+   * economy (see the balance note atop `siegeMath.ts`).
+   *
+   * Every row is derived analytically from the published base params, not
+   * copied from a doc:
+   *   D  = evDefender(base) = (1 − ρ_fee)·f − p·s      (held constant by design)
+   *   p' = clamp(p·κ)                                   κ = 0.6 / 1.0 / 1.5
+   *   f' = (D + p'·s) / (1 − ρ_fee)                     preserves D exactly
+   *   evR' = p'·s·(1 − ρ_prize) − f'
+   *   evH' = ρ_fee·f' + p'·ρ_prize·s
+   *
+   * Note that `evD` is now strictly positive in all four tiers — v1's Arena
+   * row was exactly 0.0000, meaning defenders took variance for nothing.
+   */
   const rows: Row[] = [
-    // Pit (D = 0.0018)
-    { tier: PIT_PARAMS, profile: "fortified", p: 0.072, f: 0.01273, evR: -0.002143, evD: 0.0018, evH: 0.000343 },
-    { tier: PIT_PARAMS, profile: "standard", p: 0.120, f: 0.02000, evR: -0.002360, evD: 0.0018, evH: 0.000560 },
-    { tier: PIT_PARAMS, profile: "exposed", p: 0.180, f: 0.02909, evR: -0.002631, evD: 0.0018, evH: 0.000831 },
-    // Grind (D = 0.0011)
-    { tier: GRIND_PARAMS, profile: "fortified", p: 0.060, f: 0.00947, evR: -0.002292, evD: 0.0011, evH: 0.001192 },
-    { tier: GRIND_PARAMS, profile: "standard", p: 0.100, f: 0.01500, evR: -0.003040, evD: 0.0011, evH: 0.001940 },
-    { tier: GRIND_PARAMS, profile: "exposed", p: 0.150, f: 0.02191, evR: -0.003975, evD: 0.0011, evH: 0.002875 },
-    // Arena (D = 0.0000)
-    { tier: ARENA_PARAMS, profile: "fortified", p: 0.048, f: 0.00600, evR: -0.001512, evD: 0.0000, evH: 0.001512 },
-    { tier: ARENA_PARAMS, profile: "standard", p: 0.080, f: 0.01000, evR: -0.002520, evD: 0.0000, evH: 0.002520 },
-    { tier: ARENA_PARAMS, profile: "exposed", p: 0.120, f: 0.01500, evR: -0.003780, evD: 0.0000, evH: 0.003780 },
-    // Court (D = 0.0014)
-    { tier: COURT_PARAMS, profile: "fortified", p: 0.036, f: 0.00546, evR: -0.002802, evD: 0.0014, evH: 0.001402 },
-    { tier: COURT_PARAMS, profile: "standard", p: 0.060, f: 0.00800, evR: -0.003572, evD: 0.0014, evH: 0.002172 },
-    // NOTE: design table prints f'=0.01177 for this cell, but that value is
-    // inconsistent with the row's own published EVs. The EV-consistent f' is
-    // (0.0014 + 0.09·0.09)/0.85 = 0.0111765, which reproduces EV_raider/-house
-    // exactly. We assert the mathematically correct value.
-    { tier: COURT_PARAMS, profile: "exposed", p: 0.090, f: 0.0111765, evR: -0.004534, evD: 0.0014, evH: 0.003134 },
+    // pit (D = 0.0010200)
+    { tier: PIT_PARAMS, profile: "fortified", p: 0.07200, f: 0.0124159, evR: -0.0018139, evD: 0.0010200, evH: 0.0007939 },
+    { tier: PIT_PARAMS, profile: "standard", p: 0.12000, f: 0.0200000, evR: -0.0023300, evD: 0.0010200, evH: 0.0013100 },
+    { tier: PIT_PARAMS, profile: "exposed", p: 0.18000, f: 0.0294801, evR: -0.0029751, evD: 0.0010200, evH: 0.0019551 },
+    // grind (D = 0.0005300)
+    { tier: GRIND_PARAMS, profile: "fortified", p: 0.06000, f: 0.0092159, evR: -0.0011219, evD: 0.0005300, evH: 0.0005919 },
+    { tier: GRIND_PARAMS, profile: "standard", p: 0.10000, f: 0.0150000, evR: -0.0015100, evD: 0.0005300, evH: 0.0009800 },
+    { tier: GRIND_PARAMS, profile: "exposed", p: 0.15000, f: 0.0222301, evR: -0.0019951, evD: 0.0005300, evH: 0.0014651 },
+    // arena (D = 0.0002300)
+    { tier: ARENA_PARAMS, profile: "fortified", p: 0.04800, f: 0.0060936, evR: -0.0006216, evD: 0.0002300, evH: 0.0003916 },
+    { tier: ARENA_PARAMS, profile: "standard", p: 0.08000, f: 0.0100000, evR: -0.0008800, evD: 0.0002300, evH: 0.0006500 },
+    { tier: ARENA_PARAMS, profile: "exposed", p: 0.12000, f: 0.0148830, evR: -0.0012030, evD: 0.0002300, evH: 0.0009730 },
+    // court (D = 0.0002120)
+    { tier: COURT_PARAMS, profile: "fortified", p: 0.04200, f: 0.0048857, evR: -0.0004967, evD: 0.0002120, evH: 0.0002847 },
+    { tier: COURT_PARAMS, profile: "standard", p: 0.07000, f: 0.0080000, evR: -0.0006850, evD: 0.0002120, evH: 0.0004730 },
+    { tier: COURT_PARAMS, profile: "exposed", p: 0.10500, f: 0.0118928, evR: -0.0009203, evD: 0.0002120, evH: 0.0007083 },
   ];
 
   for (const row of rows) {
