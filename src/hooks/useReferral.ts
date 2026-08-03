@@ -30,6 +30,7 @@ import {
   parseRefFromUrl,
   type ReferralTier,
 } from "@/lib/referral";
+import { playerIdentity, linkAnonToWallet } from "@/lib/identity";
 
 const LEDGER_KEY = "yoink_ww_referral_ledger_v1";
 const ACCRUAL_MS = 4_000;
@@ -134,15 +135,34 @@ export function useReferral(wallet: string | null): UseReferral {
   const ref = useRef(ledger);
   ref.current = ledger;
 
-  const code = referralCodeForWallet(wallet ?? "anon");
-  const link = referralLinkForWallet(wallet ?? "anon");
-  const referrer = wallet ? getReferrer(wallet) : null;
+  /**
+   * IDENTITY — was `wallet ?? "anon"`, which made `referralCodeForWallet` return
+   * the literal `LORD-ANON` for EVERY guest on earth. A guest sharing a win card
+   * was crediting a code that identified nobody, and guests are the cohort most
+   * likely to share because the free siege is the first thing they touch.
+   *
+   * `playerIdentity` returns the wallet when connected and a stable, unique,
+   * per-browser anonymous id otherwise, so a guest's code is unique to them and
+   * survives reloads.
+   */
+  const identity = playerIdentity(wallet);
+  const code = referralCodeForWallet(identity);
+  const link = referralLinkForWallet(identity);
+  // Attribution is keyed on identity too, so a tag captured while browsing as a
+  // guest is not silently discarded.
+  const referrer = getReferrer(identity);
 
-  // Capture the inbound ?ref= tag once, the first time we know the wallet.
+  // Capture the inbound ?ref= tag once — for guests as well as connected wallets.
   useEffect(() => {
-    if (!wallet) return;
     const incoming = parseRefFromUrl();
-    if (incoming) setReferrerOnce(wallet, incoming);
+    if (incoming) setReferrerOnce(identity, incoming);
+  }, [identity]);
+
+  // When a guest later connects, remember that the two identities are the same
+  // person so links shared while anonymous can be honoured once a backend can
+  // adjudicate them. Records the association only; it moves no SOL.
+  useEffect(() => {
+    if (wallet) linkAnonToWallet(wallet);
   }, [wallet]);
 
   // Simulated accrual: every tick, each non-capped referred user generates a

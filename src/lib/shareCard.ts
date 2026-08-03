@@ -30,6 +30,22 @@ export interface WinCardData {
   referralCode: string;
   /** The player's referral link, used in the share text. */
   referralLink: string;
+  /**
+   * NEAR MISS — present when the siege FAILED and the player wants to share how
+   * close it was.
+   *
+   * Roughly 88% of Pit sieges fail, so a win-only share surface ignores the
+   * overwhelmingly common outcome. A near miss is also better social content
+   * than a win: it is funnier, it invites pile-on replies, and it advertises the
+   * published odds honestly rather than only showing the jackpots. `awayPct` and
+   * the prize that was missed come straight from the settled roll.
+   */
+  nearMiss?: {
+    /** How far the roll was from the crack threshold, as a percentage. */
+    awayPct: number;
+    /** The SOL slice that was missed. */
+    missedSol: number;
+  };
 }
 
 /** Card dimensions — the standard Twitter/OG summary_large_image ratio. */
@@ -44,6 +60,9 @@ export const CARD_H = 630;
  * so presenting them as a real heist would be a fabricated flex.
  */
 export function buildHeadline(d: WinCardData): string {
+  if (d.nearMiss) {
+    return `I was ${d.nearMiss.awayPct}% away from taking ${formatSol(d.nearMiss.missedSol, 3)} SOL off ${truncateAddress(d.targetWallet, 4, 4)}`;
+  }
   if (d.free) {
     return `I cracked the house training vault for ${formatSol(d.amountSol, 3)} SOL on my free siege`;
   }
@@ -52,6 +71,9 @@ export function buildHeadline(d: WinCardData): string {
 
 /** The tweet body. Keeps the referral link last so link previews resolve to it. */
 export function buildShareText(d: WinCardData): string {
+  if (d.nearMiss) {
+    return `${buildHeadline(d)}. Provably fair, published odds, and I still fumbled it. In every other app the house wins — on YOINK.GG you can be the house. ${d.referralLink}`;
+  }
   const hook = d.free
     ? "Free siege, real crack."
     : `${d.multiple.toFixed(1)}× the fee.`;
@@ -65,6 +87,10 @@ export function buildTweetUrl(d: WinCardData): string {
 
 /** Deterministic, filesystem-safe download name. */
 export function winCardFilename(d: WinCardData): string {
+  if (d.nearMiss) {
+    const pct = String(d.nearMiss.awayPct).replace(".", "-");
+    return `yoink-nearmiss-${pct}-pct.png`;
+  }
   const sol = formatSol(d.amountSol, 3).replace(".", "-");
   return `yoink-crack-${sol}-sol.png`;
 }
@@ -97,15 +123,18 @@ function roundRect(
  * that renders 200 ms late is a card nobody shares.
  */
 export function drawWinCard(ctx: CanvasRenderingContext2D, d: WinCardData): void {
-  const GOLD = "#FFD700";
-  const AMBER = "#FF9900";
+  const miss = !!d.nearMiss;
+  const GOLD = miss ? "#FF9900" : "#FFD700";
+  const AMBER = miss ? "#FF2200" : "#FF9900";
   const VOID = "#08080F";
 
-  // Background: dark void with a warm radial bloom behind the number.
+  // Background: dark void with a warm radial bloom behind the number. A near
+  // miss bleeds red instead of gold so the two cards are distinguishable in a
+  // timeline at thumbnail size.
   ctx.fillStyle = VOID;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   const bloom = ctx.createRadialGradient(CARD_W / 2, CARD_H * 0.46, 40, CARD_W / 2, CARD_H * 0.46, CARD_W * 0.62);
-  bloom.addColorStop(0, "rgba(255,215,0,0.20)");
+  bloom.addColorStop(0, miss ? "rgba(255,34,0,0.18)" : "rgba(255,215,0,0.20)");
   bloom.addColorStop(0.5, "rgba(112,0,255,0.08)");
   bloom.addColorStop(1, "rgba(8,8,15,0)");
   ctx.fillStyle = bloom;
@@ -132,15 +161,18 @@ export function drawWinCard(ctx: CanvasRenderingContext2D, d: WinCardData): void
   // Eyebrow.
   ctx.fillStyle = "#8892a4";
   ctx.font = "600 26px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.fillText(d.free ? "FREE SIEGE · TRAINING VAULT" : "WALLET WARS · SIEGE THE VAULT", CARD_W / 2, 108);
+  const eyebrow = miss
+    ? "WALLET WARS · SO CLOSE"
+    : d.free ? "FREE SIEGE · TRAINING VAULT" : "WALLET WARS · SIEGE THE VAULT";
+  ctx.fillText(eyebrow, CARD_W / 2, 108);
 
   // Headline.
   ctx.fillStyle = "#ffffff";
   ctx.font = "900 68px Orbitron, ui-sans-serif, system-ui, sans-serif";
-  ctx.fillText("VAULT CRACKED", CARD_W / 2, 196);
+  ctx.fillText(miss ? "ALMOST" : "VAULT CRACKED", CARD_W / 2, 196);
 
   // The number — the whole point of the card.
-  const amount = `+${formatSol(d.amountSol, 3)}`;
+  const amount = miss ? `${d.nearMiss!.awayPct}%` : `+${formatSol(d.amountSol, 3)}`;
   ctx.font = "900 168px ui-monospace, SFMono-Regular, Menlo, monospace";
   const numGrad = ctx.createLinearGradient(0, 240, 0, 400);
   numGrad.addColorStop(0, GOLD);
@@ -150,14 +182,16 @@ export function drawWinCard(ctx: CanvasRenderingContext2D, d: WinCardData): void
 
   ctx.fillStyle = "#8892a4";
   ctx.font = "600 34px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.fillText("SOL", CARD_W / 2, 412);
+  ctx.fillText(miss ? "AWAY FROM THE CRACK" : "SOL", CARD_W / 2, 412);
 
   // Context line: what was cracked, and the multiple for paid sieges.
   ctx.fillStyle = "#eef1f6";
   ctx.font = "600 28px ui-monospace, SFMono-Regular, Menlo, monospace";
-  const detail = d.free
-    ? "House training vault · risked nothing"
-    : `${truncateAddress(d.targetWallet, 4, 4)} · ${d.multiple.toFixed(1)}× the fee risked`;
+  const detail = miss
+    ? `Missed ${formatSol(d.nearMiss!.missedSol, 3)} SOL off ${truncateAddress(d.targetWallet, 4, 4)}`
+    : d.free
+      ? "House training vault · risked nothing"
+      : `${truncateAddress(d.targetWallet, 4, 4)} · ${d.multiple.toFixed(1)}× the fee risked`;
   ctx.fillText(detail, CARD_W / 2, 470);
 
   // Footer: brand left, referral code right — burned in so attribution survives

@@ -13,9 +13,9 @@
  * status bar → the active tab → war feed (Lords/Runners filters) → war boards.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { LineChart, Crosshair, Radio, Crown } from "lucide-react";
+import { LineChart, Crosshair, Radio, Crown, Swords } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { SnatchIcon } from "@/components/ui/YoinkLogo";
 import {
@@ -40,6 +40,11 @@ import { useEarningsLedger } from "./useEarningsLedger";
 import { type UseReferral } from "@/hooks/useReferral";
 import { useFreeSiege } from "@/hooks/useFreeRound";
 import { makeTrainingVault, freeSiegeResolution } from "@/lib/freeSiege";
+import {
+  parseChallengeFromUrl, challengeLink, challengeShareText, CHALLENGE_PARAM,
+} from "@/lib/challengeLink";
+import { formatSol, truncateAddress } from "@/lib/utils";
+import type { RiskProfile } from "@/lib/siegeMath";
 
 const ONBOARD_KEY = "yoink_ww_onboarded_v2";
 
@@ -97,6 +102,10 @@ export function WalletWarsScreen({
   const [lastSiege, setLastSiege] = useState<LastSiege | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  /** Label of an inbound challenger, for the "you've been challenged" banner. */
+  const [challengeLabel, setChallengeLabel] = useState<string | null>(null);
+  /** Challenge vault awaiting an auto-opened siege once it becomes raidable. */
+  const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
 
   // War-feed filter follows the active tab by default; manual pills override.
   const [feedView, setFeedView] = useState<FeedView>(role === "lord" ? "lords" : "runners");
@@ -109,6 +118,60 @@ export function WalletWarsScreen({
   useEffect(() => {
     try { if (localStorage.getItem(ONBOARD_KEY) !== "1") setShowOnboarding(true); } catch { /* private mode */ }
   }, []);
+
+  /**
+   * INBOUND CHALLENGE LINK ("crack my vault").
+   *
+   * The link is self-describing (corpus + published risk profile + label), so we
+   * rebuild the challenger's vault locally and put it on the board — see
+   * `addChallengeVaultState` for why injection beats a bespoke siege path.
+   *
+   * The URL parameter is stripped immediately afterwards so a refresh cannot
+   * stack duplicate vaults and so the address bar stops advertising a challenge
+   * that has already been accepted. Runs once; `addChallengeVault` is itself
+   * idempotent as a second line of defence against a StrictMode double-invoke.
+   */
+  const challengeHandled = useRef(false);
+  useEffect(() => {
+    if (challengeHandled.current) return;
+    challengeHandled.current = true;
+
+    const challenge = parseChallengeFromUrl();
+    if (!challenge) return;
+
+    const id = war.addChallengeVault(challenge);
+    setChallengeLabel(challenge.label);
+    // Land the player on the board that contains the vault they were sent.
+    setTab("hunt");
+    saveRole("runner");
+    if (id) {
+      setHighlightId(id);
+      setPendingChallengeId(id);
+    }
+
+    // Drop ?c= (keep any other params, e.g. ?ref=) without a reload.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete(CHALLENGE_PARAM);
+      window.history.replaceState({}, "", url.toString());
+    } catch { /* non-browser or blocked history API — harmless */ }
+  }, [war]);
+
+  /**
+   * Once the challenge vault is on the board, open the siege automatically — but
+   * ONLY if the player can actually raid it. Auto-opening a modal whose commit
+   * button is disabled (no vault, or the fee exceeds their corpus) would be a
+   * dead end, so in that case the vault stays highlighted with a banner instead.
+   */
+  useEffect(() => {
+    if (!pendingChallengeId) return;
+    const v = state.stashes.find((s) => s.id === pendingChallengeId);
+    if (!v) { setPendingChallengeId(null); return; }
+    if (canRaidStash(v)) {
+      setRaidTargetId(pendingChallengeId);
+      setPendingChallengeId(null);
+    }
+  }, [pendingChallengeId, state.stashes, state.you]);
 
   function switchTab(next: ScreenTab) {
     setTab(next);
@@ -261,6 +324,27 @@ export function WalletWarsScreen({
         <TabButton active={tab === "crown"} onClick={() => switchTab("crown")} accent="#FFD700" icon={<Crown className="h-4 w-4" aria-hidden />} label="Crown" sublabel="Referrals" />
       </div>
 
+      {/* inbound challenge banner — shown when a challenge link could not be
+          auto-opened (no vault yet, or the fee exceeds the player's corpus). */}
+      {challengeLabel && pendingChallengeId && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 flex items-center gap-3 rounded-2xl border border-blood/30 bg-blood/[0.07] px-4 py-3"
+        >
+          <Swords className="h-4 w-4 shrink-0 text-blood" aria-hidden />
+          <div className="flex flex-1 flex-col">
+            <span className="font-display text-xs font-black uppercase tracking-[0.08em] text-blood">
+              {challengeLabel} challenged you
+            </span>
+            <span className="font-mono text-[10px] leading-relaxed text-slate">
+              Their vault is at the top of your board. Take a free siege to warm
+              up, or open a vault to hit it for real.
+            </span>
+          </div>
+        </motion.div>
+      )}
+
       {/* persistent position status bar */}
       <div className="mb-5">
         <PositionStatusBar you={state.you} earningsToday={earnings.today} lastSiege={lastSiege} role={role} />
@@ -310,18 +394,38 @@ export function WalletWarsScreen({
         </motion.div>
       </AnimatePresence>
 
-      {/* Build-tab invite nudge — multiply your fee income via lifetime referrals */}
+      {/* Build-tab growth pair: taunt raiders at your own vault, then the
+          lifetime-referral nudge. The challenge button is deliberately FIRST —
+          it is the higher-intent action and the one that recruits players. */}
       {tab === "build" && state.you && (
-        <button
-          type="button"
-          onClick={() => switchTab("crown")}
-          className="mt-3 flex w-full items-center gap-2 rounded-xl border border-gold/20 bg-gold/[0.05] px-3.5 py-2.5 text-left transition-colors hover:bg-gold/[0.1]"
-        >
-          <Crown className="h-3.5 w-3.5 shrink-0 text-gold" aria-hidden />
-          <span className="font-mono text-[10px] leading-relaxed text-slate">
-            Multiply this. <span className="text-gold">Invite a Lord</span> and earn lifetime rake from their fees too.
-          </span>
-        </button>
+        <div className="mt-3 flex flex-col gap-2">
+          <ChallengeButton
+            amount={state.you.amount}
+            profile={state.you.riskProfile}
+            /**
+             * The label the RECIPIENT sees, so it must never be self-referential.
+             * `truncateAddress(publicKey ?? "You")` yielded the literal "You" for
+             * guests, which made a shared challenge arrive as "You challenged
+             * you". Fall back to the player's unique referral code instead, which
+             * reads as an identity to a stranger.
+             */
+            label={
+              displayName
+              || (publicKey ? truncateAddress(publicKey, 4, 4) : referral.code.replace("LORD-", "Lord "))
+            }
+            refCode={referral.code}
+          />
+          <button
+            type="button"
+            onClick={() => switchTab("crown")}
+            className="flex w-full items-center gap-2 rounded-xl border border-gold/20 bg-gold/[0.05] px-3.5 py-2.5 text-left transition-colors hover:bg-gold/[0.1]"
+          >
+            <Crown className="h-3.5 w-3.5 shrink-0 text-gold" aria-hidden />
+            <span className="font-mono text-[10px] leading-relaxed text-slate">
+              Multiply this. <span className="text-gold">Invite a Lord</span> and earn lifetime rake from their fees too.
+            </span>
+          </button>
+        </div>
       )}
 
       {/* war feed with dual filters */}
@@ -398,6 +502,70 @@ export function WalletWarsScreen({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/**
+ * ChallengeButton — the Vault Lord's recruiting tool.
+ *
+ * Generates a self-describing "crack my vault" link and shares it. This is the
+ * mechanic that makes the +EV, passive side of the market do the marketing: a
+ * defender taunts raiders at their own vault because their ego is on the line,
+ * and every accepted challenge is a raider arriving with intent. It also
+ * bootstraps the cold-start problem — a two-sided market that has to be seeded
+ * from one side is exactly what a shareable challenge solves.
+ *
+ * The player's referral code rides along inside the payload, so a recruited
+ * raider is attributable.
+ */
+function ChallengeButton({ amount, profile, label, refCode }: {
+  amount: number; profile: RiskProfile; label: string; refCode: string;
+}) {
+  const [state, setState] = useState<"idle" | "shared" | "copied" | "failed">("idle");
+
+  async function share() {
+    const challenge = { amount, profile, label, ref: refCode };
+    const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+    const url = challengeLink(challenge, origin);
+    const text = challengeShareText(challenge, url);
+    try {
+      const nav = navigator as Navigator & { share?: (d: { text: string; title?: string }) => Promise<void> };
+      if (nav.share) {
+        await nav.share({ text, title: "YOINK.GG · Crack my vault" });
+        setState("shared");
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setState("copied");
+      window.setTimeout(() => setState("idle"), 2200);
+    } catch {
+      setState("failed");
+      window.setTimeout(() => setState("idle"), 2200);
+    }
+  }
+
+  const copy =
+    state === "shared" ? "Challenge sent — good luck to them"
+    : state === "copied" ? "Link copied — go post it"
+    : state === "failed" ? "Couldn't share — try again"
+    : null;
+
+  return (
+    <button
+      type="button"
+      onClick={share}
+      className="flex w-full items-center gap-2 rounded-xl border border-blood/25 bg-blood/[0.06] px-3.5 py-2.5 text-left transition-colors hover:bg-blood/[0.11]"
+    >
+      <Swords className="h-3.5 w-3.5 shrink-0 text-blood" aria-hidden />
+      <span className="font-mono text-[10px] leading-relaxed text-slate">
+        {copy ?? (
+          <>
+            <span className="text-blood">Dare them to crack it.</span> Share a link
+            straight at your {formatSol(amount, 2)} SOL vault — every failed siege pays you.
+          </>
+        )}
+      </span>
+    </button>
   );
 }
 
