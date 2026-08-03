@@ -38,6 +38,8 @@ import { PositionStatusBar, type LastSiege } from "./PositionStatusBar";
 import { RoleOnboarding } from "./RoleOnboarding";
 import { useEarningsLedger } from "./useEarningsLedger";
 import { type UseReferral } from "@/hooks/useReferral";
+import { useFreeSiege } from "@/hooks/useFreeRound";
+import { makeTrainingVault, freeSiegeResolution } from "@/lib/freeSiege";
 
 const ONBOARD_KEY = "yoink_ww_onboarded_v2";
 
@@ -76,6 +78,21 @@ export function WalletWarsScreen({
   const role: WarRole = tab === "crown" ? (loadRole() ?? "runner") : roleForTab(tab);
 
   const [raidTargetId, setRaidTargetId] = useState<string | null>(null);
+  /**
+   * FREE-SIEGE ON-RAMP. Separate from `raidTargetId` because a free siege has no
+   * board target and — critically — no `state.you` requirement, so it must not
+   * flow through `canRaidStash`. This is the seam that lets a first-time visitor
+   * play before committing any capital.
+   */
+  const freeSiege = useFreeSiege();
+  const [freeSiegeOpen, setFreeSiegeOpen] = useState(false);
+  /**
+   * Bumped to force-remount the free SiegeModal. `SiegeModal` owns its own
+   * `select → strain → result` phase state, so "Siege again" can only work by
+   * giving it a fresh key — without this the button would appear live and do
+   * nothing.
+   */
+  const [freeSiegeSeq, setFreeSiegeSeq] = useState(0);
   const [runnerStats, setRunnerStats] = useState<RunnerStats>(() => loadRunnerStats());
   const [lastSiege, setLastSiege] = useState<LastSiege | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -164,6 +181,32 @@ export function WalletWarsScreen({
         return next;
       });
       if (refOut && refOut.cut > 0) referral.recordSentToReferrer(refOut.cut);
+    }
+    return resolution;
+  }
+
+  // ── Free-siege flow (no wallet, no vault, nothing risked) ───────────────────
+
+  /** The synthetic house training vault a free siege targets. Never on the board. */
+  const trainingVault = useMemo(() => makeTrainingVault(Date.now()), []);
+
+  /**
+   * Settle a free siege. The quota + house promo pool live in `useFreeSiege`;
+   * this only adapts the outcome into the paid flow's `SiegeResolution` and
+   * records the attempt in the player's Runner stats so free play still builds
+   * progression (the reason to come back tomorrow).
+   */
+  function handleFreeSiegeCommit(): SiegeResolution {
+    const result = freeSiege.claim();
+    const resolution = freeSiegeResolution(result, freeSiege.nextResetMins);
+    if (resolution.ok) {
+      const r = resolution.result;
+      setLastSiege({ outcome: r.outcome, roll: r.roll, needed: r.pWin, seized: r.seized });
+      setRunnerStats((prev) => {
+        const next = recordSiege(prev, r.outcome, r.seized);
+        saveRunnerStats(next);
+        return next;
+      });
     }
     return resolution;
   }
@@ -257,6 +300,9 @@ export function WalletWarsScreen({
               onSiege={handleSiege}
               onOpenVaultCta={() => switchTab("build")}
               highlightId={highlightId}
+              freeLeft={freeSiege.dailyLeft}
+              onFreeSiege={() => setFreeSiegeOpen(true)}
+              freeResetMins={freeSiege.nextResetMins}
             />
           ) : (
             <CrownTab referral={referral} />
@@ -319,6 +365,35 @@ export function WalletWarsScreen({
             onSiegeAgain={handleSiegeAgain}
             onClose={() => setRaidTargetId(null)}
             onInvite={() => { setRaidTargetId(null); switchTab("crown"); }}
+            referralCode={referral.code}
+            referralLink={referral.link}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* FREE siege — deliberately NOT gated on `state.you`. This is the whole
+          point: a first-time visitor can complete a real, provably-fair siege
+          before owning a vault or even connecting a wallet. */}
+      <AnimatePresence>
+        {freeSiegeOpen && (
+          <SiegeModal
+            key={`free-siege-${freeSiegeSeq}`}
+            target={trainingVault}
+            yourVault={0}
+            taxMult={0}
+            freeMode
+            freeLeft={freeSiege.dailyLeft}
+            onCommit={handleFreeSiegeCommit}
+            onSiegeAgain={() => {
+              // Another free shot at the training vault if quota remains,
+              // otherwise fall out to the board.
+              if (freeSiege.dailyLeft > 0) setFreeSiegeSeq((n) => n + 1);
+              else setFreeSiegeOpen(false);
+            }}
+            onClose={() => setFreeSiegeOpen(false)}
+            onOpenVault={() => { setFreeSiegeOpen(false); switchTab("build"); }}
+            referralCode={referral.code}
+            referralLink={referral.link}
           />
         )}
       </AnimatePresence>

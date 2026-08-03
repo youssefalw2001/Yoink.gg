@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Crosshair, Trophy, TrendingUp, Coins, Swords, Check, Bell, Zap, History, Users, Vault as VaultIcon, ChevronRight,
+  Crosshair, Trophy, TrendingUp, Coins, Swords, Check, Bell, Zap, History, Users, Vault as VaultIcon, ChevronRight, Gift,
 } from "lucide-react";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import {
@@ -47,12 +47,76 @@ interface HuntTabProps {
   onOpenVaultCta: () => void;
   /** Optional id to scroll/flash as the highlighted "best" target after onboarding. */
   highlightId?: string | null;
+  /** Free sieges remaining today (house-funded training vault). */
+  freeLeft?: number;
+  /** Start a free siege — no wallet, no vault, nothing risked. */
+  onFreeSiege?: () => void;
+  /** Minutes until the free-siege quota resets at UTC midnight. */
+  freeResetMins?: number;
+}
+
+/**
+ * FreeSiegeHero — the first thing a new visitor sees on the Hunt board.
+ *
+ * Before this existed, a visitor with no vault landed on Hunt and every single
+ * OpportunityCard button was disabled (`canRaid` is false without `state.you`),
+ * so the product's opening frame was a wall of dead buttons behind a capital
+ * ask. This card puts a real, playable, zero-risk action first and defers the
+ * vault conversation until after the player has felt the loop.
+ */
+function FreeSiegeHero({ left, onSiege, resetMins }: { left: number; onSiege: () => void; resetMins?: number }) {
+  const reduced = usePrefersReducedMotion();
+  return (
+    <SpotlightCard spotlightColor="rgba(0,230,118,0.14)" radius={300} className="premium-card rounded-[24px]">
+      <div className="flex flex-col gap-3.5 px-5 py-5">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 rounded-full border border-emerald/30 bg-emerald/10 px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-emerald">
+            <Gift className="h-3 w-3" aria-hidden /> Free to play
+          </span>
+          <span className="font-mono text-[10px] tabular-nums text-dim">
+            {left} left today
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <h3 className="font-display text-lg font-black uppercase tracking-[0.04em] text-white">
+            Crack a vault for free
+          </h3>
+          <p className="font-mono text-[11px] leading-relaxed text-slate">
+            No wallet. No vault. Nothing at risk. You keep anything you crack —
+            the house funds the prize.
+          </p>
+        </div>
+
+        <motion.button
+          type="button"
+          onClick={onSiege}
+          whileHover={reduced ? undefined : { scale: 1.02 }}
+          whileTap={reduced ? undefined : { scale: 0.97 }}
+          transition={{ duration: 0.14 }}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald/40 bg-emerald/15 py-3.5 font-display text-sm font-black uppercase tracking-[0.14em] text-emerald transition-colors hover:bg-emerald/25"
+          style={{ willChange: "transform" }}
+        >
+          <Gift className="h-4 w-4" aria-hidden /> Take my free siege
+        </motion.button>
+
+        {typeof resetMins === "number" && (
+          <span className="text-center font-mono text-[9px] uppercase tracking-[0.16em] text-dim">
+            Resets in {resetMins < 60 ? `${resetMins} min` : `${Math.round(resetMins / 60)}h`}
+          </span>
+        )}
+      </div>
+    </SpotlightCard>
+  );
 }
 
 /** -1 = All, 0..3 = a tier index. */
 type TierFilter = -1 | 0 | 1 | 2 | 3;
 
-export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVaultCta, highlightId }: HuntTabProps) {
+export function HuntTab({
+  you, stashes, runnerStats, canRaid, onSiege, onOpenVaultCta, highlightId,
+  freeLeft = 0, onFreeSiege, freeResetMins,
+}: HuntTabProps) {
   const reduced = usePrefersReducedMotion();
   const [filter, setFilter] = useState<TierFilter>(-1);
 
@@ -97,6 +161,13 @@ export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVau
 
   return (
     <div className="flex flex-col gap-5">
+      {/* 0 — FREE SIEGE, first and unmissable. A brand-new visitor must have a
+          real playable action before any capital ask; without this the opening
+          frame is disabled buttons (canRaid is false while `you` is null). */}
+      {freeLeft > 0 && onFreeSiege && (
+        <FreeSiegeHero left={freeLeft} onSiege={onFreeSiege} resetMins={freeResetMins} />
+      )}
+
       {/* 1 — opportunity header */}
       <SpotlightCard spotlightColor="rgba(255,34,0,0.12)" radius={280} className="premium-card rounded-[24px]">
         <div className="flex flex-col gap-4 px-5 py-5">
@@ -146,8 +217,10 @@ export function HuntTab({ you, stashes, runnerStats, canRaid, onSiege, onOpenVau
         </div>
       </SpotlightCard>
 
-      {/* fund-your-sieges prompt — a siege fee is paid from your own corpus */}
-      {!you && (
+      {/* fund-your-sieges prompt — a siege fee is paid from your own corpus.
+          Deliberately suppressed while free sieges remain: the capital ask
+          should land AFTER the player has felt the loop, not instead of it. */}
+      {!you && freeLeft <= 0 && (
         <button
           type="button"
           onClick={onOpenVaultCta}

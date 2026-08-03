@@ -34,6 +34,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   X, Crosshair, Flame, TrendingUp, ShieldAlert, Lock,
   Zap, ShieldCheck, Share2, ArrowRight, SkipForward, RotateCcw, Search, Crown,
+  Gift, Vault as VaultIcon,
 } from "lucide-react";
 import {
   tierForAmount,
@@ -49,6 +50,9 @@ import { usePrefersReducedMotion } from "./useReducedMotion";
 import { profileBadgeLabel, PROFILE_ACCENT } from "./riskProfilePresentation";
 import { nextPhaseAfterCommit } from "./siegeFeel";
 import { nearMissView, neededCopy, rolledCopy } from "./nearMiss";
+import {
+  shareWinCard, buildHeadline, type WinCardData, type ShareOutcome,
+} from "@/lib/shareCard";
 
 interface SiegeModalProps {
   target: Vault;
@@ -60,6 +64,20 @@ interface SiegeModalProps {
   onSiegeAgain?: () => void;
   /** Navigate to the Crown tab to invite a Runner (from the crack celebration). */
   onInvite?: () => void;
+  /**
+   * FREE-SIEGE MODE — the attempt fee is waived and `target` is the house
+   * training vault. The fee/affordability gate is bypassed entirely (a free
+   * siege can never be unaffordable), the upside is framed as "risk nothing"
+   * rather than a multiple of a zero fee, and the CTA reads FREE.
+   */
+  freeMode?: boolean;
+  /** Free sieges remaining after this one — shown on the CTA and the result. */
+  freeLeft?: number;
+  /** Referral code/link burned into the shareable win card. */
+  referralCode?: string;
+  referralLink?: string;
+  /** Prompt to convert a warmed-up free player into a vault owner. */
+  onOpenVault?: () => void;
 }
 
 type Phase = "select" | "strain" | "result";
@@ -84,6 +102,10 @@ function rejectionCopy(reason: SiegeRejection): string {
       return "Target is in a different weight class — siege within your tier";
     case "insufficient_funds":
       return `Fee ${formatSol(reason.required, 3)} SOL exceeds your ${formatSol(reason.available, 3)} SOL`;
+    case "free_quota_exhausted":
+      return reason.resetMins <= 60
+        ? `Free sieges used up — ${reason.resetMins} min until they reset`
+        : `Free sieges used up — resets in ${Math.round(reason.resetMins / 60)}h. Open a vault to keep hunting.`;
   }
 }
 
@@ -260,20 +282,58 @@ function StrainSequence({
 }
 
 /**
- * WinTakeover — the full-screen gold takeover on a crack. VAULT CRACKED in
- * Orbitron, the SOL won in mono, and a one-tap branded share card ("I just
- * cracked [wallet] for X SOL on YOINK.GG"). Auto-dismisses after ~3s back to the
- * updated Hunt stats. Reduced-motion safe.
+ * WinTakeover — the full-screen gold takeover on a crack, and the product's
+ * single most important growth surface.
+ *
+ * ⚠️  DO NOT REINTRODUCE AN AUTO-DISMISS. This screen previously closed itself
+ * after 3000 ms, which meant the entire viral loop — the branded card and the
+ * share button — deleted itself before a human could decide to use it. A share
+ * affordance that vanishes on a timer converts at approximately zero. The win is
+ * now a destination the player leaves deliberately.
+ *
+ * Sharing exports a real 1200×630 PNG with the referral code burned into the
+ * pixels (see `lib/shareCard.ts`), preferring the native share sheet on mobile
+ * and falling back to download + tweet composer on desktop. Images travel;
+ * text-only tweets do not.
  */
-function WinTakeover({ result, reduced, onClose, onInvite }: { result: SiegeResult; reduced: boolean; onClose: () => void; onInvite?: () => void }) {
-  // Auto-dismiss after 3s → back to the (updated) Hunt board.
-  useEffect(() => {
-    const id = window.setTimeout(onClose, 3000);
-    return () => window.clearTimeout(id);
-  }, [onClose]);
+function WinTakeover({
+  result, reduced, onClose, onInvite, freeMode = false, freeLeft, referralCode = "", referralLink = "", onOpenVault, rewardMultiple,
+}: {
+  result: SiegeResult;
+  reduced: boolean;
+  onClose: () => void;
+  onInvite?: () => void;
+  freeMode?: boolean;
+  freeLeft?: number;
+  referralCode?: string;
+  referralLink?: string;
+  onOpenVault?: () => void;
+  rewardMultiple: number;
+}) {
+  const [shareState, setShareState] = useState<"idle" | "working" | ShareOutcome>("idle");
 
-  const shareText = `I just cracked ${truncateAddress(result.targetWallet, 4, 4)} for ${formatSol(result.seized, 3)} SOL on YOINK.GG Wallet Wars. yoink.gg`;
-  const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+  const cardData: WinCardData = {
+    amountSol: result.seized,
+    targetWallet: result.targetWallet,
+    multiple: rewardMultiple,
+    free: freeMode,
+    referralCode,
+    referralLink,
+  };
+
+  async function handleShare() {
+    setShareState("working");
+    const outcome = await shareWinCard(cardData);
+    setShareState(outcome);
+  }
+
+  const shareLabel =
+    shareState === "working" ? "Building your card…"
+    : shareState === "shared" ? "Shared — go get 'em"
+    : shareState === "downloaded" ? "Image saved · composer open"
+    : shareState === "tweeted" ? "Composer open"
+    : shareState === "failed" ? "Share failed — try again"
+    : "Share this heist";
 
   return (
     <motion.div
@@ -318,29 +378,49 @@ function WinTakeover({ result, reduced, onClose, onInvite }: { result: SiegeResu
         <span className="font-mono text-5xl font-black tabular-nums text-[#FF9900]" style={{ fontSize: "clamp(2.2rem, 10vw, 3.4rem)" }}>
           +{formatSol(result.seized, 3)}
         </span>
-        <span className="-mt-2 font-mono text-xs uppercase tracking-[0.2em] text-slate">SOL · cracked {truncateAddress(result.targetWallet, 4, 4)}</span>
+        <span className="-mt-2 font-mono text-xs uppercase tracking-[0.2em] text-slate">
+          {freeMode
+            ? "SOL · house training vault · risked nothing"
+            : `SOL · cracked ${truncateAddress(result.targetWallet, 4, 4)}`}
+        </span>
 
-        {/* branded share card — dark void bg, gold text */}
+        {/* branded share card preview — mirrors the exported PNG */}
         <div className="w-full rounded-2xl px-4 py-3 text-left" style={{ background: "#08080F", border: "1px solid rgba(255,215,0,0.3)" }}>
           <p className="font-display text-sm font-black leading-snug">
-            <span className="gold-text-gradient">I just cracked {truncateAddress(result.targetWallet, 4, 4)} for {formatSol(result.seized, 3)} SOL</span>
+            <span className="gold-text-gradient">{buildHeadline(cardData)}</span>
             <span className="text-slate"> on </span>
             <span className="text-white">YOINK.GG</span>
           </p>
+          {referralCode && (
+            <p className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-dim">
+              invite code {referralCode} · burned into the image
+            </p>
+          )}
         </div>
 
-        <a
-          href={shareUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="gold-button flex w-full items-center justify-center gap-2 py-3 text-sm"
+        <button
+          type="button"
+          onClick={handleShare}
+          disabled={shareState === "working"}
+          className="gold-button flex w-full items-center justify-center gap-2 py-3 text-sm disabled:opacity-60"
           style={{ borderRadius: 16 }}
         >
-          <Share2 className="h-4 w-4" aria-hidden /> Share this heist
-        </a>
+          <Share2 className="h-4 w-4" aria-hidden /> {shareLabel}
+        </button>
 
-        {/* invite nudge — before the auto-dismiss */}
-        {onInvite && (
+        {/* Free players get the conversion ask here, at peak dopamine. */}
+        {freeMode && onOpenVault ? (
+          <button
+            type="button"
+            onClick={onOpenVault}
+            className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-gold/30 bg-gold/[0.07] py-2.5 font-mono text-[11px] text-slate transition-colors hover:bg-gold/[0.12]"
+          >
+            <VaultIcon className="h-3.5 w-3.5 text-gold" aria-hidden />
+            {typeof freeLeft === "number" && freeLeft > 0
+              ? <>{freeLeft} free {freeLeft === 1 ? "siege" : "sieges"} left · <span className="text-gold">open a vault</span> to hunt real ones</>
+              : <>That was your last free siege · <span className="text-gold">open a vault</span> to keep hunting</>}
+          </button>
+        ) : onInvite && (
           <button
             type="button"
             onClick={onInvite}
@@ -350,7 +430,15 @@ function WinTakeover({ result, reduced, onClose, onInvite }: { result: SiegeResu
             Know someone who'd crack this too? <span className="text-gold">Invite a Runner.</span>
           </button>
         )}
-        <span className="font-mono text-[10px] text-dim">Returning to your hunt…</span>
+
+        {/* Explicit exit — never a timer. See the ⚠️ note on this component. */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="font-mono text-[10px] uppercase tracking-[0.18em] text-dim transition-colors hover:text-white"
+        >
+          Back to the hunt ▸
+        </button>
       </div>
     </motion.div>
   );
@@ -382,7 +470,10 @@ function NearMissMeter({ view, reduced }: { view: ReturnType<typeof nearMissView
   );
 }
 
-export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSiegeAgain, onInvite }: SiegeModalProps) {
+export function SiegeModal({
+  target, yourVault, taxMult, onCommit, onClose, onSiegeAgain, onInvite,
+  freeMode = false, freeLeft, referralCode, referralLink, onOpenVault,
+}: SiegeModalProps) {
   const reduced = usePrefersReducedMotion();
   const tier = tierForAmount(target.amount); // the TARGET's weight class (raid-up shows the vault you're hitting)
 
@@ -393,7 +484,10 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
   const prizeB = computePrize(target.amount, params, mult);
   const pWin = params.winChance;
   const reward = prizeB.toRaider;
-  const canAfford = feeB.fee <= yourVault;
+  // A free siege waives the fee, so it can never be unaffordable and the
+  // "×fee" multiple is undefined (division by zero) — both are special-cased.
+  const displayFee = freeMode ? 0 : feeB.fee;
+  const canAfford = freeMode || feeB.fee <= yourVault;
   // The headline multiple: a tiny fee for a ~10× crack.
   const rewardMultiple = feeB.fee > 0 ? reward / feeB.fee : 0;
 
@@ -431,7 +525,9 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
   }, []);
 
   function commit() {
-    if (!canAfford) {
+    // Free sieges skip the affordability pre-check entirely — the fee is 0 and
+    // the player may not even own a vault yet.
+    if (!freeMode && !canAfford) {
       playCooldownBlock();
       setBlocked(rejectionCopy({ kind: "insufficient_funds", required: feeB.fee, available: yourVault }));
       return;
@@ -460,7 +556,18 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
   if (phase === "result" && result && result.outcome === "win") {
     return (
       <AnimatePresence>
-        <WinTakeover result={result} reduced={reduced} onClose={onClose} onInvite={onInvite} />
+        <WinTakeover
+          result={result}
+          reduced={reduced}
+          onClose={onClose}
+          onInvite={onInvite}
+          freeMode={freeMode}
+          freeLeft={freeLeft}
+          referralCode={referralCode}
+          referralLink={referralLink}
+          onOpenVault={onOpenVault}
+          rewardMultiple={rewardMultiple}
+        />
       </AnimatePresence>
     );
   }
@@ -488,9 +595,16 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
           {phase === "select" && (
             <motion.div key="select" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4">
               <div className="flex flex-col items-center gap-1 text-center">
-                <span className="flex items-center gap-2 rounded-full border border-blood/30 bg-blood/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-blood">
-                  <Crosshair className="h-3 w-3" aria-hidden /> Sieging · {tier.label}
-                </span>
+                {freeMode ? (
+                  <span className="flex items-center gap-2 rounded-full border border-emerald/30 bg-emerald/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-emerald">
+                    <Gift className="h-3 w-3" aria-hidden />
+                    Free siege{typeof freeLeft === "number" ? ` · ${freeLeft} left today` : ""}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 rounded-full border border-blood/30 bg-blood/10 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-blood">
+                    <Crosshair className="h-3 w-3" aria-hidden /> Sieging · {tier.label}
+                  </span>
+                )}
                 <div className="my-1"><PurgeAvatar seed={target.wallet} size={64} pulse /></div>
                 <span className="font-mono text-sm font-bold text-white">{truncateAddress(target.wallet, 4, 4)}</span>
                 <span
@@ -510,9 +624,18 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
 
               {/* The deal, at a glance: cheap fee in → big slice out */}
               <div className="flex items-stretch gap-2">
-                <div className="flex flex-1 flex-col gap-0.5 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,34,0,0.06)", border: "1px solid rgba(255,34,0,0.16)" }}>
+                <div
+                  className="flex flex-1 flex-col gap-0.5 rounded-xl px-3 py-2.5"
+                  style={freeMode
+                    ? { background: "rgba(0,230,118,0.06)", border: "1px solid rgba(0,230,118,0.16)" }
+                    : { background: "rgba(255,34,0,0.06)", border: "1px solid rgba(255,34,0,0.16)" }}
+                >
                   <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">You risk (fee)</span>
-                  <span className="font-mono text-lg font-black tabular-nums text-blood">{formatSol(feeB.fee, 3)}</span>
+                  {freeMode ? (
+                    <span className="font-mono text-lg font-black uppercase tracking-[0.08em] text-emerald">Nothing</span>
+                  ) : (
+                    <span className="font-mono text-lg font-black tabular-nums text-blood">{formatSol(feeB.fee, 3)}</span>
+                  )}
                 </div>
                 <div className="flex items-center justify-center px-0.5 text-dim">
                   <ArrowRight className="h-4 w-4" aria-hidden />
@@ -530,7 +653,11 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
                 </div>
                 <div className="flex flex-col gap-0.5 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,215,0,0.06)", border: "1px solid rgba(255,215,0,0.16)" }}>
                   <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-dim">Upside</span>
-                  <span className="font-mono text-lg font-black tabular-nums text-gold">≈{rewardMultiple.toFixed(1)}× fee</span>
+                  {freeMode ? (
+                    <span className="font-mono text-lg font-black uppercase tracking-[0.08em] text-gold">All of it</span>
+                  ) : (
+                    <span className="font-mono text-lg font-black tabular-nums text-gold">≈{rewardMultiple.toFixed(1)}× fee</span>
+                  )}
                 </div>
               </div>
 
@@ -541,7 +668,9 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
               )}
               <p className="flex items-center justify-center gap-1.5 text-center font-mono text-[10px] text-dim">
                 <ShieldCheck className="h-3 w-3 text-emerald" aria-hidden />
-                Lose the siege, you only lose the fee · published {(pWin * 100).toFixed(0)}% odds for this tier
+                {freeMode
+                  ? <>House-funded free siege · you cannot lose anything · published {(pWin * 100).toFixed(0)}% odds</>
+                  : <>Lose the siege, you only lose the fee · published {(pWin * 100).toFixed(0)}% odds for this tier</>}
               </p>
 
               {blocked && (
@@ -561,7 +690,11 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border border-blood/40 bg-blood/15 py-3.5 font-display text-sm font-black uppercase tracking-[0.14em] text-blood transition-colors hover:bg-blood/25 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ willChange: "transform" }}
               >
-                <Flame className="h-4 w-4" aria-hidden /> Crack it — {formatSol(feeB.fee, 3)} SOL
+                {freeMode ? (
+                  <><Gift className="h-4 w-4" aria-hidden /> Crack it — FREE</>
+                ) : (
+                  <><Flame className="h-4 w-4" aria-hidden /> Crack it — {formatSol(displayFee, 3)} SOL</>
+                )}
               </motion.button>
 
               <button type="button" onClick={toggleQuick} className="flex items-center justify-center gap-1.5 font-mono text-[10px] text-dim transition-colors hover:text-white">
@@ -624,8 +757,17 @@ export function SiegeModal({ target, yourVault, taxMult, onCommit, onClose, onSi
 
                 {/* fee → vault lord toll confirmation */}
                 <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-                  <span className="font-mono text-[10px] text-slate">Fee paid → toll to {truncateAddress(result.targetWallet, 4, 4)}</span>
-                  <span className="font-mono text-sm font-black tabular-nums text-blood">−{formatSol(result.lost, 3)} SOL</span>
+                  {freeMode ? (
+                    <>
+                      <span className="font-mono text-[10px] text-slate">Free siege — nothing was risked</span>
+                      <span className="font-mono text-sm font-black tabular-nums text-emerald">−0 SOL</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono text-[10px] text-slate">Fee paid → toll to {truncateAddress(result.targetWallet, 4, 4)}</span>
+                      <span className="font-mono text-sm font-black tabular-nums text-blood">−{formatSol(result.lost, 3)} SOL</span>
+                    </>
+                  )}
                 </div>
 
                 {/* provably-fair reveal */}
