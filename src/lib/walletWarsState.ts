@@ -248,7 +248,15 @@ export type SiegeRejection =
   | { kind: "shielded"; shieldRemainingMs: number }
   | { kind: "self_siege" }
   | { kind: "tier_mismatch"; yourTier: number; targetTier: number }
-  | { kind: "insufficient_funds"; required: number; available: number };
+  | { kind: "insufficient_funds"; required: number; available: number }
+  /**
+   * The daily free-siege quota is spent. Produced ONLY by the free-siege
+   * on-ramp (`freeSiegeResolution`), never by `resolveSiege` — the paid engine
+   * has no concept of a quota. It lives in this union so the free path can
+   * reuse the same typed-rejection plumbing (and so `rejectionCopy`'s
+   * exhaustive switch is forced to give it real copy).
+   */
+  | { kind: "free_quota_exhausted"; resetMins: number };
 
 export type SiegeResolution =
   | { ok: true; result: SiegeResult }
