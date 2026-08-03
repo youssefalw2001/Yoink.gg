@@ -377,9 +377,29 @@ function seedBoard(at: number): Stash[] {
   return sortByHeat(board, at);
 }
 
-/** Seeded house treasury / hall-of-fame defaults for a fresh (or migrated) state. */
-const SEED_TOTAL_BANKED = 1_284.6;
-const SEED_BIGGEST_HEIST = 12.4;
+/**
+ * House treasury / hall-of-fame starting values for a fresh (or migrated) state.
+ *
+ * ⚠️  These MUST stay at zero. They previously seeded 1,284.6 SOL banked and a
+ * 12.4 SOL record heist, which the UI renders as "House banked" and "All-time
+ * record" — i.e. as *historical fact*. That is a social-proof claim, and it is
+ * categorically different from the claim the global `PreviewBanner` makes.
+ * The banner tells a user their **stakes** are simulated; it does not tell them
+ * the platform's **history** is invented. A user can rationally believe both
+ * "my SOL is fake" and "≈1,285 SOL has really moved through here".
+ *
+ * Unlike the bot vault board — which has a real gameplay function, since a
+ * single-player simulation needs opponents to siege — these two counters have
+ * no mechanical purpose whatsoever. Their only effect is to make the platform
+ * look busier than it is. `ConnectScreen.tsx` already names that pattern
+ * correctly: showing simulated metrics as traction is a rug signal.
+ *
+ * Both counters accumulate correctly from real settled sieges, so starting at
+ * zero costs nothing but honesty, and the leaderboard already has a graceful
+ * empty state ("No vaults ranked yet"). Do not reintroduce non-zero seeds.
+ */
+const SEED_TOTAL_BANKED = 0;
+const SEED_BIGGEST_HEIST = 0;
 
 function initialState(): WarState {
   return {

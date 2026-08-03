@@ -129,6 +129,16 @@ export function SeasonLeaderboard({ playerWallet }: SeasonLeaderboardProps) {
               <div>
                 <h2 className="font-display text-xl font-black text-white">Weekly Season</h2>
                 <p className="font-mono text-[11px] text-slate">Top 10 earn XP + prizes every Monday</p>
+                {/*
+                  Honesty label. The non-player rows come from a hardcoded demo
+                  roster (see generateSeasonLeaderboard) — not real results.
+                  Fabricated leaderboards presented as real are fake traction;
+                  saying so plainly costs nothing and is the difference between
+                  a simulation and a lie.
+                */}
+                <p className="mt-0.5 font-mono text-[10px] text-dim">
+                  Demo roster · rivals shown are simulated, not real players
+                </p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-0.5">
