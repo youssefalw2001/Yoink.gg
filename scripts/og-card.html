@@ -1,0 +1,93 @@
+<!doctype html>
+<!--
+  Source for public/og.png — the link-preview card.
+
+  Rendered to PNG at exactly 1200x630 (the Twitter/OG summary_large_image ratio)
+  by scripts/make-og.sh, which screenshots this file with a headless browser. Kept
+  as HTML rather than a binary-only asset so the card can be edited, re-generated
+  and diffed instead of being an opaque file nobody dares touch.
+
+  System fonts only: the generator screenshots immediately, so a webfont that has
+  not loaded yet would silently render as a fallback.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: #08080F;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    position: relative;
+  }
+  /* Warm bloom behind the headline, matching the in-app win card. */
+  .bloom {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 44%, rgba(255,215,0,0.17), rgba(8,8,15,0) 70%),
+      radial-gradient(ellipse 50% 50% at 18% 78%, rgba(112,0,255,0.16), rgba(8,8,15,0) 70%),
+      radial-gradient(ellipse 50% 50% at 84% 22%, rgba(255,34,0,0.13), rgba(8,8,15,0) 70%);
+  }
+  .rule {
+    position: absolute; top: 0; left: 0; right: 0; height: 7px;
+    background: linear-gradient(90deg, rgba(8,8,15,0), #7000FF 26%, #FFD700 50%, #FF2200 74%, rgba(8,8,15,0));
+  }
+  .frame {
+    position: absolute; inset: 26px; border: 2px solid rgba(255,215,0,0.26); border-radius: 30px;
+  }
+  .wrap {
+    position: relative; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 0 90px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 25px; font-weight: 600; letter-spacing: 0.30em;
+    color: #8892a4; text-transform: uppercase; margin-bottom: 26px;
+  }
+  .word { font-size: 118px; font-weight: 900; letter-spacing: -0.02em; line-height: 0.98; }
+  .word .a { color: #ffffff; }
+  .word .b { color: #FF2200; }
+  .hook {
+    margin-top: 30px; font-size: 35px; font-weight: 800; line-height: 1.28; color: #eef1f6;
+  }
+  .hook .gold {
+    background: linear-gradient(90deg, #FFE566, #FFD700, #FF9900);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .chips { margin-top: 44px; display: flex; gap: 14px; }
+  .chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 20px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
+    padding: 11px 20px; border-radius: 999px;
+  }
+  .c1 { color: #00E676; background: rgba(0,230,118,0.10); border: 1px solid rgba(0,230,118,0.34); }
+  .c2 { color: #FFD700; background: rgba(255,215,0,0.10); border: 1px solid rgba(255,215,0,0.34); }
+  .c3 { color: #7000FF; background: rgba(112,0,255,0.14); border: 1px solid rgba(112,0,255,0.40); }
+  .brand {
+    position: absolute; bottom: 46px; left: 0; right: 0;
+    font-size: 31px; font-weight: 900; letter-spacing: 0.16em; color: #FFD700;
+  }
+</style>
+</head>
+<body>
+  <div class="bloom"></div>
+  <div class="rule"></div>
+  <div class="frame"></div>
+  <div class="wrap">
+    <div class="eyebrow">Solana · Provably Fair</div>
+    <div class="word"><span class="a">WALLET </span><span class="b">WARS</span></div>
+    <div class="hook">
+      In every other app the house wins.<br />
+      <span class="gold">Here you can be the house.</span>
+    </div>
+    <div class="chips">
+      <span class="chip c1">Free to play</span>
+      <span class="chip c2">Published odds</span>
+      <span class="chip c3">Verifiable rolls</span>
+    </div>
+    <div class="brand">YOINK.GG</div>
+  </div>
+</body>
+</html>
