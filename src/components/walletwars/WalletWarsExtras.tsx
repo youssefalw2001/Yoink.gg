@@ -5,7 +5,8 @@
  *   - ProvablyFairBadge : always-visible trust badge, expands to explain
  *   - StatusBar         : one-line "last action" so users always know their state
  *   - BountyBoard       : promoted phantom-accent list of bountied targets
- *   - FeeToast          : emerald toast when your stash banks a survived raid
+ *   (FeeToast was removed — superseded by DefenseToast.tsx, which classifies
+ *    significance instead of firing on every survival)
  *   - WarOnboarding     : 3-slide first-run tutorial + a risk-free practice raid
  *
  * Design system: void/gold/blood/phantom/emerald/slate, Orbitron/Space Grotesk/
@@ -80,43 +81,6 @@ export function StatusBar({ text }: { text: string }) {
     <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold" aria-hidden />
       <span className="truncate font-mono text-[11px] text-slate">{text}</span>
-    </div>
-  );
-}
-
-// ─── Fee-banked toast — fires when your stash survives a raid ────────────────────
-
-export interface FeeToastData { id: number; amount: number; from: string; }
-
-export function FeeToast({ toast }: { toast: FeeToastData | null }) {
-  return (
-    <div className="pointer-events-none fixed bottom-6 left-1/2 z-[95] -translate-x-1/2" aria-live="polite">
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            key={toast.id}
-            initial={{ opacity: 0, y: 24, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 360, damping: 24 }}
-            className="flex items-center gap-2.5 rounded-2xl px-4 py-2.5"
-            style={{
-              background: "rgba(0,230,118,0.12)",
-              border: "1px solid rgba(0,230,118,0.4)",
-              backdropFilter: "blur(8px)",
-              willChange: "transform",
-            }}
-          >
-            <ShieldCheck className="h-4 w-4 text-emerald" aria-hidden />
-            <span className="font-mono text-xs font-bold text-emerald">
-              +{formatSol(toast.amount, 3)} SOL BANKED
-            </span>
-            <span className="font-mono text-[10px] text-emerald/70">
-              {truncateAddress(toast.from, 4, 4)} failed to raid you
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -37,6 +37,7 @@ import {
   type RiskProfile,
 } from "@/lib/siegeMath";
 import { profilePreviews, PROFILE_ACCENT, profileBadgeLabel, animateUnlessReduced } from "./riskProfilePresentation";
+import { streakProgress } from "@/lib/defenseMoment";
 import { formatSol } from "@/lib/utils";
 import { playPurchase } from "@/lib/sounds";
 import { PurgeAvatar } from "./PurgeAvatar";
@@ -168,6 +169,7 @@ function VaultStatusPanel({
   const tier = tierForAmount(you.amount);
   const tierIdx = tierIndexForAmount(you.amount);
   const streakMult = feeMultiplierForStreak(you.streak, STREAK_CFG);
+  const streakGoal = streakProgress(you.streak);
   const onFire = you.streak > 10;
   const profileAccent = PROFILE_ACCENT[you.riskProfile];
 
@@ -233,9 +235,25 @@ function VaultStatusPanel({
             <span className="flex items-center gap-1 font-mono text-[11px] font-black tabular-nums" style={{ color: onFire ? "#FF2200" : "#FF9900" }}>
               {you.streak} · ×{streakMult.toFixed(2)}
             </span>
-            <span className="font-mono text-[8px] uppercase tracking-[0.1em]" style={{ color: onFire ? "#FF2200" : "#8892a4" }}>
-              {onFire ? "ON FIRE" : "streak"}
-            </span>
+            {/*
+              Give the streak a GOAL. Each survival adds a flat 0.04, so "next
+              multiplier" is always one siege away and therefore worthless as a
+              target — `streakProgress` reports the next headline tier (or the
+              cap) so the number reads as progress rather than trivia.
+            */}
+            {streakGoal.atCap ? (
+              <span className="font-mono text-[8px] font-black uppercase tracking-[0.1em] text-gold">
+                max toll
+              </span>
+            ) : streakGoal.nextMilestoneMult !== null ? (
+              <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-dim">
+                {streakGoal.survivalsToNextMilestone} → ×{streakGoal.nextMilestoneMult.toFixed(2)}
+              </span>
+            ) : (
+              <span className="font-mono text-[8px] uppercase tracking-[0.1em]" style={{ color: onFire ? "#FF2200" : "#8892a4" }}>
+                {onFire ? "ON FIRE" : "streak"}
+              </span>
+            )}
           </div>
 
           <div className="flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-center" style={{ background: shielded ? "rgba(0,230,118,0.06)" : "rgba(136,146,164,0.06)", border: `1px solid ${shielded ? "rgba(0,230,118,0.18)" : "rgba(136,146,164,0.16)"}` }}>
