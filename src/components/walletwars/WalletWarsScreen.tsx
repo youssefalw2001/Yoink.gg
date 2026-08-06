@@ -38,6 +38,7 @@ import { PositionStatusBar, type LastSiege } from "./PositionStatusBar";
 import { RoleOnboarding } from "./RoleOnboarding";
 import { useEarningsLedger } from "./useEarningsLedger";
 import { type UseReferral } from "@/hooks/useReferral";
+import { DefenseToast, useDefenseAnnouncer } from "./DefenseToast";
 import { useFreeSiege } from "@/hooks/useFreeRound";
 import { makeTrainingVault, freeSiegeResolution } from "@/lib/freeSiege";
 import {
@@ -110,6 +111,11 @@ export function WalletWarsScreen({
   // War-feed filter follows the active tab by default; manual pills override.
   const [feedView, setFeedView] = useState<FeedView>(role === "lord" ? "lords" : "runners");
   useEffect(() => { if (tab !== "crown") setFeedView(roleForTab(tab) === "lord" ? "lords" : "runners"); }, [tab]);
+
+  // Defender feel: the engine now retains the last siege settled AGAINST us
+  // (with its roll), so a Vault Lord finally gets a beat for the role that
+  // actually earns. The announcer owns the anti-spam cooldown.
+  const announcedDefense = useDefenseAnnouncer(state.lastDefense);
 
   // Single earnings ledger (avoid double-counting feesEarned deltas).
   const earnings = useEarningsLedger(state.you?.id ?? null, state.you?.feesEarned ?? 0);
@@ -454,6 +460,12 @@ export function WalletWarsScreen({
       </div>
 
       {/* war boards live on the dedicated Hall of Kings page now */}
+
+      {/* DEFENDER BEAT. Deliberately NOT a toast per survival — the ambient tick
+          attacks roughly every 16s, so `useDefenseAnnouncer` surfaces only close
+          calls (throttled) and milestones. Routine holds stay exactly as calm as
+          they were: silent numbers plus a feed row. */}
+      <DefenseToast event={announcedDefense} />
 
       {/* siege modal — stays mounted through strain/result (raidability is
           checked at open); a settled siege shields the target, so we must NOT

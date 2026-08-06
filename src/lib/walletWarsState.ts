@@ -61,6 +61,9 @@ import {
   LEASE_RENEW_MS,
 } from "@/lib/walletWarsSync";
 import { splitHouseRake, referralTierForAmount, type ReferralTier } from "@/lib/referral";
+// Type-only import: keeps the defender feel layer out of the engine's runtime
+// graph entirely, so there is no chance of an import cycle.
+import type { DefenseEvent } from "@/lib/defenseMoment";
 
 export const WAR_CONFIG = {
   RAID_COOLDOWN_MS: 3_000,
@@ -278,6 +281,21 @@ export interface WarState {
   totalBanked: number;
   biggestHeist: number;
   raidCooldownUntil: number;
+  /**
+   * The most recent siege settled AGAINST the player's vault.
+   *
+   * The engine already computes `roll` and `pWin` at the settle site, but they
+   * were previously discarded before reaching React state — which is why no
+   * defender-side near-miss was expressible while the raider had one. Retaining
+   * the last one lets the UI say "they came within 4% of cracking you" using the
+   * same `nearMissView` the raider's screen uses, so both sides of a single
+   * settled siege quote consistent numbers.
+   *
+   * EPHEMERAL: deliberately not persisted (`loadWarFromStorage` restores only
+   * `you`/`totalBanked`/`biggestHeist`), so a reload never replays a stale beat.
+   * Optional so existing `WarState` literals (and tests) stay valid.
+   */
+  lastDefense?: DefenseEvent | null;
 }
 
 let _id = 0;
@@ -417,6 +435,39 @@ function initialState(): WarState {
     totalBanked: SEED_TOTAL_BANKED,
     biggestHeist: SEED_BIGGEST_HEIST,
     raidCooldownUntil: 0,
+    lastDefense: null,
+  };
+}
+
+/** Monotonic id for defence events, so the UI can key/dedupe without float compares. */
+let defenseSeq = 0;
+
+/**
+ * Capture a settled inbound siege as a `DefenseEvent`.
+ *
+ * Called at both ambient sites where a bot sieges the PLAYER's vault. Everything
+ * here is already computed by `settleSiege`; previously it was used only to build
+ * a feed row and then dropped, which left the defender with no roll to reason
+ * about and therefore no near-miss.
+ */
+function makeDefenseEvent(
+  result: SiegeResult,
+  attacker: string,
+  toll: number,
+  defenderAfter: Vault,
+  at: number,
+): DefenseEvent {
+  return {
+    id: ++defenseSeq,
+    outcome: result.outcome === "win" ? "cracked" : "held",
+    attacker,
+    toll,
+    lost: result.outcome === "win" ? result.prizeGross : 0,
+    roll: result.roll,
+    pWin: result.pWin,
+    streakAfter: defenderAfter.streak,
+    survivedAfter: defenderAfter.survived,
+    ts: at,
   };
 }
 
@@ -1369,6 +1420,8 @@ export function useWalletWars() {
         let totalBanked = prev.totalBanked;
         let biggestHeist = prev.biggestHeist;
         const events: RaidEvent[] = [];
+        // Most recent siege settled against the player this tick (defender feel).
+        let lastDefense: DefenseEvent | null = prev.lastDefense ?? null;
 
         // Ambient cadence (feel only): ~BOT_TICK_ACTIVITY chance to run
         // BOT_SIEGES_PER_TICK ambient siege(s). Each settled siege still routes
@@ -1417,6 +1470,8 @@ export function useWalletWars() {
               you = out.defender;
               stashes = stashes.map((t) => (t.id === attacker.id ? out.raider : t));
               totalBanked += out.houseDelta;
+              if (out.result.outcome === "win") biggestHeist = Math.max(biggestHeist, out.result.seized);
+              lastDefense = makeDefenseEvent(out.result, attacker.wallet, feeB.toDefenderOnFail, you, ts);
               events.push(
                 siegeFeedEvent(out.result, attacker.wallet, false, true, feeB.toDefenderOnFail, ts, true),
               );
@@ -1477,6 +1532,8 @@ export function useWalletWars() {
                   you = out.defender;
                   stashes = stashes.map((t) => (t.id === attacker.id ? out.raider : t));
                   totalBanked += out.houseDelta;
+                  if (out.result.outcome === "win") biggestHeist = Math.max(biggestHeist, out.result.seized);
+                  lastDefense = makeDefenseEvent(out.result, attacker.wallet, feeB.toDefenderOnFail, you, ts);
                   events.push(siegeFeedEvent(out.result, attacker.wallet, false, true, feeB.toDefenderOnFail, ts, true));
                 }
               }
@@ -1549,7 +1606,8 @@ export function useWalletWars() {
         // card holds its position between explicit ranking moments (mount /
         // Re-rank / open / cashout). Heat BADGES still update live per card.
         const changed =
-          events.length > 0 || stashes !== prev.stashes || you !== prev.you;
+          events.length > 0 || stashes !== prev.stashes || you !== prev.you
+          || lastDefense !== (prev.lastDefense ?? null);
         if (!changed) return prev;
         return {
           ...prev,
@@ -1558,6 +1616,7 @@ export function useWalletWars() {
           feed: [...events.reverse(), ...prev.feed].slice(0, 40),
           totalBanked,
           biggestHeist,
+          lastDefense,
         };
       });
 
