@@ -23,7 +23,35 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 // ── HMAC Validation ───────────────────────────────────────────────────────────
 
 /**
- * Validate Telegram initData HMAC-SHA256.
+ * Maximum age of a Telegram `initData` payload, in seconds.
+ *
+ * Telegram's own validation guidance requires checking `auth_date` in addition to
+ * the HMAC, and this function previously did not. An HMAC-only check makes a
+ * captured `initData` string a PERMANENT credential: it is signed with the bot
+ * token, so it stays valid forever, and anyone who obtains it once (shared
+ * device, proxy log, screen recording, referrer leak) can authenticate as that
+ * user indefinitely with no way to revoke it.
+ *
+ * 24 hours is the commonly used ceiling — long enough that a legitimate session
+ * resumed later still works, short enough that a leaked payload dies.
+ */
+const INITDATA_MAX_AGE_SECONDS = 24 * 60 * 60;
+
+/** Constant-time hex string comparison (avoids leaking the hash byte-by-byte). */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Validate Telegram Mini App initData.
+ *
+ * TWO checks, both required:
+ *   1. HMAC-SHA256 proves the payload came from Telegram and was not altered.
+ *   2. `auth_date` freshness proves it is not a replay of an old capture.
+ *
  * See: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
  */
 async function validateInitData(initData: string, botToken: string): Promise<boolean> {
@@ -31,6 +59,16 @@ async function validateInitData(initData: string, botToken: string): Promise<boo
     const params = new URLSearchParams(initData);
     const hash = params.get("hash");
     if (!hash) return false;
+
+    // ── Replay guard: reject stale payloads BEFORE doing crypto work. ─────────
+    const authDateRaw = params.get("auth_date");
+    if (!authDateRaw) return false; // unsigned-in-time payload → refuse
+    const authDate = Number(authDateRaw);
+    if (!Number.isFinite(authDate) || authDate <= 0) return false;
+    const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
+    // Negative age means a clock skew or a forged future date; allow a small
+    // tolerance for legitimate skew, reject anything beyond it.
+    if (ageSeconds > INITDATA_MAX_AGE_SECONDS || ageSeconds < -300) return false;
 
     // Remove hash from the data, sort alphabetically
     params.delete("hash");
@@ -62,7 +100,7 @@ async function validateInitData(initData: string, botToken: string): Promise<boo
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    return computedHash === hash;
+    return timingSafeEqualHex(computedHash, hash);
   } catch {
     return false;
   }

@@ -41,17 +41,39 @@ interface TierParams {
   housePrizeRake: number;
 }
 
+/**
+ * ⚠️  THESE ARE A HAND-COPIED MIRROR OF `src/lib/siegeMath.ts`. DO NOT EDIT ONE
+ * WITHOUT THE OTHER.
+ *
+ * WHAT WENT WRONG ONCE ALREADY: this file was written against the v1 economy and
+ * merged after the client had moved to v2. The result was a server that settled a
+ * 44.7%-hold King's Court while the UI advertised 8.56%, and an Arena that paid
+ * defenders exactly zero. That is not merely a balance bug — it BREAKS PROVABLE
+ * FAIRNESS. The verification payload publishes `p_win`, so a client computing
+ * `roll < p` against the advertised odds would disagree with the server's own
+ * settlement, and any user could demonstrate the discrepancy on-chain-adjacent
+ * data. For a product whose entire pitch is "published odds, verifiable roll",
+ * that is the worst possible class of defect.
+ *
+ * The drift is now guarded by `src/lib/serverEconomyParity.test.ts`, which parses
+ * THIS FILE as text and fails CI if any value diverges from the client's exported
+ * `TIER_PARAMS`. If you are here because that test failed: update these values to
+ * match `siegeMath.ts`, do not weaken the test.
+ *
+ * v2 "sane hold" economy — hold descends as stakes climb (11.65% → 8.56%), house
+ * rake is a flat ~6.5%, and every tier pays defenders a strictly positive return.
+ */
 const PIT_PARAMS: TierParams = {
-  id: "pit", feeRate: 0.02, winChance: 0.12, sliceRate: 0.15, houseFeeCut: 0.01, housePrizeRake: 0.02,
+  id: "pit", feeRate: 0.02, winChance: 0.12, sliceRate: 0.155, houseFeeCut: 0.019, housePrizeRake: 0.05,
 };
 const GRIND_PARAMS: TierParams = {
-  id: "grind", feeRate: 0.015, winChance: 0.1, sliceRate: 0.13, houseFeeCut: 0.06, housePrizeRake: 0.08,
+  id: "grind", feeRate: 0.015, winChance: 0.1, sliceRate: 0.142, houseFeeCut: 0.018, housePrizeRake: 0.05,
 };
 const ARENA_PARAMS: TierParams = {
-  id: "arena", feeRate: 0.01, winChance: 0.08, sliceRate: 0.11, houseFeeCut: 0.12, housePrizeRake: 0.15,
+  id: "arena", feeRate: 0.01, winChance: 0.08, sliceRate: 0.12, houseFeeCut: 0.017, housePrizeRake: 0.05,
 };
 const COURT_PARAMS: TierParams = {
-  id: "court", feeRate: 0.008, winChance: 0.06, sliceRate: 0.09, houseFeeCut: 0.15, housePrizeRake: 0.18,
+  id: "court", feeRate: 0.008, winChance: 0.07, sliceRate: 0.11, houseFeeCut: 0.011, housePrizeRake: 0.05,
 };
 
 const TIER_PARAMS: readonly TierParams[] = [PIT_PARAMS, GRIND_PARAMS, ARENA_PARAMS, COURT_PARAMS];
