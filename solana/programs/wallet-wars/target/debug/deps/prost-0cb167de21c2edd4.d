@@ -1,0 +1,14 @@
+/projects/sandbox/Yoink.gg/solana/programs/wallet-wars/target/debug/deps/prost-0cb167de21c2edd4.d: /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/lib.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/error.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/message.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/name.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/types.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/varint.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/length_delimiter.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/wire_type.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/../README.md
+
+/projects/sandbox/Yoink.gg/solana/programs/wallet-wars/target/debug/deps/libprost-0cb167de21c2edd4.rmeta: /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/lib.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/error.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/message.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/name.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/types.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/varint.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/length_delimiter.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/wire_type.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/../README.md
+
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/lib.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/error.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/message.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/name.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/types.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/varint.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/length_delimiter.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/encoding/wire_type.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-0.13.5/src/../README.md:

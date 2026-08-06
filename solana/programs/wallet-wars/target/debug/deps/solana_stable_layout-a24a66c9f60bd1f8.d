@@ -1,0 +1,10 @@
+/projects/sandbox/Yoink.gg/solana/programs/wallet-wars/target/debug/deps/solana_stable_layout-a24a66c9f60bd1f8.d: /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/lib.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_instruction.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_rc.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_ref_cell.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_slice.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_vec.rs
+
+/projects/sandbox/Yoink.gg/solana/programs/wallet-wars/target/debug/deps/libsolana_stable_layout-a24a66c9f60bd1f8.rmeta: /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/lib.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_instruction.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_rc.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_ref_cell.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_slice.rs /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_vec.rs
+
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/lib.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_instruction.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_rc.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_ref_cell.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_slice.rs:
+/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-stable-layout-2.2.1/src/stable_vec.rs:

@@ -1,6 +1,11 @@
+# Anchor 0.30.1 + Solana 1.18.26 CANNOT BUILD. Every current
+# switchboard-on-demand release requires solana-program >=2, and anchor-lang
+# 0.30.1 requires ~1.18 — the two are mutually exclusive. Moved to Anchor 0.31.x,
+# which targets Solana 2.x. See programs/wallet-wars/Cargo.toml for the exact
+# solana-program pin and why it is required.
 [toolchain]
-anchor_version = "0.30.1"
-solana_version = "1.18.26"
+anchor_version = "0.31.1"
+solana_version = "2.2.1"
 
 [features]
 resolution = true
@@ -8,11 +13,11 @@ skip-lint = false
 
 [programs.localnet]
 kings_bag = "KBagXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-wallet_wars = "WWarsXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+wallet_wars = "71dQZy3UiFyTj84Z9cYUxndzsRutE1isWS47eyNs1Mfh"
 
 [programs.devnet]
 kings_bag = "KBagXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-wallet_wars = "WWarsXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+wallet_wars = "71dQZy3UiFyTj84Z9cYUxndzsRutE1isWS47eyNs1Mfh"
 
 [registry]
 url = "https://api.apr.dev"

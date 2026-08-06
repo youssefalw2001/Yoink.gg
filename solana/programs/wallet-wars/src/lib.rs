@@ -69,7 +69,7 @@ use economy::{
     tier_rates, RiskProfile, TIER_FLOORS,
 };
 
-declare_id!("WWarsXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+declare_id!("71dQZy3UiFyTj84Z9cYUxndzsRutE1isWS47eyNs1Mfh");
 
 // ─── Non-economy constants ──────────────────────────────────────────────────
 
@@ -266,8 +266,11 @@ pub mod wallet_wars {
 
         let rd = RandomnessAccountData::parse(ctx.accounts.randomness.data.borrow())
             .map_err(|_| WalletWarsError::BadRandomness)?;
+        // switchboard-on-demand 0.13 takes the CURRENT SLOT, not a &Clock. (The
+        // 0.6 API this program was written against passed a &Clock — the SDK
+        // surface changes between releases, so re-verify on any version bump.)
         let value = rd
-            .get_value(&Clock::get()?)
+            .get_value(Clock::get()?.slot)
             .map_err(|_| WalletWarsError::RandomnessNotReady)?;
 
         let roll_ppm = roll_from_vrf(&value);
