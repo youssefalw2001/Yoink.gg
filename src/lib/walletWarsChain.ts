@@ -23,7 +23,7 @@ import { PublicKey } from "@solana/web3.js";
 export const ESCROW_ENABLED = false;
 
 /** Filled in after `anchor deploy` writes the real program id. */
-export const WALLET_WARS_PROGRAM_ID = "WWarsXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+export const WALLET_WARS_PROGRAM_ID = "71dQZy3UiFyTj84Z9cYUxndzsRutE1isWS47eyNs1Mfh";
 
 /** True only when real-money escrow is live. The UI checks this to decide
  *  whether to route raids on-chain or through the local simulation. */
