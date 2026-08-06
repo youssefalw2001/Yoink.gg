@@ -36,6 +36,12 @@ const FREE: WinCardData = {
   targetWallet: "House Training Vault",
 };
 
+const MISS: WinCardData = {
+  ...PAID,
+  amountSol: 0,
+  nearMiss: { awayPct: 0.4, missedSol: 2.1 },
+};
+
 describe("buildHeadline", () => {
   it("names the cracked wallet and amount for a paid siege", () => {
     const h = buildHeadline(PAID);
@@ -92,6 +98,40 @@ describe("winCardFilename", () => {
   it("is filesystem-safe and encodes the amount", () => {
     expect(winCardFilename(PAID)).toBe("yoink-crack-2-123-sol.png");
     expect(winCardFilename(PAID)).toMatch(/^[a-z0-9-]+\.png$/);
+  });
+
+  it("distinguishes a near-miss card", () => {
+    expect(winCardFilename(MISS)).toBe("yoink-nearmiss-0-4-pct.png");
+    expect(winCardFilename(MISS)).toMatch(/^[a-z0-9-]+\.png$/);
+  });
+});
+
+describe("near-miss card (the common outcome)", () => {
+  it("leads with how close it was, not the zero payout", () => {
+    // ~88% of Pit sieges fail. A card that says "+0.000 SOL" is not shareable;
+    // "I was 0.4% away" is.
+    const h = buildHeadline(MISS);
+    expect(h).toContain("0.4% away");
+    expect(h).toContain("2.100");
+    expect(h).not.toContain("cracked");
+  });
+
+  it("share text still ends with the referral link", () => {
+    expect(buildShareText(MISS).endsWith(MISS.referralLink)).toBe(true);
+  });
+
+  it("does not claim a win or a fee multiple", () => {
+    const t = buildShareText(MISS);
+    expect(t).not.toContain("9.4×");
+    expect(t.toLowerCase()).not.toContain("just cracked");
+  });
+
+  it("a near-miss on a free siege still reads as a near miss", () => {
+    // nearMiss must take precedence over the `free` framing, otherwise a failed
+    // free siege would announce a crack that never happened.
+    const h = buildHeadline({ ...MISS, free: true });
+    expect(h).toContain("away");
+    expect(h).not.toContain("training vault");
   });
 });
 

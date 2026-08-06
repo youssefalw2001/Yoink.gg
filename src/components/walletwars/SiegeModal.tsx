@@ -510,6 +510,24 @@ export function SiegeModal({
   // Backdrop-tap → skip the strain (registered by StrainSequence while mounted).
   const skipRef = useRef<(() => void) | null>(null);
 
+  // Near-miss share state (loss screen). Mirrors the win takeover's flow.
+  const [nearMissShare, setNearMissShare] = useState<"idle" | "working" | ShareOutcome>("idle");
+
+  async function handleShareNearMiss(awayPct: number) {
+    if (!result) return;
+    setNearMissShare("working");
+    const outcome = await shareWinCard({
+      amountSol: 0,
+      targetWallet: result.targetWallet,
+      multiple: rewardMultiple,
+      free: freeMode,
+      referralCode: referralCode ?? "",
+      referralLink: referralLink ?? "",
+      nearMiss: { awayPct, missedSol: reward },
+    });
+    setNearMissShare(outcome);
+  }
+
   function toggleQuick() {
     setQuickRaid((v) => {
       const n = !v;
@@ -780,6 +798,25 @@ export function SiegeModal({
                   </div>
                   <p className="truncate font-mono text-[9px] text-dim">seed {result.seed}</p>
                 </div>
+
+                {/* SHARE THE NEAR MISS. ~88% of Pit sieges fail, so a win-only
+                    share surface ignores the common outcome — and "I was 0.4%
+                    away" is better social content than a win, because it is
+                    funnier and invites pile-on replies. */}
+                <button
+                  type="button"
+                  onClick={() => handleShareNearMiss(view.awayPct)}
+                  disabled={nearMissShare === "working"}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#FF9900]/35 bg-[#FF9900]/[0.08] py-2.5 font-mono text-[11px] font-bold text-[#FF9900] transition-colors hover:bg-[#FF9900]/[0.14] disabled:opacity-60"
+                >
+                  <Share2 className="h-3.5 w-3.5" aria-hidden />
+                  {nearMissShare === "working" ? "Building your card…"
+                    : nearMissShare === "shared" ? "Shared"
+                    : nearMissShare === "downloaded" ? "Image saved · composer open"
+                    : nearMissShare === "tweeted" ? "Composer open"
+                    : nearMissShare === "failed" ? "Share failed — try again"
+                    : `Share how close that was (${view.awayPct}%)`}
+                </button>
 
                 {/* never a dead end: siege again / find new target (3s gate) */}
                 <div className="grid w-full grid-cols-2 gap-2">

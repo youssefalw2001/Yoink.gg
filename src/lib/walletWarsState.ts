@@ -399,8 +399,8 @@ function seedBoard(at: number): Stash[] {
  * Unlike the bot vault board — which has a real gameplay function, since a
  * single-player simulation needs opponents to siege — these two counters have
  * no mechanical purpose whatsoever. Their only effect is to make the platform
- * look busier than it is. `ConnectScreen.tsx` already names that pattern
- * correctly: showing simulated metrics as traction is a rug signal.
+ * look busier than it is, and showing simulated metrics as traction is a rug
+ * signal.
  *
  * Both counters accumulate correctly from real settled sieges, so starting at
  * zero costs nothing but honesty, and the leaderboard already has a graceful
@@ -592,6 +592,67 @@ export function openVaultState(
   };
   // Opening is an explicit focus change → present a fresh heat ranking, then hold.
   return { ...state, you, stashes: sortByHeat(state.stashes, at) };
+}
+
+/** Stable id prefix for a vault injected by a challenge link. */
+export const CHALLENGE_VAULT_PREFIX = "challenge";
+
+/**
+ * Inject a vault described by an inbound challenge link onto the board.
+ *
+ * WHY INJECT RATHER THAN SPECIAL-CASE: once the challenger's vault is a normal
+ * board entry, every existing code path works on it unchanged — `resolveSiege`
+ * preconditions, tier/raid-up gating, the repeat-target tax, shields, the toll
+ * split, the war feed and the heat ranking. A bespoke "challenge siege" path
+ * would have had to re-implement all of that and would inevitably drift from
+ * the audited engine.
+ *
+ * The corpus and risk profile come from the link, so the odds the recipient is
+ * shown are exactly the ones the challenger published. Amount validation and
+ * label sanitisation happen at the trust boundary in `decodeChallenge`; this
+ * function additionally clamps defensively and is idempotent per label+amount
+ * so a refresh (or React StrictMode double-invoke) cannot stack duplicates.
+ *
+ * Returns the state unchanged when a matching challenge vault already exists.
+ */
+export function addChallengeVaultState(
+  state: WarState,
+  challenge: { amount: number; profile: RiskProfile; label: string },
+  at: number = now(),
+): WarState {
+  const amount = Number.isFinite(challenge.amount) ? Math.max(0.1, challenge.amount) : 0.1;
+  const label = (challenge.label || "A Vault Lord").slice(0, 24);
+
+  // Idempotent: same challenger + same corpus is treated as already present.
+  const already = state.stashes.some(
+    (s) => s.id.startsWith(CHALLENGE_VAULT_PREFIX) && s.wallet === label && s.amount === amount,
+  );
+  if (already) return state;
+
+  const vault: Vault = {
+    id: uid(CHALLENGE_VAULT_PREFIX),
+    wallet: label,
+    isYou: false,
+    amount,
+    // A challenge vault starts pristine: no banked tolls, no streak, so its fee
+    // and slice multiplier is exactly 1 and the advertised economics are the
+    // plain published numbers for its tier.
+    banked: 0,
+    survived: 0,
+    cracked: 0,
+    streak: 0,
+    openedAt: at,
+    shieldUntil: 0,
+    seq: 0,
+    compound: false,
+    bountyPool: 0,
+    bountyExpiry: 0,
+    riskProfile: isRiskProfile(challenge.profile) ? challenge.profile : DEFAULT_RISK_PROFILE,
+    feesEarned: 0,
+  };
+  // Put it at the head so the recipient sees the vault they were sent, then let
+  // the normal heat ranking take over on the next explicit resort.
+  return { ...state, stashes: [vault, ...state.stashes] };
 }
 
 export interface SiegeContext {
@@ -1177,6 +1238,23 @@ export function useWalletWars() {
     setState((prev) => openVaultState(prev, amount, profile, now()));
   }, [claimLeadership]);
 
+  /**
+   * Inject a challenge-link vault onto the board and return its id so the caller
+   * can open a siege straight onto it. Returns null if it was already present
+   * (idempotent), in which case the caller can look it up by label.
+   */
+  const addChallengeVault = useCallback(
+    (challenge: { amount: number; profile: RiskProfile; label: string }): string | null => {
+      claimLeadership(true);
+      const at = now();
+      const next = addChallengeVaultState(stateRef.current, challenge, at);
+      if (next === stateRef.current) return null; // already on the board
+      setState(next);
+      return next.stashes[0]?.id ?? null;
+    },
+    [claimLeadership],
+  );
+
   const cashOut = useCallback((): number => {
     claimLeadership(true);
     const { amount, state: next } = cashOutState(stateRef.current);
@@ -1494,5 +1572,5 @@ export function useWalletWars() {
     return () => clearInterval(interval);
   }, []);
 
-  return { state, openVault, cashOut, withdrawBanked, setCompound, setRiskProfile, siege, placeBounty, repeatTaxMult, resortBoard: resortBoardAction };
+  return { state, openVault, addChallengeVault, cashOut, withdrawBanked, setCompound, setRiskProfile, siege, placeBounty, repeatTaxMult, resortBoard: resortBoardAction };
 }
