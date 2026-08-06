@@ -5,11 +5,56 @@
     <link rel="icon" type="image/svg+xml" href="./yoink.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#08080f" />
+    <!--
+      TITLE / DESCRIPTION describe WALLET WARS, not The Bag.
+      The Bag is gated off behind BAG_COMING_SOON, so naming it here advertised a
+      game nobody can reach on the single line every visitor and every crawler
+      reads first.
+    -->
     <meta
       name="description"
-      content="YOINK.GG — The King's Bag. Hold the bag, win the bounty. The most dangerous 30 seconds in crypto."
+      content="Wallet Wars on Solana. Deploy SOL and earn a toll from every siege that fails against you, or pay a small fee to crack someone else's vault. Published odds, provably fair rolls, free to play."
     />
-    <title>YOINK.GG · The King's Bag</title>
+    <title>YOINK.GG · Wallet Wars — be the house</title>
+
+    <!--
+      ── LINK PREVIEWS (Open Graph + Twitter) ────────────────────────────────
+      Without these, every challenge link and referral link the app generates
+      renders as a bare grey URL on Twitter, Telegram, Discord and iMessage —
+      which guts the click-through of the exact growth loops the product is
+      built around. A shareable product with no preview card is a shop with no
+      sign.
+
+      og:image MUST be an absolute URL — crawlers do not resolve the relative
+      `base: "./"` the app itself uses. Update the two absolute URLs below if the
+      site moves to a custom domain.
+
+      public/og.png is generated from scripts/og-card.html via scripts/make-og.sh
+      (headless screenshot, verified to be exactly 1200x630) so it can be edited
+      and re-derived rather than being an opaque binary.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="YOINK.GG" />
+    <meta property="og:title" content="Wallet Wars — in every other app the house wins" />
+    <meta
+      property="og:description"
+      content="Here you can be the house. Deploy SOL and earn a toll from every failed siege, or crack someone else's vault. Published odds, provably fair, free to play."
+    />
+    <meta property="og:url" content="https://youssefalw2001.github.io/Yoink.gg/" />
+    <meta property="og:image" content="https://youssefalw2001.github.io/Yoink.gg/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="WALLET WARS — in every other app the house wins. Here you can be the house." />
+
+    <!-- summary_large_image gives the full-width card; `summary` would crop to a thumbnail. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Wallet Wars — in every other app the house wins" />
+    <meta
+      name="twitter:description"
+      content="Here you can be the house. Published odds, provably fair rolls, free to play on Solana."
+    />
+    <meta name="twitter:image" content="https://youssefalw2001.github.io/Yoink.gg/og.png" />
+    <meta name="twitter:image:alt" content="WALLET WARS — in every other app the house wins. Here you can be the house." />
 
     <!-- Preload critical font (Orbitron for display headings — first thing users read) -->
     <link
